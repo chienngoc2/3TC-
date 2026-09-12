@@ -1,115 +1,166 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Sports Center Management System - Backend API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+> Hệ thống API dịch vụ trung tâm (Core RESTful & Realtime API) cho nền tảng Quản lý Trung tâm Thể thao, hỗ trợ điều phối nghiệp vụ, kiểm soát giao dịch đặt lịch và luồng phản hồi trí tuệ nhân tạo (AI Streaming).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+[![NestJS](https://img.shields.io/badge/NestJS-v10.x-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
+[![Node.js](https://img.shields.io/badge/Node.js-v20.x_LTS-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-v5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-v5.x-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io/)
+[![PostgreSQL](https://img.shields.io/badge/Supabase_PostgreSQL-v15.x-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
+[![Redis](https://img.shields.io/badge/Redis-v7.x-DC382D?logo=redis&logoColor=white)](https://redis.io/)
+[![Socket.io](https://img.shields.io/badge/Socket.io-v4.x-010101?logo=socketdotio&logoColor=white)](https://socket.io/)
+[![BullMQ](https://img.shields.io/badge/BullMQ-v5.x-FF4438)](https://bullmq.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## 1. Quick Start
 
-## Project setup
+### Yêu cầu tiên quyết
+* **Node.js**: `v20.x LTS` hoặc mới hơn
+* **Package Manager**: `npm` hoặc `pnpm`
+* **Docker & Docker Compose**: Dùng để chạy Redis cục bộ (nếu chưa có cụm Redis ngoài)
+* **Tài khoản Supabase**: Đã tạo project PostgreSQL (kèm extension `pgvector` kích hoạt sẵn)
 
-```bash
-$ npm install
+### Các bước cài đặt
+
+1. **Clone repository:**
+   ```bash
+   git clone https://github.com/your-org/sports-center-backend.git
+   cd sports-center-backend
+   ```
+
+2. **Cài đặt dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Cấu hình biến môi trường:**
+   Tạo file `.env` từ `.env.example`:
+   ```bash
+   cp .env.example .env
+   ```
+   Cập nhật các tham số cấu hình:
+   ```env
+   PORT=3000
+   NODE_ENV=development
+
+   # Supabase Database (Lưu ý dùng Transaction Pooler cổng 6543)
+   DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true"
+   DIRECT_URL="postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
+
+   # Redis Configuration
+   REDIS_HOST="127.0.0.1"
+   REDIS_PORT=6379
+   REDIS_PASSWORD=""
+
+   # JWT Secrets
+   JWT_ACCESS_SECRET="your_access_token_secret_key"
+   JWT_ACCESS_EXPIRES_IN="15m"
+   JWT_REFRESH_SECRET="your_refresh_token_secret_key"
+   JWT_REFRESH_EXPIRES_IN="7d"
+
+   # AI LLM Provider
+   GEMINI_API_KEY="your_gemini_api_key"
+   ```
+
+4. **Khởi chạy Redis (Docker):**
+   ```bash
+   docker-compose up -d redis
+   ```
+
+5. **Đồng bộ cơ sở dữ liệu và seed dữ liệu khởi tạo:**
+   ```bash
+   npx prisma migrate dev --name init
+   npm run prisma:seed
+   ```
+
+6. **Khởi động server phát triển:**
+   ```bash
+   npm run start:dev
+   ```
+   * API Server: `http://localhost:3000/api/v1`
+   * Swagger Documentation: `http://localhost:3000/docs`
+
+---
+
+## 2. Structure Tree & Architecture
+
+Hệ thống được thiết kế theo mô hình **Modular Monolith** kết hợp **Clean Architecture Principles**. Mỗi domain nghiệp vụ được đóng gói thành một NestJS Module riêng biệt với Controller, Service, DTO, Repository abstraction.
+
+```text
+backend/
+├── prisma/
+│   ├── migrations/                    # Lịch sử migrations của Prisma
+│   ├── schema.prisma                  # Lược đồ cơ sở dữ liệu quan hệ (PostgreSQL)
+│   └── seed.ts                        # Script tạo dữ liệu mẫu ban đầu
+├── src/
+│   ├── common/                        # Thành phần chia sẻ xuyên suốt các modules
+│   │   ├── constants/                 # Biến tĩnh, mã lỗi chuẩn hóa
+│   │   ├── decorators/                # Custom decorators: @Roles(), @CurrentUser(), @Public()
+│   │   ├── filters/                   # Global exception filters (HttpExceptionFilter)
+│   │   ├── guards/                    # JwtAuthGuard, RolesGuard (RBAC 4 roles)
+│   │   ├── interceptors/              # Response transform, Logging interceptor
+│   │   ├── pipes/                     # Zod/ValidationPipe kiểm tra DTO
+│   │   └── utils/                     # Hàm tiện ích tính toán ngày, mã hóa
+│   ├── config/                        # Quản lý env, cấu hình Supabase, Redis, JWT
+│   ├── database/                      # PrismaService kết nối Supabase Pooler
+│   ├── infrastructure/                # Các dịch vụ nền tảng bên ngoài
+│   │   ├── queue/                     # BullMQ setup (background jobs, send mail, auto-cancel)
+│   │   ├── redis/                     # Redis Client & Redlock (Distributed lock)
+│   │   ├── socket/                    # Socket.io Gateway cho realtime notifications
+│   │   └── storage/                   # Supabase Storage S3-compatible service
+│   ├── modules/                       # Từng Module nghiệp vụ độc lập
+│   │   ├── ai-assistant/              # Tích hợp LLM, SSE streaming endpoint, pgvector query
+│   │   ├── analytics/                 # Báo cáo doanh thu, tỷ lệ lấp đầy, retention
+│   │   ├── attendances/               # Điểm danh tại quầy & trong ca dạy của HLV
+│   │   ├── auth/                      # Đăng nhập, cấp phát JWT Access/Refresh Token
+│   │   ├── billing/                   # Hóa đơn, giao dịch thanh toán quầy/online
+│   │   ├── bookings/                  # Đặt chỗ, hủy chỗ, Pessimistic lock slot
+│   │   ├── classes/                   # Quản lý môn học, phòng tập, ca học định kỳ
+│   │   ├── memberships/               # Gói thành viên, quy định số buổi, gia hạn
+│   │   └── users/                     # Quản trị 4 roles: Manager, Coach, Receptionist, Member
+│   ├── app.module.ts                  # Root Application Module
+│   └── main.ts                        # Entry point: Swagger, CORS, Global pipes & filters
+├── test/                              # Unit test (Jest) & E2E integration test
+├── Dockerfile                         # Multi-stage production build
+├── docker-compose.yml                 # Khởi chạy Redis & phụ trợ cục bộ
+├── package.json
+└── tsconfig.json
 ```
 
-## Compile and run the project
+---
 
-```bash
-# development
-$ npm run start
+## 3. Coding Conventions
 
-# watch mode
-$ npm run start:dev
+Dự án tuân thủ nghiêm ngặt các quy chuẩn kỹ thuật của cộng đồng TypeScript và NestJS:
 
-# production mode
-$ npm run start:prod
-```
+### 3.1. Git Branching Model (Gitflow rút gọn)
+* `main`: Nhánh production, luôn ở trạng thái sẵn sàng release (chỉ merge qua Pull Request từ `dev`).
+* `dev`: Nhánh tích hợp chính cho môi trường staging.
+* `feature/<tên-tính-năng>`: Nhánh phát triển tính năng mới (vd: `feature/booking-lock-slot`, `feature/ai-sse-stream`).
+* `fix/<mã-lỗi>` hoặc `bugfix/<vấn-đề>`: Nhánh sửa lỗi trên develop (vd: `fix/overbooking-race-condition`).
+* `hotfix/<phiên-bản>`: Sửa lỗi khẩn cấp trực tiếp từ `main`.
 
-## Run tests
+### 3.2. Git Commit Convention (Conventional Commits)
+Mỗi commit message tuân theo cấu trúc: `type(scope): description`
+* `feat`: Thêm tính năng mới (vd: `feat(bookings): implement row-level locking for class reservation`)
+* `fix`: Sửa lỗi (vd: `fix(auth): resolve refresh token expiration mismatch`)
+* `refactor`: Tái cấu trúc mã nguồn không thay đổi logic nghiệp vụ (vd: `refactor(billing): extract invoice calculation helper`)
+* `perf`: Tối ưu hiệu năng (vd: `perf(classes): add index on schedule_id and start_time`)
+* `docs`: Cập nhật tài liệu kỹ thuật, Swagger hoặc README
+* `chore`: Cập nhật cấu hình, dependencies, script build
 
-```bash
-# unit tests
-$ npm run test
+### 3.3. Naming Conventions & Code Style
+* **Files & Folders**: Đặt theo định dạng `kebab-case` kèm định danh vai trò (vd: `booking-transaction.service.ts`, `create-class.dto.ts`).
+* **Classes & Interfaces**: Đặt theo định dạng `PascalCase` (vd: `RolesGuard`, `CreateMemberDto`, `IAuthPayload`).
+* **Methods & Variables**: Đặt theo định dạng `camelCase` (vd: `calculateMonthlyRevenue()`, `activeMembershipCount`).
+* **Constants & Enums**: Đặt theo định dạng `UPPER_SNAKE_CASE` (vd: `DEFAULT_PAGE_SIZE`, `ROLE_MANAGER`).
+* **Linter & Formatter**: Toàn bộ codebase phải vượt qua kiểm tra của `eslint` và `prettier` trước khi tạo Pull Request (`npm run lint`).
 
-# e2e tests
-$ npm run test:e2e
+---
 
-# test coverage
-$ npm run test:cov
-```
+## 4. License
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
-"# BE_Sports_Center_Management_System" 
+Dự án được phân phối dưới giấy phép mã nguồn mở [MIT License](LICENSE).  
+Bản quyền thuộc về © 2026 Sports Center Management System Team.
