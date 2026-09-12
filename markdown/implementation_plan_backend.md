@@ -67,7 +67,7 @@ backend/
 
 ### Phase 1: Setup Môi trường & Cơ sở dữ liệu nền tảng (Tuần 1 - 2)
 * Khởi tạo dự án NestJS (CommonJS + Jest).
-* Viết file `schema.prisma` cho toàn bộ các thực thể: `User`, `Role`, `MembershipPlan`, `UserSubscription`, `Class`, `Room`, `Schedule`, `Booking`, `Attendance`, `Invoice`.
+* Viết file `schema.prisma` cho toàn bộ các thực thể như đã đinh nghĩa trong erd_SQL_v2.md
 * Kết nối Supabase PostgreSQL qua Transaction Pooler (cổng 6543).
 * Chạy initial migration và viết script `prisma/seed.ts` để tạo dữ liệu tài khoản mẫu (1 Manager, 2 Coaches, 1 Receptionist, 1 Member) và các phòng tập.
 * Cấu hình Redis, Docker Compose chạy cục bộ.
