@@ -26,8 +26,8 @@
 
 1. **Clone repository:**
    ```bash
-   git clone https://github.com/your-org/sports-center-backend.git
-   cd sports-center-backend
+   git clone https://github.com/Sports-Center-Management-System/BE_Sports_Center_Management_System.git
+   cd BE_Sports_Center_Management_System
    ```
 
 2. **Cài đặt dependencies:**
