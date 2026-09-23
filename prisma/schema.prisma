@@ -10,11 +10,12 @@ generator client {
 }
 
 // -------------------------------------------------------------
-// ENUMS
+// ENUMS (10 Enums - Aligned 100% with SQL_v5.md)
 // -------------------------------------------------------------
 
 enum UserRole {
-  MANAGER
+  ADMIN
+  CENTER_MANAGER
   COACH
   RECEPTIONIST
   MEMBER
@@ -28,6 +29,13 @@ enum SubscriptionStatus {
   FROZEN
 
   @@map("subscription_status")
+}
+
+enum BookingType {
+  GROUP_CLASS
+  PERSONAL_TRAINING
+
+  @@map("booking_type")
 }
 
 enum BookingStatus {
@@ -64,8 +72,49 @@ enum InvoiceStatus {
   @@map("invoice_status")
 }
 
+enum PlanType {
+  GENERAL
+  PERSONAL_TRAINING
+
+  @@map("plan_type")
+}
+
+enum TrainingMode {
+  GROUP_CLASS
+  PERSONAL_TRAINING
+  HYBRID
+  CUSTOM
+
+  @@map("training_mode")
+}
+
+enum PackageTier {
+  TRIAL
+  DROP_IN
+  PLUS
+  VIP
+
+  @@map("package_tier")
+}
+
+enum InvoiceType {
+  SUBSCRIPTION_NEW
+  PT_ADDON
+  DROP_IN
+
+  @@map("invoice_type")
+}
+
+enum LockerStatus {
+  AVAILABLE
+  OCCUPIED
+  MAINTENANCE
+
+  @@map("locker_status")
+}
+
 // -------------------------------------------------------------
-// MODELS
+// MODELS (27 Models - Aligned 100% with SQL_v5.md)
 // -------------------------------------------------------------
 
 model User {
@@ -77,22 +126,37 @@ model User {
   role         UserRole @default(MEMBER)
   avatarUrl    String?  @map("avatar_url") @db.Text
   isActive     Boolean  @default(true) @map("is_active")
+  createdById  String?  @map("created_by_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Self-relation: Phân cấp người tạo tài khoản
+  createdBy    User?  @relation("UserCreator", fields: [createdById], references: [id], onDelete: SetNull, map: "fk_users_created_by")
+  createdUsers User[] @relation("UserCreator")
 
   // Relations
   memberProfile       MemberProfile?
   coachProfile        CoachProfile?
-  subscriptions       UserSubscription[]
-  issuedInvoices      Invoice[]            @relation("InvoiceIssuer")
-  coachedSchedules    Schedule[]           @relation("CoachSchedules")
+  coachRates          CoachRate[]
+  coachAvailabilities CoachAvailability[]
+  subscriptions       UserSubscription[]  @relation("UserSubscriptions")
+  assignedVipSubs     UserSubscription[]  @relation("AssignedCoachSubs")
+  issuedInvoices      Invoice[]           @relation("InvoiceIssuer")
+  coachedSchedules    Schedule[]          @relation("CoachSchedules")
   bookings            Booking[]
-  attendances         Attendance[]         @relation("MemberAttendances")
-  verifiedAttendances Attendance[]         @relation("VerifiedByStaff")
-  memberWorkoutPlans  WorkoutPlan[]        @relation("MemberWorkoutPlans")
-  coachWorkoutPlans   WorkoutPlan[]        @relation("CoachWorkoutPlans")
+  attendances         Attendance[]        @relation("MemberAttendances")
+  verifiedAttendances Attendance[]        @relation("VerifiedByStaff")
+  staffShifts         StaffShift[]        @relation("StaffShifts")
+  assignedStaffShifts StaffShift[]        @relation("AssignedShifts")
+  memberWorkoutPlans  WorkoutPlan[]       @relation("MemberWorkoutPlans")
+  coachWorkoutPlans   WorkoutPlan[]       @relation("CoachWorkoutPlans")
+  memberInbodyLogs    MemberInbodyLog[]   @relation("MemberInbodyLogs")
+  measuredInbodyLogs  MemberInbodyLog[]   @relation("MeasuredByStaff")
+  lockerAssignments   LockerAssignment[]  @relation("MemberLockerAssignments")
+  assignedLockers     LockerAssignment[]  @relation("StaffLockerAssignments")
   auditLogs           AuditLog[]
 
+  @@index([createdById], map: "idx_users_created_by_id")
   @@map("users")
 }
 
@@ -121,42 +185,152 @@ model CoachProfile {
   yearsExperience Int?     @default(0) @map("years_experience")
   updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_coach_profiles_user")
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_coach_profiles_user")
+  coachSpecialties CoachSpecialty[]
 
   @@map("coach_profiles")
 }
 
-model MembershipPlan {
+model CoachRate {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId        String    @map("coach_id") @db.Uuid
+  ratePerSession Decimal   @map("rate_per_session") @db.Decimal(12, 2)
+  effectiveFrom  DateTime  @default(now()) @map("effective_from") @db.Date
+  effectiveTo    DateTime? @map("effective_to") @db.Date
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_rates_coach")
+
+  @@index([coachId], map: "idx_coach_rates_coach_id")
+  @@map("coach_rates")
+}
+
+model StaffShift {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String   @db.VarChar(100)
-  description  String?  @db.Text
-  price        Decimal  @db.Decimal(12, 2)
-  durationDays Int      @map("duration_days")
-  sessionQuota Int?     @map("session_quota")
-  isActive     Boolean  @default(true) @map("is_active")
+  staffId      String   @map("staff_id") @db.Uuid
+  shiftDate    DateTime @map("shift_date") @db.Date
+  startTime    DateTime @map("start_time") @db.Timestamptz(6)
+  endTime      DateTime @map("end_time") @db.Timestamptz(6)
+  assignedById String?  @map("assigned_by_id") @db.Uuid
+  notes        String?  @db.Text
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  subscriptions UserSubscription[]
+  staff      User  @relation("StaffShifts", fields: [staffId], references: [id], onDelete: Cascade, map: "fk_staff_shifts_staff")
+  assignedBy User? @relation("AssignedShifts", fields: [assignedById], references: [id], onDelete: SetNull, map: "fk_staff_shifts_assigned_by")
+
+  @@index([staffId], map: "idx_staff_shifts_staff_id")
+  @@index([shiftDate], map: "idx_staff_shifts_shift_date")
+  @@map("staff_shifts")
+}
+
+model Discipline {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String  @unique(map: "uq_disciplines_code") @db.VarChar(50)
+  name        String  @unique(map: "uq_disciplines_name") @db.VarChar(100)
+  description String? @db.Text
+
+  plans                  MembershipPlan[]
+  classes                Class[]
+  curriculumRequirements PlanCurriculumRequirement[]
+  specialties            Specialty[]
+  userSubscriptions      UserSubscription[]
+  bookings               Booking[]
+
+  @@map("disciplines")
+}
+
+model Specialty {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disciplineId String   @map("discipline_id") @db.Uuid
+  code         String   @unique(map: "uq_specialties_code") @db.VarChar(50)
+  name         String   @db.VarChar(150)
+  description  String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  discipline       Discipline       @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_specialties_discipline")
+  coachSpecialties CoachSpecialty[]
+
+  @@index([disciplineId], map: "idx_specialties_discipline_id")
+  @@map("specialties")
+}
+
+model CoachSpecialty {
+  coachProfileId String   @map("coach_profile_id") @db.Uuid
+  specialtyId    String   @map("specialty_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  coachProfile CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade, map: "fk_coach_spec_profile")
+  specialty    Specialty    @relation(fields: [specialtyId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_coach_spec_specialty")
+
+  @@id([coachProfileId, specialtyId])
+  @@index([specialtyId], map: "idx_coach_specialties_spec_id")
+  @@map("coach_specialties")
+}
+
+model MembershipPlan {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disciplineId      String?      @map("discipline_id") @db.Uuid
+  name              String       @db.VarChar(100)
+  description       String?      @db.Text
+  price             Decimal      @db.Decimal(12, 2)
+  durationDays      Int          @map("duration_days")
+  sessionQuota      Int?         @map("session_quota")
+  planType          PlanType     @default(GENERAL) @map("plan_type")
+  isActive          Boolean      @default(true) @map("is_active")
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  packageTier       PackageTier  @default(PLUS) @map("package_tier")
+  trainingMode      TrainingMode @default(GROUP_CLASS) @map("training_mode")
+  groupSessionQuota Int?         @default(0) @map("group_session_quota")
+  ptSessionQuota    Int?         @default(0) @map("pt_session_quota")
+  unlimitedGymEntry Boolean?     @default(false) @map("unlimited_gym_entry")
+
+  discipline             Discipline?                 @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_plans_discipline")
+  subscriptions          UserSubscription[]
+  curriculumRequirements PlanCurriculumRequirement[]
 
   @@map("membership_plans")
 }
 
-model UserSubscription {
-  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String             @map("user_id") @db.Uuid
-  planId            String             @map("plan_id") @db.Uuid
-  startDate         DateTime           @map("start_date") @db.Date
-  endDate           DateTime           @map("end_date") @db.Date
-  remainingSessions Int?               @map("remaining_sessions")
-  status            SubscriptionStatus @default(ACTIVE)
-  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+model PlanCurriculumRequirement {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId          String   @map("plan_id") @db.Uuid
+  disciplineId    String   @map("discipline_id") @db.Uuid
+  sessionsPerWeek Int      @map("sessions_per_week")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  user     User           @relation(fields: [userId], references: [id], onDelete: Restrict, map: "fk_user_subscriptions_user")
-  plan     MembershipPlan @relation(fields: [planId], references: [id], onDelete: Restrict, map: "fk_user_subscriptions_plan")
-  invoices Invoice[]
+  plan       MembershipPlan @relation(fields: [planId], references: [id], onDelete: Cascade, map: "fk_curriculum_plan")
+  discipline Discipline     @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_curriculum_discipline")
+
+  @@unique([planId, disciplineId], map: "uq_curriculum_plan_discipline")
+  @@index([planId], map: "idx_curriculum_plan_id")
+  @@map("plan_curriculum_requirements")
+}
+
+model UserSubscription {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                String             @map("user_id") @db.Uuid
+  planId                String             @map("plan_id") @db.Uuid
+  disciplineId          String?            @map("discipline_id") @db.Uuid
+  packageTier           PackageTier        @default(PLUS) @map("package_tier")
+  assignedCoachId       String?            @map("assigned_coach_id") @db.Uuid
+  startDate             DateTime           @map("start_date") @db.Date
+  endDate               DateTime           @map("end_date") @db.Date
+  remainingSessions     Int?               @map("remaining_sessions")
+  remainingGroupSessions Int?              @default(0) @map("remaining_group_sessions")
+  remainingPtSessions   Int?               @default(0) @map("remaining_pt_sessions")
+  hasUnlimitedGymAccess Boolean?           @default(false) @map("has_unlimited_gym_access")
+  status                SubscriptionStatus @default(ACTIVE)
+  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user          User           @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Restrict, map: "fk_user_subscriptions_user")
+  plan          MembershipPlan @relation(fields: [planId], references: [id], onDelete: Restrict, map: "fk_user_subscriptions_plan")
+  discipline    Discipline?    @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_user_subscriptions_discipline")
+  assignedCoach User?          @relation("AssignedCoachSubs", fields: [assignedCoachId], references: [id], onDelete: SetNull, map: "fk_user_subscriptions_coach")
+  invoices      Invoice[]
 
   @@index([userId], map: "idx_user_subscriptions_user_id")
   @@index([planId], map: "idx_user_subscriptions_plan_id")
+  @@index([assignedCoachId], map: "idx_user_subscriptions_coach_id")
   @@map("user_subscriptions")
 }
 
@@ -166,8 +340,11 @@ model Invoice {
   subscriptionId String        @map("subscription_id") @db.Uuid
   issuerId       String        @map("issuer_id") @db.Uuid
   amount         Decimal       @db.Decimal(12, 2)
+  baseAmount     Decimal?      @default(0) @map("base_amount") @db.Decimal(12, 2)
+  ptAmount       Decimal?      @default(0) @map("pt_amount") @db.Decimal(12, 2)
   paymentMethod  PaymentMethod @map("payment_method")
   status         InvoiceStatus @default(PAID)
+  type           InvoiceType   @default(SUBSCRIPTION_NEW)
   transactionRef String?       @map("transaction_ref") @db.VarChar(100)
   createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -180,26 +357,32 @@ model Invoice {
   @@map("invoices")
 }
 
-model Discipline {
-  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String  @unique(map: "uq_disciplines_name") @db.VarChar(100)
-  description String? @db.Text
-
-  classes Class[]
-
-  @@map("disciplines")
-}
-
 model Room {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String   @db.VarChar(100)
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String  @db.VarChar(100)
   capacity     Int
-  locationNote String?  @map("location_note") @db.Text
-  isActive     Boolean  @default(true) @map("is_active")
+  locationNote String? @map("location_note") @db.Text
+  isActive     Boolean @default(true) @map("is_active")
 
   schedules Schedule[]
+  equipment Equipment[]
 
   @@map("rooms")
+}
+
+model Equipment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId        String   @map("room_id") @db.Uuid
+  name          String   @db.VarChar(150)
+  equipmentType String   @map("equipment_type") @db.VarChar(50)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  room         Room                   @relation(fields: [roomId], references: [id], onDelete: Restrict, map: "fk_equipment_room")
+  reservations EquipmentReservation[]
+
+  @@index([roomId], map: "idx_equipment_room_id")
+  @@map("equipment")
 }
 
 model Class {
@@ -238,20 +421,60 @@ model Schedule {
   @@map("schedules")
 }
 
+model CoachAvailability {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId   String   @map("coach_id") @db.Uuid
+  startTime DateTime @map("start_time") @db.Timestamptz(6)
+  endTime   DateTime @map("end_time") @db.Timestamptz(6)
+  isBooked  Boolean  @default(false) @map("is_booked")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  coach    User      @relation(fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_availability_coach")
+  bookings Booking[]
+
+  @@index([coachId], map: "idx_coach_availability_coach_id")
+  @@index([startTime], map: "idx_coach_availability_start_time")
+  @@map("coach_availability")
+}
+
 model Booking {
-  id         String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  scheduleId String        @map("schedule_id") @db.Uuid
-  memberId   String        @map("member_id") @db.Uuid
-  status     BookingStatus @default(CONFIRMED)
-  bookedAt   DateTime      @default(now()) @map("booked_at") @db.Timestamptz(6)
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingType         BookingType   @default(GROUP_CLASS) @map("booking_type")
+  disciplineId        String?       @map("discipline_id") @db.Uuid
+  scheduleId          String?       @map("schedule_id") @db.Uuid
+  coachAvailabilityId String?       @map("coach_availability_id") @db.Uuid
+  memberId            String        @map("member_id") @db.Uuid
+  status              BookingStatus @default(CONFIRMED)
+  bookedAt            DateTime      @default(now()) @map("booked_at") @db.Timestamptz(6)
 
-  schedule   Schedule    @relation(fields: [scheduleId], references: [id], onDelete: Cascade, map: "fk_bookings_schedule")
-  member     User        @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "fk_bookings_member")
-  attendance Attendance?
+  discipline           Discipline?           @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_bookings_discipline")
+  schedule             Schedule?             @relation(fields: [scheduleId], references: [id], onDelete: Cascade, map: "fk_bookings_schedule")
+  coachAvailability    CoachAvailability?    @relation(fields: [coachAvailabilityId], references: [id], onDelete: Cascade, map: "fk_bookings_coach_availability")
+  member               User                  @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "fk_bookings_member")
+  attendance           Attendance?
+  equipmentReservation EquipmentReservation?
 
+  @@index([disciplineId], map: "idx_bookings_discipline_id")
   @@index([scheduleId], map: "idx_bookings_schedule_id")
+  @@index([coachAvailabilityId], map: "idx_bookings_coach_availability_id")
   @@index([memberId], map: "idx_bookings_member_id")
   @@map("bookings")
+}
+
+model EquipmentReservation {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  equipmentId String   @map("equipment_id") @db.Uuid
+  bookingId   String   @unique(map: "uq_equipment_reservation_booking") @map("booking_id") @db.Uuid
+  startTime   DateTime @map("start_time") @db.Timestamptz(6)
+  endTime     DateTime @map("end_time") @db.Timestamptz(6)
+  reservedAt  DateTime @default(now()) @map("reserved_at") @db.Timestamptz(6)
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade, map: "fk_equipment_reservations_equipment")
+  booking   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade, map: "fk_equipment_reservations_booking")
+
+  @@index([equipmentId], map: "idx_equipment_reservations_equipment_id")
+  @@index([startTime, endTime], map: "idx_equipment_reservations_time")
+  @@map("equipment_reservations")
 }
 
 model Attendance {
@@ -262,6 +485,7 @@ model Attendance {
   checkInTime  DateTime         @default(now()) @map("check_in_time") @db.Timestamptz(6)
   status       AttendanceStatus @default(PRESENT)
   checkinType  String           @default("CLASS_SESSION") @map("checkin_type") @db.VarChar(20)
+  towelIssued  Boolean?         @default(false) @map("towel_issued")
   notes        String?          @db.Text
 
   booking    Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull, map: "fk_attendances_booking")
@@ -272,6 +496,55 @@ model Attendance {
   @@index([verifiedById], map: "idx_attendances_verified_by_id")
   @@index([checkInTime], map: "idx_attendances_check_in_time")
   @@map("attendances")
+}
+
+model MemberInbodyLog {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  measuredById     String?  @map("measured_by_id") @db.Uuid
+  heightCm         Decimal  @map("height_cm") @db.Decimal(5, 2)
+  weightKg         Decimal  @map("weight_kg") @db.Decimal(5, 2)
+  muscleMassKg     Decimal? @map("muscle_mass_kg") @db.Decimal(5, 2)
+  bodyFatPct       Decimal? @map("body_fat_pct") @db.Decimal(4, 2)
+  bmi              Decimal? @map("bmi") @db.Decimal(4, 2)
+  visceralFatLevel Int?     @map("visceral_fat_level")
+  notes            String?  @db.Text
+  measuredAt       DateTime @default(now()) @map("measured_at") @db.Timestamptz(6)
+
+  user       User  @relation("MemberInbodyLogs", fields: [userId], references: [id], onDelete: Cascade, map: "fk_inbody_user")
+  measuredBy User? @relation("MeasuredByStaff", fields: [measuredById], references: [id], onDelete: SetNull, map: "fk_inbody_measurer")
+
+  @@index([userId, measuredAt], map: "idx_member_inbody_user_id")
+  @@map("member_inbody_logs")
+}
+
+model Locker {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lockerNumber String       @unique(map: "uq_lockers_number") @map("locker_number") @db.VarChar(20)
+  zone         String       @db.VarChar(50)
+  status       LockerStatus @default(AVAILABLE)
+  isActive     Boolean      @default(true) @map("is_active")
+
+  assignments LockerAssignment[]
+
+  @@map("lockers")
+}
+
+model LockerAssignment {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lockerId     String    @map("locker_id") @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  assignedById String?   @map("assigned_by_id") @db.Uuid
+  assignedAt   DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  returnedAt   DateTime? @map("returned_at") @db.Timestamptz(6)
+  notes        String?   @db.Text
+
+  locker     Locker @relation(fields: [lockerId], references: [id], onDelete: Restrict, map: "fk_locker_assign_locker")
+  user       User   @relation("MemberLockerAssignments", fields: [userId], references: [id], onDelete: Cascade, map: "fk_locker_assign_user")
+  assignedBy User?  @relation("StaffLockerAssignments", fields: [assignedById], references: [id], onDelete: SetNull, map: "fk_locker_assign_staff")
+
+  @@index([userId], map: "idx_locker_assign_user")
+  @@map("locker_assignments")
 }
 
 model WorkoutPlan {
@@ -292,10 +565,10 @@ model WorkoutPlan {
 }
 
 model ExerciseKnowledge {
-  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title        String  @db.VarChar(150)
-  category     String  @db.VarChar(50)
-  instructions String  @db.Text
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String @db.VarChar(150)
+  category     String @db.VarChar(50)
+  instructions String @db.Text
 
   exercises WorkoutExercise[]
 

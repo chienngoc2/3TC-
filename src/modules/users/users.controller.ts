@@ -23,16 +23,16 @@ import { UserRole } from '@prisma/client';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Roles(UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.CENTER_MANAGER)
   @Post()
-  @ApiOperation({ summary: 'Tạo tài khoản mới (Chỉ Manager)' })
+  @ApiOperation({ summary: 'Tạo tài khoản mới (Admin tạo CM/Coach; CM tạo Staff/Coach)' })
   async createUser(@Body() dto: CreateUserDto) {
     return this.usersService.createUser(dto);
   }
 
-  @Roles(UserRole.MANAGER, UserRole.RECEPTIONIST)
+  @Roles(UserRole.ADMIN, UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
   @Get()
-  @ApiOperation({ summary: 'Lấy danh sách người dùng (Manager, Receptionist)' })
+  @ApiOperation({ summary: 'Lấy danh sách người dùng (Admin, Center Manager, Receptionist)' })
   @ApiQuery({ name: 'role', enum: UserRole, required: false })
   async findAll(@Query('role') role?: UserRole) {
     return this.usersService.findAll(role);
@@ -44,10 +44,11 @@ export class UsersController {
     return this.usersService.findById(userId);
   }
 
-  @Roles(UserRole.MANAGER, UserRole.RECEPTIONIST, UserRole.COACH)
+  @Roles(UserRole.ADMIN, UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST, UserRole.COACH)
   @Get(':id')
   @ApiOperation({ summary: 'Lấy chi tiết người dùng theo ID' })
   async findById(@Param('id') id: string) {
     return this.usersService.findById(id);
   }
 }
+
