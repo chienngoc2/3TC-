@@ -1,4 +1,17 @@
-import { IsString, IsUUID, IsOptional, IsInt, Min, Max, IsBoolean, IsEnum, IsDateString, IsNumber, MaxLength, IsArray, ArrayUnique } from 'class-validator';
+import {
+  IsString,
+  IsUUID,
+  IsOptional,
+  IsInt,
+  Min,
+  Max,
+  IsEnum,
+  IsDateString,
+  IsNumber,
+  MaxLength,
+  IsArray,
+  ArrayUnique,
+} from 'class-validator';
 import { LockerStatus } from '@prisma/client';
 import { PartialType } from '@nestjs/swagger';
 export class DisciplineDto {
@@ -13,7 +26,12 @@ export class SpecialtyDto {
   @IsOptional() @IsString() description?: string;
 }
 export class UpdateSpecialtyDto extends PartialType(SpecialtyDto) {}
-export class AssignSpecialtiesDto { @IsArray() @ArrayUnique() @IsUUID('all', { each: true }) specialtyIds: string[]; }
+export class AssignSpecialtiesDto {
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  specialtyIds: string[];
+}
 export class RoomDto {
   @IsString() @MaxLength(100) name: string;
   @IsInt() @Min(1) @Max(1000) capacity: number;
@@ -41,6 +59,7 @@ export class RateDto {
   @IsDateString({ strict: true }) effectiveFrom: string;
   @IsOptional() @IsDateString({ strict: true }) effectiveTo?: string;
 }
+export class UpdateRateDto extends PartialType(RateDto) {}
 export class ShiftDto extends SlotDto {
   @IsUUID() staffId: string;
   @IsDateString() shiftDate: string;
@@ -49,9 +68,16 @@ export class ShiftDto extends SlotDto {
 export class UpdateShiftDto extends PartialType(ShiftDto) {}
 export class LockerDto {
   @IsString() @MaxLength(20) lockerNumber: string;
-  @IsEnum({ MALE_LOCKER: 'MALE_LOCKER', FEMALE_LOCKER: 'FEMALE_LOCKER', VIP_AREA: 'VIP_AREA' }) zone: string;
+  @IsEnum({
+    MALE_LOCKER: 'MALE_LOCKER',
+    FEMALE_LOCKER: 'FEMALE_LOCKER',
+    VIP_AREA: 'VIP_AREA',
+  })
+  zone: string;
 }
-export class LockerStatusDto { @IsEnum(LockerStatus) status: LockerStatus; }
+export class LockerStatusDto {
+  @IsEnum(LockerStatus) status: LockerStatus;
+}
 export class InbodyDto {
   @IsUUID() userId: string;
   @IsNumber() @Min(1) @Max(300) heightCm: number;

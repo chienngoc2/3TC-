@@ -1,3 +1,7 @@
+import { WorkoutPlansModule } from './modules/workout-plans/workout-plans.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { AttendancesModule } from './modules/attendances/attendances.module';
+import { RealtimeModule } from './infrastructure/realtime/realtime.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { SchedulesModule } from './modules/schedules/schedules.module';
 import { BillingModule } from './modules/billing/billing.module';
@@ -33,6 +37,10 @@ import { SystemModule } from './modules/system/system.module';
     MembershipsModule,
     BillingModule,
     SchedulesModule,
+    WorkoutPlansModule,
+    AnalyticsModule,
+    AttendancesModule,
+    RealtimeModule,
     BookingsModule,
     DomainEventsModule,
     PrismaModule,
@@ -48,7 +56,10 @@ import { SystemModule } from './modules/system/system.module';
     SpecialtiesModule,
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: APP_GUARD, useClass: JwtAuthGuard }, { provide: APP_GUARD, useClass: RolesGuard }],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
 })
 export class AppModule {}
-
