@@ -13,7 +13,7 @@
 ```text
 backend/
 ├── prisma/
-│   ├── schema.prisma                  # 27 Models, Enums (đã đồng bộ 100% SQL_v5.md)
+│   ├── schema.prisma                  # 29 Models, Enums (đã đồng bộ 100% SQL_v5.md)
 │   ├── migrations/                    # Lịch sử migration cơ sở dữ liệu Supabase
 │   └── seed.ts                        # Seed data: Admin, Center Manager, 4 Disciplines, Specialties, Rooms, Lockers, Plans
 ├── src/
@@ -49,8 +49,14 @@ backend/
 │   │   │   ├── services/
 │   │   │   │   ├── group-booking.service.ts  # Đặt lớp nhóm (Pessimistic lock FOR UPDATE trên schedules)
 │   │   │   │   ├── pt-booking.service.ts     # Đặt PT 1-1 (Lock coach_availability, trừ remaining_pt_sessions)
-│   │   │   │   └── cancellation.service.ts   # [V5 Mới] Hủy lịch trước 2 tiếng & hoàn trả quota
+│   │   │   │   └── cancellation.service.ts   # [V5 Mới] Hủy lịch phân tầng (<2h vs >=2h) & giải phóng tài nguyên
 │   │   │   ├── bookings.controller.ts
+│   │   │   └── dto/
+│   │   ├── coach-cancellations/       # [V5 Mới] HLV Hủy Lịch Khẩn Cấp & Duyệt 2 Tầng (DSS):
+│   │   │   ├── services/
+│   │   │   │   ├── cancellation-request.service.ts # Coach nộp đơn xin nghỉ đột xuất (reasonMessage >= 20 ký tự)
+│   │   │   │   └── cancellation-review.service.ts  # CM/Lễ tân duyệt, hoàn 100% quota cho Member & kích hoạt DSS
+│   │   │   ├── coach-cancellations.controller.ts
 │   │   │   └── dto/
 │   │   ├── attendances/               # Điểm danh cổng (GATE_ENTRY + Locker + Towel) & Lớp/PT (CLASS_SESSION)
 │   │   ├── inbody/                    # [V5 Mới] Quản lý lịch sử đo InBody định kỳ (cơ, mỡ, BMI)
@@ -108,13 +114,14 @@ flowchart TD
 ### Phase 1: Môi trường, Hạ tầng & Lược đồ Database V5 (Tuần 1 - 2)
 * Khởi tạo NestJS, cấu hình `.env` kết nối Supabase Pooler (`6543`), Direct (`5432`) và Docker Redis.
 * **Đồng bộ hóa Prisma Schema (`prisma/schema.prisma`):**
-  * Enums: `UserRole` (5 vai trò), `SubscriptionStatus`, `BookingStatus`, `AttendanceStatus`, `PaymentMethod`, `InvoiceStatus`, `TrainingMode` (`GROUP_CLASS`, `PERSONAL_TRAINING`, `HYBRID`, `CUSTOM`), `PackageTier` (`TRIAL`, `DROP_IN`, `PLUS`, `VIP`), `InvoiceType` (`SUBSCRIPTION_NEW`, `PT_ADDON`, `DROP_IN`), `LockerStatus` (`AVAILABLE`, `OCCUPIED`, `MAINTENANCE`).
-  * Models mới: `Specialty`, `CoachSpecialty`, `MemberInbodyLog`, `Locker`, `LockerAssignment`.
+  * Enums: `UserRole` (5 vai trò), `SubscriptionStatus`, `BookingStatus`, `AttendanceStatus`, `PaymentMethod`, `InvoiceStatus`, `TrainingMode` (`GROUP_CLASS`, `PERSONAL_TRAINING`, `HYBRID`, `CUSTOM`), `PackageTier` (`TRIAL`, `DROP_IN`, `PLUS`, `VIP`), `InvoiceType` (`SUBSCRIPTION_NEW`, `PT_ADDON`, `DROP_IN`), `LockerStatus` (`AVAILABLE`, `OCCUPIED`, `MAINTENANCE`), `CancellationRequestStatus` (`PENDING`, `APPROVED`, `REJECTED`), `CancellationTargetType` (`PERSONAL_TRAINING`, `GROUP_CLASS`).
+  * Models mới: `Specialty`, `CoachSpecialty`, `MemberInbodyLog`, `Locker`, `LockerAssignment`, `CancellationRequest`, `CoachPenalty` (DSS).
   * Mở rộng Models hiện hữu:
+    * `CoachProfile`: thêm `emergency_cancellation_count`, `monthly_emergency_cancellations`, `last_cancellation_reset_date`.
     * `MembershipPlan`: thêm `discipline_id`, `package_tier`, `training_mode`, `group_session_quota`, `pt_session_quota`, `unlimited_gym_entry`.
     * `UserSubscription`: thêm `discipline_id`, `package_tier`, `assigned_coach_id`, `remaining_group_sessions`, `remaining_pt_sessions`, `has_unlimited_gym_access`.
     * `Invoice`: thêm `type`, `base_amount`, `pt_amount`.
-    * `Booking`: thêm `discipline_id`.
+    * `Booking`: thêm `discipline_id`, `cancelled_at`, `is_late_cancellation`, `cancellation_reason`, `cancelled_by`, `is_emergency_cancellation`.
     * `Attendance`: thêm `towel_issued`.
 * Viết script `prisma/seed.ts`:
   * Khởi tạo 4 môn (`GYM`, `BOXING`, `YOGA`, `DANCING`), các danh mục chuyên môn (`specialties`), danh mục tủ đồ (`lockers` Nam/Nữ/VIP), tài khoản Admin, Manager, Coaches, Lễ tân và các gói tập chuẩn theo ma trận kinh doanh.
@@ -146,7 +153,10 @@ flowchart TD
 * **`BookingsModule` (Dual-Flow Engine):**
   * **Luồng 1 (Lớp nhóm Yoga/Boxing/Dance):** Dùng Pessimistic Locking (`SELECT ... FOR UPDATE`) trên `schedules`, kiểm tra `current_enrolled < capacity`, trừ `remaining_group_sessions`.
   * **Luồng 2 (PT 1-1 Gym/Boxing/Yoga/Dance):** Dùng `pg_advisory_xact_lock` chống xung đột lịch Coach, khóa slot `is_booked = true`, trừ `remaining_pt_sessions`.
-  * **Dịch vụ Hủy lịch (`cancellation.service.ts`):** Kiểm tra thời hạn hủy $\ge 2$ tiếng $\rightarrow$ Hoàn lại session và mở lại slot. Nếu $< 2$ tiếng $\rightarrow$ Từ chối hoàn buổi.
+  * **Dịch vụ Hủy lịch Hội viên (`cancellation.service.ts` - Tiered Policy):** Luôn cho phép hủy trước giờ bắt đầu để giải phóng slot lớp/HLV/máy tập; Kiểm tra $\Delta t \ge 2\text{ tiếng} \rightarrow$ Hoàn lại session; Nếu $< 2\text{ tiếng} \rightarrow$ Không hoàn session (tính mất lượt). Chặn hủy nếu buổi tập đã bắt đầu.
+  * **Dịch vụ HLV Hủy Ca Khẩn Cấp & Duyệt 2 Tầng (`cancellation-review.service.ts` - DSS):**
+    * HLV nộp đơn kèm lời nhắn $\ge 20$ ký tự $\rightarrow$ Phát Realtime tới Web CM (W06) và Quầy Lễ tân (W13).
+    * Quản lý hoặc Lễ tân quầy duyệt (`is_frontdesk_override = true`) $\rightarrow$ Kích hoạt Prisma Transaction: Đổi `bookings` sang `CANCELLED`, vô hiệu hóa slot rảnh HLV, giải phóng máy tập, hoàn 100% quota vô điều kiện cho Member, ghi Audit log và tự động kích hoạt trigger đếm vi phạm `monthly_emergency_cancellations` cùng bản ghi khuyến nghị DSS `coach_penalties` (chống lặp phạt lớp nhóm).
 
 ### Phase 5: Điểm danh Realtime & Tiện ích Quầy (Tuần 8)
 * **`AttendancesModule`:**

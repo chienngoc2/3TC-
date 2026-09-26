@@ -139,7 +139,7 @@ backend/
 ### E. Bookings Module (`/api/v1/bookings`)
 * `POST /api/v1/bookings/group-class`: Đặt chỗ lớp nhóm Yoga/Boxing/Dancing (Pessimistic lock).
 * `POST /api/v1/bookings/pt`: Đặt lịch kèm 1-1 với HLV (Advisory lock).
-* `POST /api/v1/bookings/:id/cancel`: Hủy đặt chỗ (áp dụng quy tắc trước 2 tiếng).
+* `PUT /api/v1/bookings/:id/cancel`: Hủy đặt chỗ (áp dụng Tiered Cancellation Policy: luôn giải phóng slot; hoàn quota nếu $\ge 2\text{h}$; không hoàn quota nếu $< 2\text{h}$).
 
 ### F. Attendances & Amenities (`/api/v1/attendances`, `/api/v1/inbody`, `/api/v1/lockers`)
 * `POST /api/v1/attendances/gate-checkin`: Điểm danh vào cổng + Tự động cấp tủ đồ + Cấp khăn.
