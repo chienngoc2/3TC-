@@ -15,7 +15,7 @@ Phạm vi: triển khai logic REST và realtime theo `implementation_plan_backen
 
 Controller, service, module và DTO đã được tách theo cấu trúc NestJS. Mã nguồn được format bằng Prettier và kiểm tra bằng Oxlint. Swagger CLI plugin xuất schema DTO từ bản build; kiểm tra wiring/schema/endpoint bằng `test:openapi`.
 
-`.gitattributes` cố định LF cho mã nguồn khi checkout trên Windows/Linux. Mô phỏng merge đã phát hiện `core.autocrlf` khiến checkout Windows chuyển sang CRLF và làm format check thất bại; quy tắc repository này xử lý nguyên nhân đó.
+`.gitattributes` cố định LF cho checkout mới trên Windows/Linux; Prettier dùng `endOfLine: auto` để chấp nhận working tree Windows hiện có. Mô phỏng merge đã phát hiện `core.autocrlf` khiến CRLF làm format check thất bại; cấu hình phối hợp này tránh lỗi khi merge vào checkout đã tồn tại.
 
 ## 2. Các bất biến nghiệp vụ
 
