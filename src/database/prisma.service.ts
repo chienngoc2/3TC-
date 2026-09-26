@@ -11,6 +11,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       this.logger.log('Prisma successfully connected to PostgreSQL database');
     } catch (error) {
       this.logger.error('Failed to connect to database via Prisma', error);
+      throw error;
     }
   }
 

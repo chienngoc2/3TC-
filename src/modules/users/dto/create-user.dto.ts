@@ -25,7 +25,8 @@ export class CreateUserDto {
 
   @ApiProperty({ enum: UserRole, default: UserRole.MEMBER })
   @IsEnum(UserRole, { message: 'Vai trò người dùng không hợp lệ' })
-  role: UserRole;
+  @IsOptional()
+  role: UserRole = UserRole.MEMBER;
 
   @ApiProperty({ required: false })
   @IsOptional()
