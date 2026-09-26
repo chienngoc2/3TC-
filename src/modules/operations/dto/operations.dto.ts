@@ -25,7 +25,9 @@ export class SpecialtyDto {
   @IsString() @MaxLength(150) name: string;
   @IsOptional() @IsString() description?: string;
 }
-export class UpdateSpecialtyDto extends PartialType(SpecialtyDto) {}
+export class UpdateSpecialtyDto extends PartialType(SpecialtyDto, {
+  skipNullProperties: false,
+}) {}
 export class AssignSpecialtiesDto {
   @IsArray()
   @ArrayUnique()
@@ -37,19 +39,25 @@ export class RoomDto {
   @IsInt() @Min(1) @Max(1000) capacity: number;
   @IsOptional() @IsString() locationNote?: string;
 }
-export class UpdateRoomDto extends PartialType(RoomDto) {}
+export class UpdateRoomDto extends PartialType(RoomDto, {
+  skipNullProperties: false,
+}) {}
 export class EquipmentDto {
   @IsUUID() roomId: string;
   @IsString() @MaxLength(150) name: string;
   @IsString() @MaxLength(50) equipmentType: string;
 }
-export class UpdateEquipmentDto extends PartialType(EquipmentDto) {}
+export class UpdateEquipmentDto extends PartialType(EquipmentDto, {
+  skipNullProperties: false,
+}) {}
 export class ClassDto {
   @IsUUID() disciplineId: string;
   @IsString() @MaxLength(150) name: string;
   @IsOptional() @IsString() description?: string;
 }
-export class UpdateClassDto extends PartialType(ClassDto) {}
+export class UpdateClassDto extends PartialType(ClassDto, {
+  skipNullProperties: false,
+}) {}
 export class SlotDto {
   @IsDateString() startTime: string;
   @IsDateString() endTime: string;
@@ -59,13 +67,17 @@ export class RateDto {
   @IsDateString({ strict: true }) effectiveFrom: string;
   @IsOptional() @IsDateString({ strict: true }) effectiveTo?: string;
 }
-export class UpdateRateDto extends PartialType(RateDto) {}
+export class UpdateRateDto extends PartialType(RateDto, {
+  skipNullProperties: false,
+}) {}
 export class ShiftDto extends SlotDto {
   @IsUUID() staffId: string;
   @IsDateString() shiftDate: string;
   @IsOptional() @IsString() notes?: string;
 }
-export class UpdateShiftDto extends PartialType(ShiftDto) {}
+export class UpdateShiftDto extends PartialType(ShiftDto, {
+  skipNullProperties: false,
+}) {}
 export class LockerDto {
   @IsString() @MaxLength(20) lockerNumber: string;
   @IsEnum({
@@ -88,4 +100,6 @@ export class InbodyDto {
   @IsOptional() @IsInt() @Min(0) visceralFatLevel?: number;
   @IsOptional() @IsString() notes?: string;
 }
-export class UpdateInbodyDto extends PartialType(InbodyDto) {}
+export class UpdateInbodyDto extends PartialType(InbodyDto, {
+  skipNullProperties: false,
+}) {}
