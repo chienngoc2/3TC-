@@ -32,10 +32,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof exceptionResponse === 'object' && exceptionResponse !== null) {
         const respObj = exceptionResponse as Record<string, any>;
         message = respObj.message || exception.message;
-        errorCode = respObj.error || exception.name;
+        errorCode = respObj.errorCode || (typeof message === 'string' && /^[A-Z][A-Z0-9_]+$/.test(message) ? message : respObj.error || exception.name);
       }
     } else if (exception instanceof Error) {
-      message = exception.message;
       this.logger.error(`Unhandled Exception: ${exception.message}`, exception.stack);
     }
 

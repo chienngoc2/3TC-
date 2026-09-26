@@ -1,171 +1,72 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID, createHash } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../../database/prisma.service';
+import { TransactionService } from '../../database/transaction.service';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { UserRole } from '@prisma/client';
-
+import { Actor } from '../../common/types/actor';
+export interface SessionPayload { sub: string; email: string; role: UserRole; sid: string; epoch: string; kind: 'access' | 'refresh' }
+const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
-  constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
-    private configService: ConfigService,
-    private redisService: RedisService,
-  ) {}
-
+  constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService, private readonly config: ConfigService,
+    private readonly redis: RedisService, private readonly transactions: TransactionService) {}
   async register(dto: RegisterDto) {
-    const existingUser = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ email: dto.email }, { phone: dto.phone }],
-      },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('Email hoặc số điện thoại đã được đăng ký');
-    }
-
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(dto.password, saltRounds);
-
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        passwordHash,
-        fullName: dto.fullName,
-        phone: dto.phone,
-        role: UserRole.MEMBER,
-        avatarUrl: dto.avatarUrl,
-        memberProfile: {
-          create: {},
-        },
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        phone: true,
-        role: true,
-        createdAt: true,
-      },
-    });
-
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
-    return {
-      user,
-      ...tokens,
-    };
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const user = await this.transactions.run(tx => tx.user.create({ data: {
+      email: dto.email.toLowerCase(), passwordHash, fullName: dto.fullName, phone: dto.phone,
+      avatarUrl: dto.avatarUrl, role: UserRole.MEMBER, memberProfile: { create: {} },
+    }, select: { id: true, email: true, fullName: true, role: true } }));
+    return { user, ...await this.newSession(user) };
   }
-
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email.toLowerCase() } });
+    if (!user || !user.isActive || !await bcrypt.compare(dto.password, user.passwordHash)) throw new UnauthorizedException('INVALID_CREDENTIALS');
+    return { user: { id: user.id, email: user.email, fullName: user.fullName, role: user.role }, ...await this.newSession(user) };
+  }
+  private async pair(payload: Omit<SessionPayload, 'kind'>) {
+    const accessToken = await this.jwt.signAsync({ ...payload, kind: 'access' }, {
+      secret: this.config.getOrThrow<string>('JWT_ACCESS_SECRET'), expiresIn: '15m', jwtid: randomUUID(),
     });
-
-    if (!user) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
-    }
-
-    const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không chính xác');
-    }
-
-    if (!user.isActive) {
-      throw new UnauthorizedException('Tài khoản đã bị tạm khóa');
-    }
-
-    const tokens = await this.generateTokens(user.id, user.email, user.role);
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        phone: user.phone,
-        role: user.role,
-      },
-      ...tokens,
-    };
+    const refreshToken = await this.jwt.signAsync({ ...payload, kind: 'refresh' }, {
+      secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET'), expiresIn: '7d', jwtid: randomUUID(),
+    });
+    return { accessToken, refreshToken, tokenType: 'Bearer', expiresIn: '15m' };
   }
-
+  private async newSession(user: { id: string; email: string; role: UserRole }) {
+    const epoch = await this.redis.epoch(user.id, randomUUID());
+    const sid = randomUUID();
+    const pair = await this.pair({ sub: user.id, email: user.email, role: user.role, epoch, sid });
+    await this.redis.set(`auth:session:${sid}`, hash(pair.refreshToken));
+    return pair;
+  }
   async refreshToken(dto: RefreshTokenDto) {
-    try {
-      const refreshSecret = this.configService.get<string>(
-        'JWT_REFRESH_SECRET',
-        'super_secret_refresh_key',
-      );
-      const payload = this.jwtService.verify(dto.refreshToken, {
-        secret: refreshSecret,
-      });
-
-      const cachedToken = await this.redisService.get(`refresh_token:${payload.sub}`);
-      if (cachedToken && cachedToken !== dto.refreshToken) {
-        throw new UnauthorizedException('Phiên đăng nhập đã bị hủy');
-      }
-
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-      });
-
-      if (!user || !user.isActive) {
-        throw new UnauthorizedException('Người dùng không còn hoạt động');
-      }
-
-      return await this.generateTokens(user.id, user.email, user.role);
-    } catch {
-      throw new UnauthorizedException('Refresh token không hợp lệ hoặc đã hết hạn');
+    let payload: SessionPayload;
+    try { payload = await this.jwt.verifyAsync<SessionPayload>(dto.refreshToken, { secret: this.config.getOrThrow<string>('JWT_REFRESH_SECRET') }); }
+    catch { throw new UnauthorizedException('REFRESH_TOKEN_INVALID_OR_EXPIRED'); }
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    if (payload.kind !== 'refresh' || !user?.isActive || await this.redis.get(`auth:user:${user.id}`) !== payload.epoch) throw new UnauthorizedException('SESSION_REVOKED');
+    const pair = await this.pair({ sub: user.id, email: user.email, role: user.role, epoch: payload.epoch, sid: payload.sid });
+    if (!await this.redis.rotate(`auth:session:${payload.sid}`, hash(dto.refreshToken), hash(pair.refreshToken))) {
+      await this.redis.del(`auth:session:${payload.sid}`);
+      throw new UnauthorizedException('REFRESH_TOKEN_REUSED_OR_REVOKED');
     }
+    return pair;
   }
-
-  async logout(userId: string) {
-    await this.redisService.del(`refresh_token:${userId}`);
-    return { message: 'Đăng xuất thành công' };
+  async validateAccess(payload: SessionPayload): Promise<Actor & { email: string }> {
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    if (payload.kind !== 'access' || !user?.isActive || !payload.sid ||
+      await this.redis.get(`auth:user:${user.id}`) !== payload.epoch || !await this.redis.get(`auth:session:${payload.sid}`)) throw new UnauthorizedException('SESSION_REVOKED');
+    return { userId: user.id, role: user.role, email: user.email, sessionId: payload.sid };
   }
-
-  private async generateTokens(userId: string, email: string, role: string) {
-    const accessSecret = this.configService.get<string>(
-      'JWT_ACCESS_SECRET',
-      'super_secret_access_key',
-    );
-    const refreshSecret = this.configService.get<string>(
-      'JWT_REFRESH_SECRET',
-      'super_secret_refresh_key',
-    );
-    const accessExpiresIn = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN', '15m');
-    const refreshExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d');
-
-    const payload = { sub: userId, email, role };
-
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, {
-        secret: accessSecret,
-        expiresIn: (accessExpiresIn as any),
-      }),
-      this.jwtService.signAsync(payload, {
-        secret: refreshSecret,
-        expiresIn: (refreshExpiresIn as any),
-      }),
-    ]);
-
-    // Lưu refresh token vào Redis với TTL 7 ngày (604800 giây)
-    await this.redisService.set(`refresh_token:${userId}`, refreshToken, 7 * 24 * 60 * 60);
-
-    return {
-      accessToken,
-      refreshToken,
-      tokenType: 'Bearer',
-      expiresIn: accessExpiresIn,
-    };
+  async logout(actor: Actor) {
+    if (actor.sessionId) await this.redis.del(`auth:session:${actor.sessionId}`);
+    return { message: 'Logged out' };
   }
 }
