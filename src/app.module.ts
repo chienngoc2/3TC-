@@ -1,3 +1,9 @@
+import { ClassesModule } from './modules/classes/classes.module';
+import { InbodyModule } from './modules/inbody/inbody.module';
+import { LockersModule } from './modules/lockers/lockers.module';
+import { StaffShiftsModule } from './modules/staff-shifts/staff-shifts.module';
+import { CoachesModule } from './modules/coaches/coaches.module';
+import { SpecialtiesModule } from './modules/specialties/specialties.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validate } from './config/env.validation';
@@ -24,6 +30,12 @@ import { SystemModule } from './modules/system/system.module';
     AuthModule,
     UsersModule,
     SystemModule,
+    ClassesModule,
+    InbodyModule,
+    LockersModule,
+    StaffShiftsModule,
+    CoachesModule,
+    SpecialtiesModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: JwtAuthGuard }, { provide: APP_GUARD, useClass: RolesGuard }],
