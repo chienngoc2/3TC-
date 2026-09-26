@@ -10,7 +10,7 @@ generator client {
 }
 
 // -------------------------------------------------------------
-// ENUMS (10 Enums - Aligned 100% with SQL_v5.md)
+// ENUMS (15 Enums - Aligned 100% with SQL_v5.md)
 // -------------------------------------------------------------
 
 enum UserRole {
@@ -113,8 +113,32 @@ enum LockerStatus {
   @@map("locker_status")
 }
 
+enum CancellationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("cancellation_request_status")
+}
+
+enum CancellationTargetType {
+  PERSONAL_TRAINING
+  GROUP_CLASS
+
+  @@map("cancellation_target_type")
+}
+
+enum ScheduleStatus {
+  OPEN
+  FULL               // Đủ chỗ: trigger DB suy ra từ current_enrolled/capacity khi cập nhật sĩ số
+  CANCELLED_BY_COACH // HLV hủy khẩn cấp: ngừng nhận booking mới, giải phóng GiST exclusion khi cần
+  COMPLETED          // Lớp đã diễn ra xong
+
+  @@map("schedule_status")
+}
+
 // -------------------------------------------------------------
-// MODELS (27 Models - Aligned 100% with SQL_v5.md)
+// MODELS (29 Models - Aligned 100% with SQL_v5.md & database.md)
 // -------------------------------------------------------------
 
 model User {
@@ -135,26 +159,29 @@ model User {
   createdUsers User[] @relation("UserCreator")
 
   // Relations
-  memberProfile       MemberProfile?
-  coachProfile        CoachProfile?
-  coachRates          CoachRate[]
-  coachAvailabilities CoachAvailability[]
-  subscriptions       UserSubscription[]  @relation("UserSubscriptions")
-  assignedVipSubs     UserSubscription[]  @relation("AssignedCoachSubs")
-  issuedInvoices      Invoice[]           @relation("InvoiceIssuer")
-  coachedSchedules    Schedule[]          @relation("CoachSchedules")
-  bookings            Booking[]
-  attendances         Attendance[]        @relation("MemberAttendances")
-  verifiedAttendances Attendance[]        @relation("VerifiedByStaff")
-  staffShifts         StaffShift[]        @relation("StaffShifts")
-  assignedStaffShifts StaffShift[]        @relation("AssignedShifts")
-  memberWorkoutPlans  WorkoutPlan[]       @relation("MemberWorkoutPlans")
-  coachWorkoutPlans   WorkoutPlan[]       @relation("CoachWorkoutPlans")
-  memberInbodyLogs    MemberInbodyLog[]   @relation("MemberInbodyLogs")
-  measuredInbodyLogs  MemberInbodyLog[]   @relation("MeasuredByStaff")
-  lockerAssignments   LockerAssignment[]  @relation("MemberLockerAssignments")
-  assignedLockers     LockerAssignment[]  @relation("StaffLockerAssignments")
-  auditLogs           AuditLog[]
+  memberProfile            MemberProfile?
+  coachProfile             CoachProfile?
+  coachRates               CoachRate[]
+  coachAvailabilities      CoachAvailability[]
+  subscriptions            UserSubscription[]      @relation("UserSubscriptions")
+  assignedVipSubs          UserSubscription[]      @relation("AssignedCoachSubs")
+  issuedInvoices           Invoice[]               @relation("InvoiceIssuer")
+  coachedSchedules         Schedule[]              @relation("CoachSchedules")
+  bookings                 Booking[]               @relation("MemberBookings")
+  attendances              Attendance[]            @relation("MemberAttendances")
+  verifiedAttendances      Attendance[]            @relation("VerifiedByStaff")
+  staffShifts              StaffShift[]            @relation("StaffShifts")
+  assignedStaffShifts      StaffShift[]            @relation("AssignedShifts")
+  memberWorkoutPlans       WorkoutPlan[]           @relation("MemberWorkoutPlans")
+  coachWorkoutPlans        WorkoutPlan[]           @relation("CoachWorkoutPlans")
+  memberInbodyLogs         MemberInbodyLog[]       @relation("MemberInbodyLogs")
+  measuredInbodyLogs       MemberInbodyLog[]       @relation("MeasuredByStaff")
+  lockerAssignments        LockerAssignment[]      @relation("MemberLockerAssignments")
+  assignedLockers          LockerAssignment[]      @relation("StaffLockerAssignments")
+  coachCancellationRequests CancellationRequest[]  @relation("CoachCancellationRequests")
+  reviewedCancellationRequests CancellationRequest[] @relation("ReviewedCancellationRequests")
+  coachPenalties           CoachPenalty[]          @relation("CoachPenalties")
+  auditLogs                AuditLog[]
 
   @@index([createdById], map: "idx_users_created_by_id")
   @@map("users")
@@ -177,13 +204,17 @@ model MemberProfile {
 }
 
 model CoachProfile {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String   @unique(map: "uq_coach_profiles_user_id") @map("user_id") @db.Uuid
-  specialties     String?  @db.Text
-  bio             String?  @db.Text
-  certificateUrls String[] @default([]) @map("certificate_urls")
-  yearsExperience Int?     @default(0) @map("years_experience")
-  updatedAt       DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                         String    @unique(map: "uq_coach_profiles_user_id") @map("user_id") @db.Uuid
+  specialties                    String?   @db.Text
+  bio                            String?   @db.Text
+  certificateUrls                String[]  @default([]) @map("certificate_urls")
+  yearsExperience                Int?      @default(0) @map("years_experience")
+  // DSS — Hệ thống kỷ luật hủy khẩn cấp
+  emergencyCancellationCount     Int       @default(0) @map("emergency_cancellation_count")
+  monthlyEmergencyCancellations  Int       @default(0) @map("monthly_emergency_cancellations")
+  lastCancellationResetDate      DateTime? @map("last_cancellation_reset_date") @db.Date
+  updatedAt                      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   user             User              @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_coach_profiles_user")
   coachSpecialties CoachSpecialty[]
@@ -320,6 +351,7 @@ model UserSubscription {
   remainingPtSessions   Int?               @default(0) @map("remaining_pt_sessions")
   hasUnlimitedGymAccess Boolean?           @default(false) @map("has_unlimited_gym_access")
   status                SubscriptionStatus @default(ACTIVE)
+  frozenAt              DateTime?          @map("frozen_at") @db.Timestamptz(6)
   createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user          User           @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Restrict, map: "fk_user_subscriptions_user")
@@ -327,6 +359,7 @@ model UserSubscription {
   discipline    Discipline?    @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_user_subscriptions_discipline")
   assignedCoach User?          @relation("AssignedCoachSubs", fields: [assignedCoachId], references: [id], onDelete: SetNull, map: "fk_user_subscriptions_coach")
   invoices      Invoice[]
+  bookings      Booking[]
 
   @@index([userId], map: "idx_user_subscriptions_user_id")
   @@index([planId], map: "idx_user_subscriptions_plan_id")
@@ -399,20 +432,22 @@ model Class {
 }
 
 model Schedule {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  classId         String   @map("class_id") @db.Uuid
-  roomId          String   @map("room_id") @db.Uuid
-  coachId         String   @map("coach_id") @db.Uuid
-  startTime       DateTime @map("start_time") @db.Timestamptz(6)
-  endTime         DateTime @map("end_time") @db.Timestamptz(6)
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId         String         @map("class_id") @db.Uuid
+  roomId          String         @map("room_id") @db.Uuid
+  coachId         String         @map("coach_id") @db.Uuid
+  startTime       DateTime       @map("start_time") @db.Timestamptz(6)
+  endTime         DateTime       @map("end_time") @db.Timestamptz(6)
   capacity        Int
-  currentEnrolled Int      @default(0) @map("current_enrolled")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  currentEnrolled Int            @default(0) @map("current_enrolled")
+  status          ScheduleStatus @default(OPEN)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  class    Class     @relation(fields: [classId], references: [id], onDelete: Cascade, map: "fk_schedules_class")
-  room     Room      @relation(fields: [roomId], references: [id], onDelete: Restrict, map: "fk_schedules_room")
-  coach    User      @relation("CoachSchedules", fields: [coachId], references: [id], onDelete: Restrict, map: "fk_schedules_coach")
-  bookings Booking[]
+  class                Class                 @relation(fields: [classId], references: [id], onDelete: Cascade, map: "fk_schedules_class")
+  room                 Room                  @relation(fields: [roomId], references: [id], onDelete: Restrict, map: "fk_schedules_room")
+  coach                User                  @relation("CoachSchedules", fields: [coachId], references: [id], onDelete: Restrict, map: "fk_schedules_coach")
+  bookings             Booking[]
+  cancellationRequests CancellationRequest[]
 
   @@index([classId], map: "idx_schedules_class_id")
   @@index([roomId], map: "idx_schedules_room_id")
@@ -422,12 +457,14 @@ model Schedule {
 }
 
 model CoachAvailability {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  coachId   String   @map("coach_id") @db.Uuid
-  startTime DateTime @map("start_time") @db.Timestamptz(6)
-  endTime   DateTime @map("end_time") @db.Timestamptz(6)
-  isBooked  Boolean  @default(false) @map("is_booked")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId               String   @map("coach_id") @db.Uuid
+  startTime             DateTime @map("start_time") @db.Timestamptz(6)
+  endTime               DateTime @map("end_time") @db.Timestamptz(6)
+  isBooked              Boolean  @default(false) @map("is_booked")
+  // Đặt true khi HLV hủy khẩn cấp → slot không thể bị đặt lại dù is_booked = false
+  isEmergencyCancelled  Boolean  @default(false) @map("is_emergency_cancelled")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   coach    User      @relation(fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_availability_coach")
   bookings Booking[]
@@ -438,22 +475,32 @@ model CoachAvailability {
 }
 
 model Booking {
-  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bookingType         BookingType   @default(GROUP_CLASS) @map("booking_type")
-  disciplineId        String?       @map("discipline_id") @db.Uuid
-  scheduleId          String?       @map("schedule_id") @db.Uuid
-  coachAvailabilityId String?       @map("coach_availability_id") @db.Uuid
-  memberId            String        @map("member_id") @db.Uuid
-  status              BookingStatus @default(CONFIRMED)
-  bookedAt            DateTime      @default(now()) @map("booked_at") @db.Timestamptz(6)
+  id                      String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId          String        @map("subscription_id") @db.Uuid
+  bookingType             BookingType   @default(GROUP_CLASS) @map("booking_type")
+  disciplineId            String?       @map("discipline_id") @db.Uuid
+  scheduleId              String?       @map("schedule_id") @db.Uuid
+  coachAvailabilityId     String?       @map("coach_availability_id") @db.Uuid
+  memberId                String        @map("member_id") @db.Uuid
+  status                  BookingStatus @default(CONFIRMED)
+  bookedAt                DateTime      @default(now()) @map("booked_at") @db.Timestamptz(6)
+  cancelledAt             DateTime?     @map("cancelled_at") @db.Timestamptz(6)
+  isLateCancellation      Boolean?      @default(false) @map("is_late_cancellation")
+  cancellationReason      String?       @map("cancellation_reason") @db.Text
+  cancelledBy             String?       @default("MEMBER") @map("cancelled_by") @db.VarChar(20)
+  isEmergencyCancellation Boolean       @default(false) @map("is_emergency_cancellation")
 
+  subscription         UserSubscription      @relation(fields: [subscriptionId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_bookings_subscription")
   discipline           Discipline?           @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_bookings_discipline")
   schedule             Schedule?             @relation(fields: [scheduleId], references: [id], onDelete: Cascade, map: "fk_bookings_schedule")
   coachAvailability    CoachAvailability?    @relation(fields: [coachAvailabilityId], references: [id], onDelete: Cascade, map: "fk_bookings_coach_availability")
-  member               User                  @relation(fields: [memberId], references: [id], onDelete: Cascade, map: "fk_bookings_member")
+  member               User                  @relation("MemberBookings", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_bookings_member")
   attendance           Attendance?
   equipmentReservation EquipmentReservation?
+  cancellationRequests CancellationRequest[]
+  coachPenalties       CoachPenalty[]
 
+  @@index([subscriptionId], map: "idx_bookings_subscription_id")
   @@index([disciplineId], map: "idx_bookings_discipline_id")
   @@index([scheduleId], map: "idx_bookings_schedule_id")
   @@index([coachAvailabilityId], map: "idx_bookings_coach_availability_id")
@@ -547,6 +594,56 @@ model LockerAssignment {
   @@map("locker_assignments")
 }
 
+model CancellationRequest {
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId              String                    @map("coach_id") @db.Uuid
+  targetType           CancellationTargetType    @map("target_type")
+  bookingId            String?                   @map("booking_id") @db.Uuid
+  scheduleId           String?                   @map("schedule_id") @db.Uuid
+  reasonMessage        String                    @map("reason_message") @db.Text
+  internalNote         String?                   @map("internal_note") @db.Text
+  status               CancellationRequestStatus @default(PENDING)
+  reviewedById         String?                   @map("reviewed_by_id") @db.Uuid
+  reviewedAt           DateTime?                 @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason      String?                   @map("rejection_reason") @db.Text
+  isFrontdeskOverride  Boolean                   @default(false) @map("is_frontdesk_override")
+  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  coach          User            @relation("CoachCancellationRequests", fields: [coachId], references: [id], onDelete: Cascade, map: "fk_cancellation_requests_coach")
+  booking        Booking?        @relation(fields: [bookingId], references: [id], onDelete: Restrict, map: "fk_cancellation_requests_booking")
+  schedule       Schedule?       @relation(fields: [scheduleId], references: [id], onDelete: Restrict, map: "fk_cancellation_requests_schedule")
+  reviewedBy     User?           @relation("ReviewedCancellationRequests", fields: [reviewedById], references: [id], onDelete: SetNull, map: "fk_cancellation_requests_reviewer")
+  coachPenalties CoachPenalty[]
+
+  @@index([status], map: "idx_cancellation_requests_status")
+  @@index([coachId], map: "idx_cancellation_requests_coach")
+  @@map("cancellation_requests")
+}
+
+model CoachPenalty {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId                    String    @map("coach_id") @db.Uuid
+  cancellationRequestId      String?   @map("cancellation_request_id") @db.Uuid
+  bookingId                  String?   @map("booking_id") @db.Uuid
+  penaltyType                String    @default("EMERGENCY_CANCELLATION") @map("penalty_type") @db.VarChar(50)
+  appliedMonth               String    @map("applied_month") @db.VarChar(7)
+  suggestedAction            String    @default("WARNING") @map("suggested_action") @db.VarChar(50)
+  suggestedRateReductionPct  Decimal?  @default(0) @map("suggested_rate_reduction_pct") @db.Decimal(5, 2)
+  isReviewedByManager        Boolean   @default(false) @map("is_reviewed_by_manager")
+  managerFinalDecision       String?   @map("manager_final_decision") @db.Text
+  reviewedAt                 DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  notes                      String?   @db.Text
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  coach               User                 @relation("CoachPenalties", fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_penalties_coach")
+  cancellationRequest CancellationRequest? @relation(fields: [cancellationRequestId], references: [id], onDelete: SetNull, map: "fk_coach_penalties_cancellation")
+  booking             Booking?             @relation(fields: [bookingId], references: [id], onDelete: SetNull, map: "fk_coach_penalties_booking")
+
+  @@index([coachId, appliedMonth], map: "idx_coach_penalties_month")
+  @@index([isReviewedByManager], map: "idx_coach_penalties_pending_review")
+  @@map("coach_penalties")
+}
+
 model WorkoutPlan {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   memberId  String   @map("member_id") @db.Uuid
@@ -565,10 +662,15 @@ model WorkoutPlan {
 }
 
 model ExerciseKnowledge {
-  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title        String @db.VarChar(150)
-  category     String @db.VarChar(50)
-  instructions String @db.Text
+  id           String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title        String                      @db.VarChar(150)
+  category     String                      @db.VarChar(50)
+  instructions String                      @db.Text
+  // RAG: Vector embedding 1536 chiều (OpenAI text-embedding-3-small / Gemini text-embedding-004)
+  // Kiểu VECTOR không được Prisma hỗ trợ native → khai báo Unsupported để Client không bỏ qua cột.
+  // Phải tạo thủ công qua SQL migration: ALTER TABLE exercise_knowledge ADD COLUMN embedding vector(1536);
+  // Index: CREATE INDEX ON exercise_knowledge USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+  embedding    Unsupported("vector(1536)")?
 
   exercises WorkoutExercise[]
 

@@ -119,10 +119,12 @@ flowchart TD
   * Mở rộng Models hiện hữu:
     * `CoachProfile`: thêm `emergency_cancellation_count`, `monthly_emergency_cancellations`, `last_cancellation_reset_date`.
     * `MembershipPlan`: thêm `discipline_id`, `package_tier`, `training_mode`, `group_session_quota`, `pt_session_quota`, `unlimited_gym_entry`.
-    * `UserSubscription`: thêm `discipline_id`, `package_tier`, `assigned_coach_id`, `remaining_group_sessions`, `remaining_pt_sessions`, `has_unlimited_gym_access`.
+    * `UserSubscription`: thêm `discipline_id`, `package_tier`, `assigned_coach_id`, `remaining_group_sessions`, `remaining_pt_sessions`, `has_unlimited_gym_access`, **`frozen_at: DateTime?`** (mốc đóng băng thẻ — dùng để tính bù `end_date` khi unfreeze).
     * `Invoice`: thêm `type`, `base_amount`, `pt_amount`.
-    * `Booking`: thêm `discipline_id`, `cancelled_at`, `is_late_cancellation`, `cancellation_reason`, `cancelled_by`, `is_emergency_cancellation`.
+    * `Booking`: thêm `discipline_id`, `cancelled_at`, `is_late_cancellation`, `cancellation_reason`, `cancelled_by`, `is_emergency_cancellation`, **`subscription_id: String` (FK NOT NULL → `user_subscriptions.id RESTRICT`)** — trường then chốt để truy vết quota và hoàn lượt đúng hợp đồng.
+    * `Schedule`: thêm **`status: ScheduleStatus` (default `OPEN`)** — dùng để đóng lớp khẩn cấp thay vì chỉ đặt `current_enrolled = 0`.
     * `Attendance`: thêm `towel_issued`.
+  * Enum mới cần thêm: **`ScheduleStatus` (`OPEN`, `FULL`, `CANCELLED_BY_COACH`, `COMPLETED`)** — kiểm soát vòng đời lịch học; `BookingType` (`GROUP_CLASS`, `PERSONAL_TRAINING`); `CancellationTargetType` (`PERSONAL_TRAINING`, `GROUP_CLASS`).
 * Viết script `prisma/seed.ts`:
   * Khởi tạo 4 môn (`GYM`, `BOXING`, `YOGA`, `DANCING`), các danh mục chuyên môn (`specialties`), danh mục tủ đồ (`lockers` Nam/Nữ/VIP), tài khoản Admin, Manager, Coaches, Lễ tân và các gói tập chuẩn theo ma trận kinh doanh.
 
@@ -150,13 +152,26 @@ flowchart TD
   * Xử lý đăng ký Gói VIP động: `total_amount = base_price + (12 * coach_rate)`. Gán `assigned_coach_id` và cấp 12 buổi PT.
   * Xử lý Mua thêm giờ PT lẻ (Add-on): Tạo hóa đơn `PT_ADDON` và cộng dồn `remaining_pt_sessions`.
   * Chặn cấu hình sai: Trigger DB chặn tạo gói GYM lớp nhóm.
+  * **Quản lý vòng đời gói:**
+    * **Đóng băng thẻ:** Lưu `frozen_at = NOW()`. Khi unfreeze: `end_date += (NOW() - frozen_at)`, xóa `frozen_at`.
+    * **Gia hạn thẻ:** Nối tiếp từ `end_date` hiện tại (không kích hoạt ngay từ ngày gia hạn).
 * **`BookingsModule` (Dual-Flow Engine):**
-  * **Luồng 1 (Lớp nhóm Yoga/Boxing/Dance):** Dùng Pessimistic Locking (`SELECT ... FOR UPDATE`) trên `schedules`, kiểm tra `current_enrolled < capacity`, trừ `remaining_group_sessions`.
-  * **Luồng 2 (PT 1-1 Gym/Boxing/Yoga/Dance):** Dùng `pg_advisory_xact_lock` chống xung đột lịch Coach, khóa slot `is_booked = true`, trừ `remaining_pt_sessions`.
-  * **Dịch vụ Hủy lịch Hội viên (`cancellation.service.ts` - Tiered Policy):** Luôn cho phép hủy trước giờ bắt đầu để giải phóng slot lớp/HLV/máy tập; Kiểm tra $\Delta t \ge 2\text{ tiếng} \rightarrow$ Hoàn lại session; Nếu $< 2\text{ tiếng} \rightarrow$ Không hoàn session (tính mất lượt). Chặn hủy nếu buổi tập đã bắt đầu.
+  * **Trường `subscription_id` bắt buộc** trong mọi luồng tạo booking. Khi tạo booking, tầng Service phải chọn hợp đồng phù hợp theo FIFO (ưu tiên `end_date` gần nhất còn hạn và đủ quota) rồi ghi `subscription_id = selectedSubscription.id`.
+  * **Luồng 1 (Lớp nhóm Yoga/Boxing/Dance):** Dùng Pessimistic Locking (`SELECT ... FOR UPDATE`) trên `schedules`, kiểm tra `status = OPEN` AND `current_enrolled < capacity`, trừ `remaining_group_sessions` trên đúng `subscription_id` được chọn. Từ chối nếu `schedule.status != OPEN`.
+  * **Luồng 2 (PT 1-1 Gym/Boxing/Yoga/Dance):** Dùng `pg_advisory_xact_lock` chống xung đột lịch Coach, khóa slot `is_booked = true`, trừ `remaining_pt_sessions` trên đúng `subscription_id` được chọn.
+  * **Dịch vụ Hủy lịch Hội viên (`cancellation.service.ts` - Tiered Policy):** Luôn cho phép hủy trước giờ bắt đầu để giải phóng slot lớp/HLV/máy tập; Kiểm tra $\Delta t \ge 2\text{ tiếng} \rightarrow$ Hoàn lại session vào **đúng `booking.subscription_id`** (không dùng `updateMany` theo `userId/discipline/coach`); Nếu $< 2\text{ tiếng} \rightarrow$ Không hoàn session (tính mất lượt). Chặn hủy nếu buổi tập đã bắt đầu.
   * **Dịch vụ HLV Hủy Ca Khẩn Cấp & Duyệt 2 Tầng (`cancellation-review.service.ts` - DSS):**
     * HLV nộp đơn kèm lời nhắn $\ge 20$ ký tự $\rightarrow$ Phát Realtime tới Web CM (W06) và Quầy Lễ tân (W13).
-    * Quản lý hoặc Lễ tân quầy duyệt (`is_frontdesk_override = true`) $\rightarrow$ Kích hoạt Prisma Transaction: Đổi `bookings` sang `CANCELLED`, vô hiệu hóa slot rảnh HLV, giải phóng máy tập, hoàn 100% quota vô điều kiện cho Member, ghi Audit log và tự động kích hoạt trigger đếm vi phạm `monthly_emergency_cancellations` cùng bản ghi khuyến nghị DSS `coach_penalties` (chống lặp phạt lớp nhóm).
+    * Quản lý hoặc Lễ tân quầy duyệt: claim yêu cầu bằng `updateMany({ where: { id, status: PENDING } })`, chỉ xử lý tiếp khi `count = 1`. Cả APPROVE và REJECT dùng cùng cơ chế. Transaction dùng Serializable, retry toàn bộ tối đa 3 lần khi P2034.
+    * Trong transaction: chỉ hoàn quota cho booking chuyển được từ `CONFIRMED/PENDING` sang `CANCELLED`; hoàn vào **`booking.subscriptionId`**. Đặt **`coachAvailability.isBooked = false` và `isEmergencyCancelled = true`**, giải phóng thiết bị, ghi audit (cờ override chỉ bật cho lễ tân), đóng lớp bằng **`CANCELLED_BY_COACH`**, giảm sĩ số theo số booking thực sự hủy được và ghi DSS.
+    * DB tự suy ra `OPEN/FULL` từ `current_enrolled/capacity`. Service tăng/giảm sĩ số đúng một lần; trigger không tự tăng/giảm từ booking. Partial GiST chỉ xét `OPEN/FULL`, nên lịch đã đóng không giữ phòng/HLV và không cần xóa lịch sử.
+    * Yoga VIP chuẩn: base **1.000.000đ / 30 ngày / 15 buổi nhóm + 12 PT**; seed cập nhật được cả bản ghi đã tồn tại.
+
+### Quy trình đồng bộ DB V5
+* Dev: `npm run db:setup` (Prisma db push → SQL V5 trên DIRECT_URL → seed), dừng khi bất kỳ bước nào lỗi.
+* SQL đặc thù: `npm run db:constraints`; chạy sau mỗi cập nhật/reset schema. Script SQL chạy nguyên tử trong transaction.
+* CI/Production: migration schema đã review → `prisma migrate deploy` → `npm run db:constraints`. Các migration lịch sử chưa đầy đủ model V5; phải bổ sung migration schema trước khi dựng DB mới bằng migrate deploy.
+* Kiểm thử PostgreSQL: `npm run db:verify:v5`, dùng schema riêng và dọn sau kiểm thử.
 
 ### Phase 5: Điểm danh Realtime & Tiện ích Quầy (Tuần 8)
 * **`AttendancesModule`:**

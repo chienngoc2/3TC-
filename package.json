@@ -19,7 +19,10 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "prisma:seed": "ts-node prisma/seed.ts"
+    "prisma:seed": "ts-node prisma/seed.ts",
+    "db:constraints": "node scripts/db-constraints.cjs",
+    "db:setup": "prisma db push && npm run db:constraints && npm run prisma:seed",
+    "db:verify:v5": "node scripts/verify-v5.cjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

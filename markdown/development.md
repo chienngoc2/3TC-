@@ -155,7 +155,7 @@ backend/
 
 ## 6. CHECKLIST BÀN GIAO & KẾ THỪA (NEXT STEPS)
 
-- [x] Cập nhật `prisma/schema.prisma` với 27 models hoàn chỉnh từ `SQL_v5.md`.
-- [x] Đồng bộ hóa Schema V5 lên Supabase qua Prisma.
+- [x] Cập nhật `prisma/schema.prisma` với 29 models hoàn chỉnh từ `SQL_v5.md` (bao gồm `subscription_id` trong Booking, `schedule_status`, `frozen_at`, `cancellation_requests`, `coach_penalties`).
+- [x] Đồng bộ hóa Schema V5 (29 tables) lên Supabase qua Prisma.
 - [x] Cập nhật `prisma/seed.ts` nạp dữ liệu chuẩn cho 4 môn thể thao, Specialties, Lockers, 5 Roles.
 - [ ] Triển khai các Domain Modules theo đúng roadmap 7 bước trong `instructions_steps.md`.

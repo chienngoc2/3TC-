@@ -324,16 +324,19 @@ async function main() {
   }
 
   // 6. Seed Membership Plans theo ma trận 4 môn V5
-  // Gói 1: Gym Plus (Tự do không giới hạn, không lớp nhóm)
+  // ⚠️ update block có giá trị thực để seed idempotent/self-correcting khi chạy lại.
+  //    update:{} là anti-pattern — chạy lại seed không sửa được số liệu sai.
+
+  // Gói 1: Gym Plus — 300.000đ / 30 ngày / Vào cổng tự do không giới hạn
   const gymPlusPlan = await prisma.membershipPlan.upsert({
     where: { id: '00000000-0000-0000-0000-000000000010' },
-    update: {},
+    update: { price: 300000, durationDays: 30, groupSessionQuota: 0, ptSessionQuota: 0, unlimitedGymEntry: true },
     create: {
       id: '00000000-0000-0000-0000-000000000010',
       disciplineId: gym.id,
       name: 'Gói Gym Plus 30 Ngày',
       description: 'Vào cửa tập luyện tự do không giới hạn số lượt trong 30 ngày',
-      price: 600000,
+      price: 300000,
       durationDays: 30,
       planType: PlanType.GENERAL,
       packageTier: PackageTier.PLUS,
@@ -344,61 +347,60 @@ async function main() {
     },
   });
 
-  // Gói 2: Yoga Trial (Tập thử 1 buổi duy nhất)
+  // Gói 2: Yoga Trial — 0đ / 7 ngày / 3 buổi thử (chỉ 1 lần / môn, bảo vệ bởi DB partial unique index)
   const yogaTrialPlan = await prisma.membershipPlan.upsert({
     where: { id: '00000000-0000-0000-0000-000000000020' },
-    update: {},
+    update: { price: 0, durationDays: 7, groupSessionQuota: 3 },
     create: {
       id: '00000000-0000-0000-0000-000000000020',
       disciplineId: yoga.id,
       name: 'Gói Yoga Trải Nghiệm (Free Trial)',
-      description: 'Tập thử 1 buổi lớp nhóm Yoga miễn phí trong 7 ngày (Chỉ áp dụng 1 lần)',
+      description: 'Tập thử 3 buổi lớp nhóm Yoga miễn phí trong 7 ngày (Chỉ áp dụng 1 lần / môn)',
       price: 0,
       durationDays: 7,
       planType: PlanType.GENERAL,
       packageTier: PackageTier.TRIAL,
       trainingMode: TrainingMode.GROUP_CLASS,
-      groupSessionQuota: 1,
+      groupSessionQuota: 3,
       ptSessionQuota: 0,
     },
   });
 
-  // Gói 3: Yoga Plus (12 buổi lớp nhóm)
+  // Gói 3: Yoga Plus — 1.000.000đ / 30 ngày / 15 buổi lớp nhóm
   const yogaPlusPlan = await prisma.membershipPlan.upsert({
     where: { id: '00000000-0000-0000-0000-000000000030' },
-    update: {},
+    update: { name: 'Gói Yoga Lớp Nhóm 15 Buổi', price: 1000000, durationDays: 30, groupSessionQuota: 15 },
     create: {
       id: '00000000-0000-0000-0000-000000000030',
       disciplineId: yoga.id,
-      name: 'Gói Yoga Lớp Nhóm 12 Buổi',
-      description: 'Tham gia 12 buổi học Yoga nhóm trong 45 ngày',
-      price: 1200000,
-      durationDays: 45,
-      sessionQuota: 12,
+      name: 'Gói Yoga Lớp Nhóm 15 Buổi',
+      description: 'Tham gia 15 buổi học Yoga nhóm trong 30 ngày',
+      price: 1000000,         // Ma trận V5: 1.000.000đ / tháng
+      durationDays: 30,       // Ma trận V5: 30 ngày
       planType: PlanType.GENERAL,
       packageTier: PackageTier.PLUS,
       trainingMode: TrainingMode.GROUP_CLASS,
-      groupSessionQuota: 12,
+      groupSessionQuota: 15,
       ptSessionQuota: 0,
     },
   });
 
-  // Gói 4: VIP Hybrid Yoga (12 buổi PT kèm riêng + 12 buổi lớp nhóm)
+  // Gói 4: Yoga VIP — Base 1.000.000đ / 30 ngày / 12PT + 15 Nhóm
+  // ⚠️ price = BASE PRICE. Tổng thực = base + 12 × coach_rate — tính tại runtime bởi sp_purchase_vip_subscription.
   const yogaVipPlan = await prisma.membershipPlan.upsert({
     where: { id: '00000000-0000-0000-0000-000000000040' },
-    update: {},
+    update: { name: 'Gói VIP Yoga (12 PT + 15 Lớp Nhóm)', description: 'Gói cao cấp: 12 buổi PT 1:1 + 15 buổi lớp nhóm / 30 ngày. Tổng = 1tr + 12 × coach_rate.', price: 1000000, durationDays: 30, groupSessionQuota: 15, ptSessionQuota: 12, unlimitedGymEntry: true },
     create: {
       id: '00000000-0000-0000-0000-000000000040',
       disciplineId: yoga.id,
-      name: 'Gói VIP Thượng Hạng Yoga (12 PT + 12 Lớp Nhóm)',
-      description: 'Gói cao cấp kèm 1:1 cùng HLV và tập lớp nhóm kết hợp',
-      price: 5400000,
-      durationDays: 60,
-      sessionQuota: 24,
+      name: 'Gói VIP Yoga (12 PT + 15 Lớp Nhóm)',
+      description: 'Gói cao cấp: 12 buổi PT 1:1 + 15 buổi lớp nhóm / 30 ngày. Tổng = 1tr + 12 × coach_rate.',
+      price: 1000000,         // BASE PRICE — tổng thực tính lúc checkout khi biết coach
+      durationDays: 30,
       planType: PlanType.PERSONAL_TRAINING,
       packageTier: PackageTier.VIP,
       trainingMode: TrainingMode.HYBRID,
-      groupSessionQuota: 12,
+      groupSessionQuota: 15,
       ptSessionQuota: 12,
       unlimitedGymEntry: true,
     },

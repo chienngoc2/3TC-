@@ -71,9 +71,16 @@
 
 5. **Đồng bộ cơ sở dữ liệu và seed dữ liệu khởi tạo:**
    ```bash
-   npx prisma migrate dev --name init
-   npm run prisma:seed
+   npm run db:setup
    ```
+
+   `db:setup` dành cho Dev: đồng bộ Prisma → áp dụng SQL V5 → seed. Lệnh dừng ngay nếu bước trước thất bại; không tự reset hoặc chấp nhận mất dữ liệu.
+   SQL V5 dùng `DIRECT_URL` và chạy trong một transaction để tránh áp dụng dở dang.
+   Khi cập nhật schema hoặc reset database, phải chạy lại `npm run db:constraints`.
+   Với CI/Production, tạo và review migration schema trước, sau đó chạy `prisma migrate deploy` → `npm run db:constraints`; không dùng `db push` thay migration production.
+   Hai migration lịch sử hiện tại chưa mô tả toàn bộ model V5, nên không đủ để dựng database V5 mới chỉ bằng `migrate deploy`.
+
+   Kiểm tra tranh chấp trên PostgreSQL: `npm run db:verify:v5`. Lệnh dùng `TEST_DATABASE_URL` (nếu có), hoặc `DIRECT_URL`, tạo schema kiểm thử riêng rồi dọn trong `finally`; không sửa bảng nghiệp vụ. Database cần có extension `btree_gist` và quyền tạo schema.
 
 6. **Khởi động server phát triển:**
    ```bash
