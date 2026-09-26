@@ -310,3 +310,10 @@ backend/
 - Không chạy lại 25 integration tests trong lượt này vì không thay đổi logic runtime/schema; kết quả 25/25 bên trên là kiểm chứng phase 1–5 trước đó, không phải lần chạy mới.
 - Docker/Nginx/EC2 là cấu hình mục tiêu trong tài liệu; chưa build image hoặc deploy, chưa xác nhận ARM64 và migration production.
 - Chưa commit/push/merge dev; thay đổi nằm trên feature/backend-deployment-simplification để review.
+## Publication và merge vào dev — 27/09/2026
+
+- Theo yêu cầu người dùng, đã push 6 nhánh feature lên origin: backend-foundation, backend-operations, backend-bookings-billing, backend-attendance-realtime, backend-core-validation, backend-deployment-simplification.
+- Merge lần lượt bằng --no-ff vào dev: ecba76a, 776e0f0, 299d41e, 2cb34b9, 8474475, eabca0d. Không có conflict; tree tại eabca0d trùng feature/backend-deployment-simplification.
+- npm run check trên dev sau merge: PASS generate/format/lint/build, OpenAPI 104 endpoints, 4 suites/13 unit tests.
+- Không chạy lại integration/EC2 deployment trong lượt publication; 25/25 integration phía trên là kiểm chứng trước đó.
+- Các ghi chú chưa push/merge ở phiên trước là lịch sử và được thay thế bởi bản ghi này. Nhánh feature được giữ để truy vết, không force-push hoặc xóa nhánh.
