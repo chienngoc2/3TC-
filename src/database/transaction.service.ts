@@ -9,11 +9,17 @@ export class TransactionService {
   async run<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       try {
-        return await this.prisma.$transaction(work, {
-          isolationLevel: 'Serializable',
-          timeout: 20000,
-          maxWait: 10000,
-        });
+        return await this.prisma.$transaction(
+          async (tx) => {
+            await tx.$executeRaw`SET LOCAL TIME ZONE 'Asia/Ho_Chi_Minh'`;
+            return work(tx);
+          },
+          {
+            isolationLevel: 'Serializable',
+            timeout: 20000,
+            maxWait: 10000,
+          },
+        );
       } catch (error) {
         const code = (error as { code?: string }).code;
         if (code === 'P2034' && attempt < 3) {

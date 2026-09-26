@@ -34,6 +34,7 @@ export class WorkoutDto {
 }
 export class UpdateWorkoutDto extends PartialType(
   OmitType(WorkoutDto, ['memberId'] as const),
+  { skipNullProperties: false },
 ) {}
 export class KnowledgeDto {
   @IsString() @MinLength(2) @MaxLength(150) title: string;

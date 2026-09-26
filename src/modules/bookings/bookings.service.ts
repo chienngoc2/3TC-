@@ -173,10 +173,19 @@ export class BookingsService {
         data: { currentEnrolled: { increment: 1 } },
       });
       await audit(tx, actor, 'BOOK_GROUP_CLASS', 'bookings', booking.id);
-      return { booking, coachId: schedule.coachId, schedule: updatedSchedule };
+      return {
+        booking,
+        coachId: schedule.coachId,
+        schedule: updatedSchedule,
+        remainingGroupSessions: (sub.remainingGroupSessions ?? 0) - 1,
+      };
     });
     this.changed(result.booking, result.coachId, result.schedule);
-    return { ...result.booking, bookingId: result.booking.id };
+    return {
+      ...result.booking,
+      bookingId: result.booking.id,
+      remainingGroupSessions: result.remainingGroupSessions,
+    };
   }
   async pt(dto: PtBookingDto, actor: Actor) {
     const result = await this.transactions.run(async (tx) => {
@@ -232,10 +241,18 @@ export class BookingsService {
         initial.endTime,
       );
       await audit(tx, actor, 'BOOK_PT', 'bookings', booking.id);
-      return { booking, coachId: initial.coachId };
+      return {
+        booking,
+        coachId: initial.coachId,
+        remainingPtSessions: (sub.remainingPtSessions ?? 0) - 1,
+      };
     });
     this.changed(result.booking, result.coachId);
-    return { ...result.booking, bookingId: result.booking.id };
+    return {
+      ...result.booking,
+      bookingId: result.booking.id,
+      remainingPtSessions: result.remainingPtSessions,
+    };
   }
   changed(
     booking: { id: string; memberId: string; scheduleId: string | null },

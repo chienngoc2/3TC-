@@ -47,6 +47,11 @@ export class AttendancesService {
           sub.hasUnlimitedGymAccess &&
           sub.discipline?.code.toUpperCase() === 'GYM',
       );
+      const quotaAccess = validSubs.some(
+        (sub) =>
+          (sub.remainingGroupSessions ?? 0) > 0 ||
+          (sub.remainingPtSessions ?? 0) > 0,
+      );
       const gymDropin = validSubs.find(
         (sub) =>
           sub.discipline?.code.toUpperCase() === 'GYM' &&
@@ -104,7 +109,7 @@ export class AttendancesService {
             sub.packageTier === 'DROP_IN',
         );
         requireCondition(
-          unlimited || dailyBooking || visitDropin,
+          unlimited || quotaAccess || dailyBooking || visitDropin,
           'GATE_ACCESS_DENIED',
         );
         return {
@@ -114,10 +119,10 @@ export class AttendancesService {
         };
       }
       requireCondition(
-        unlimited || gymDropin || dailyBooking,
+        unlimited || quotaAccess || gymDropin || dailyBooking,
         'GATE_ACCESS_DENIED',
       );
-      if (!unlimited && !dailyBooking && gymDropin) {
+      if (!unlimited && !quotaAccess && !dailyBooking && gymDropin) {
         const claimed = await tx.userSubscription.updateMany({
           where: { id: gymDropin.id, remainingSessions: { gt: 0 } },
           data: { remainingSessions: { decrement: 1 } },

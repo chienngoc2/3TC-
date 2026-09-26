@@ -389,7 +389,7 @@ async function main() {
   // ⚠️ price = BASE PRICE. Tổng thực = base + 12 × coach_rate — tính tại runtime bởi sp_purchase_vip_subscription.
   const yogaVipPlan = await prisma.membershipPlan.upsert({
     where: { id: '00000000-0000-0000-0000-000000000040' },
-    update: { name: 'Gói VIP Yoga (12 PT + 15 Lớp Nhóm)', description: 'Gói cao cấp: 12 buổi PT 1:1 + 15 buổi lớp nhóm / 30 ngày. Tổng = 1tr + 12 × coach_rate.', price: 1000000, durationDays: 30, groupSessionQuota: 15, ptSessionQuota: 12, unlimitedGymEntry: true },
+    update: { name: 'Gói VIP Yoga (12 PT + 15 Lớp Nhóm)', description: 'Gói cao cấp: 12 buổi PT 1:1 + 15 buổi lớp nhóm / 30 ngày. Tổng = 1tr + 12 × coach_rate.', price: 1000000, durationDays: 30, groupSessionQuota: 15, ptSessionQuota: 12, unlimitedGymEntry: false },
     create: {
       id: '00000000-0000-0000-0000-000000000040',
       disciplineId: yoga.id,
@@ -402,7 +402,7 @@ async function main() {
       trainingMode: TrainingMode.HYBRID,
       groupSessionQuota: 15,
       ptSessionQuota: 12,
-      unlimitedGymEntry: true,
+      unlimitedGymEntry: false,
     },
   });
 

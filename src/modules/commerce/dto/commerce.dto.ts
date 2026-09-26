@@ -34,7 +34,9 @@ export class PlanDto {
   @IsInt() @Min(0) @Max(10000) ptSessionQuota: number;
   @IsBoolean() unlimitedGymEntry: boolean;
 }
-export class UpdatePlanDto extends PartialType(PlanDto) {}
+export class UpdatePlanDto extends PartialType(PlanDto, {
+  skipNullProperties: false,
+}) {}
 export class PurchaseDto {
   @IsUUID() memberId: string;
   @IsUUID() planId: string;
@@ -68,7 +70,9 @@ export class ScheduleDto {
   @IsDateString() endTime: string;
   @IsInt() @Min(1) @Max(1000) capacity: number;
 }
-export class UpdateScheduleDto extends PartialType(ScheduleDto) {}
+export class UpdateScheduleDto extends PartialType(ScheduleDto, {
+  skipNullProperties: false,
+}) {}
 export class GroupBookingDto {
   @IsUUID() scheduleId: string;
   @IsOptional() @IsUUID() memberId?: string;

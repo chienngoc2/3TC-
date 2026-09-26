@@ -1,5 +1,9 @@
 # Sports Center Management System - Backend API
 
+Logic backend cơ bản Phase 1–5 đã triển khai. Xem [báo cáo chức năng, kiểm thử và thứ tự merge](markdown/backend_phases_1_5_report.md). AI, CronJobs, workers và đóng gói production chưa nằm trong lần triển khai này.
+
+Kiểm tra trước merge: `npm run check`. Integration PostgreSQL/Redis: `npm run test:e2e -- --runInBand`; cấu hình môi trường kiểm thử và lưu ý Windows có trong báo cáo. Swagger tại `/docs`; Socket.IO tại `/realtime`. Môi trường đã kiểm chứng dùng Node 24.21.0.
+
 > Hệ thống API dịch vụ trung tâm (Core RESTful & Realtime API) cho nền tảng Quản lý Trung tâm Thể thao đa bộ môn (Gym, Boxing, Yoga, Dancing), hỗ trợ điều phối nghiệp vụ, kiểm soát giao dịch đặt lịch kép, bảo toàn quota/amenities và tích hợp trí tuệ nhân tạo (RAG AI Coaching).
 
 [![NestJS](https://img.shields.io/badge/NestJS-v12.x-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)

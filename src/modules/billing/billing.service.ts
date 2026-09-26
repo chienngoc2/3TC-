@@ -117,7 +117,9 @@ export class BillingService {
             : (plan.groupSessionQuota ?? 0) + ptQuota,
         remainingGroupSessions: plan.groupSessionQuota ?? 0,
         remainingPtSessions: ptQuota,
-        hasUnlimitedGymAccess: plan.unlimitedGymEntry,
+        hasUnlimitedGymAccess:
+          plan.discipline?.code.toUpperCase() === 'GYM' &&
+          Boolean(plan.unlimitedGymEntry),
       },
     });
     const invoice = await tx.invoice.create({
