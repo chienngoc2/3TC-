@@ -4,6 +4,7 @@
 /build
 *.tsbuildinfo
 .env
+.env.production
 
 # Logs
 logs

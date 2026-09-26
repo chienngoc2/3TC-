@@ -2,7 +2,7 @@
 ## SPORTS CENTER MANAGEMENT SYSTEM (GYM / BOXING / YOGA / DANCING)
 
 > **Cập nhật:** Release 5.0 (Đồng bộ toàn diện với `SQL_v5.md`, `business_rule_final.md` và `implementation_plan.md`)  
-> **Công nghệ:** NestJS + Prisma ORM + PostgreSQL 15+ (Supabase) + Redis 7 + Socket.io + BullMQ  
+> **Công nghệ:** NestJS + Prisma ORM + PostgreSQL 15+ (Supabase) + Redis 7 + Socket.io
 > **Kiến trúc:** Modular Monolith (Clean Architecture)  
 > **Quy mô nghiệp vụ:** Trung tâm thể thao cao cấp đa bộ môn với mô hình phân cấp quản trị 2 tầng (IT Admin & Center Manager), bán vé đa tầng (Trial, Drop-in, Plus, VIP, PT Add-on), kiểm soát đặt chỗ kép chống Overbooking & Race Condition, quản lý tiện ích hậu mãi (InBody Logs, Smart Locker, Towel Service) và trợ lý AI Workout RAG (pgvector).
 
@@ -31,7 +31,7 @@ backend/
 │   │   └── prisma.service.ts
 │   ├── infrastructure/                # Các dịch vụ nền tảng bên ngoài
 │   │   ├── redis/                     # Redis Client & Distributed Lock (Redlock)
-│   │   ├── queue/                     # BullMQ Queue Module (Cronjobs, FCM Push Notification)
+│   │   ├── tasks/                     # Scheduler tương lai; chưa triển khai phase 6
 │   │   ├── socket/                    # Socket.io Gateway (Realtime notifications & attendance)
 │   │   └── storage/                   # Supabase Storage S3-compatible service
 │   ├── modules/                       # Từng Module nghiệp vụ độc lập (Domain Modules)
@@ -180,13 +180,15 @@ flowchart TD
 * **Realtime Gateway (`SocketGateway`):**
   * Bắn sự kiện realtime cập nhật sĩ số lớp học và thông báo khách vào cổng lên Web Portal của Lễ tân & Manager.
 
-### Phase 6: Trợ lý AI Streaming & Tác vụ Hàng đợi Nền (Tuần 9 - 10)
+### Phase 6: Trợ lý AI Streaming & Tác vụ định kỳ (Tuần 9 - 10)
 * **`AiAssistantModule`:**
   * Endpoint SSE streaming văn bản gợi ý bài tập từ LLM API (Gemini/OpenAI).
   * RAG pgvector trên `exercise_knowledge` (Cosine Distance `<=>`) kết hợp với dữ liệu InBody và hồ sơ bệnh án của học viên để tạo giáo án cá nhân hóa.
-* **BullMQ Queue Module:**
+* **Scheduler Module (dự kiến @nestjs/schedule, không dùng BullMQ):**
   * **Cronjob Expiry (00:05 hàng ngày):** Quét các hợp đồng có `end_date < CURRENT_DATE` để cập nhật `status = 'EXPIRED'` (giữ nguyên số dư quota lịch sử).
-  * **Notification Worker:** Bắn thông báo nhắc lịch học trước 2 tiếng qua Firebase Cloud Messaging (FCM).
+  * **Notification Task:** Nhắc lịch nhóm/PT trước 2 tiếng qua FCM; chống trùng, lưu kết quả, chạy bù. Nếu cần retry bền vững, lưu tác vụ trong PostgreSQL; chưa triển khai.
+
+Scheduler dùng timezone `Asia/HoChiMinh`, thao tác idempotent và chạy bù sau restart; không bảo đảm tác vụ bằng bộ nhớ đơn thuần. Redis chỉ phục vụ authentication. Chi tiết triển khai: [backend_deployment_new.md](./backend_deployment_new.md).
 
 ### Phase 7: Kiểm thử Concurrency, Tối ưu & Đóng gói Production (Tuần 11 - 12)
 * **Kiểm thử E2E & Concurrency:**
