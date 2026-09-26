@@ -100,6 +100,8 @@ npm run check
 
 Tránh squash từng nhánh nối tiếp mà chưa rebase nhánh con: ancestry có thể làm diff lặp lại. Có thể merge một lần nhánh cuối nếu không cần từng PR riêng. `dev` thực tế được giữ nguyên; mô phỏng merge và kiểm tra build thực hiện trên worktree tạm. Chưa push, mở PR hay deploy.
 
+Kết quả mô phỏng trên base `dev = 19d04d9`: merge đủ 5 nhánh bằng `--no-ff` không có conflict; `git diff` giữa tree sau merge và nhánh cuối rỗng. Chạy `npm run check` trên worktree sau merge đã pass generate, format, lint, build, 104 endpoint Swagger và 13 unit test. Lượt integration cuối trên cùng mã nguồn pass **25/25** với Redis thật (199,654 giây); Redis prefix được dọn về 0 key sau chạy. Worktree và container kiểm thử được dọn sau kiểm chứng.
+
 ## 6. Giới hạn của kết quả
 
 - Đây là backend cơ bản trong phạm vi đã yêu cầu; không kết luận production hardening/triển khai Phase 6–7 hoàn tất.
