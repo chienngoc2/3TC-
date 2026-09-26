@@ -1,3 +1,8 @@
+import { BookingsModule } from './modules/bookings/bookings.module';
+import { SchedulesModule } from './modules/schedules/schedules.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { MembershipsModule } from './modules/memberships/memberships.module';
+import { DomainEventsModule } from './common/events/domain-events';
 import { ClassesModule } from './modules/classes/classes.module';
 import { InbodyModule } from './modules/inbody/inbody.module';
 import { LockersModule } from './modules/lockers/lockers.module';
@@ -25,6 +30,11 @@ import { SystemModule } from './modules/system/system.module';
       validate,
       envFilePath: '.env',
     }),
+    MembershipsModule,
+    BillingModule,
+    SchedulesModule,
+    BookingsModule,
+    DomainEventsModule,
     PrismaModule,
     RedisModule,
     AuthModule,
