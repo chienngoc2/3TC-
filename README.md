@@ -13,7 +13,6 @@ Kiểm tra trước merge: `npm run check`. Integration PostgreSQL/Redis: `npm r
 [![PostgreSQL](https://img.shields.io/badge/Supabase_PostgreSQL-v15.x-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 [![Redis](https://img.shields.io/badge/Redis-v7.x-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 [![Socket.io](https://img.shields.io/badge/Socket.io-v4.x-010101?logo=socketdotio&logoColor=white)](https://socket.io/)
-[![BullMQ](https://img.shields.io/badge/BullMQ-v6.x-FF4438)](https://bullmq.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
@@ -155,7 +154,7 @@ backend/
 │   ├── config/                                   # Nạp và validate env qua class-validator
 │   ├── database/                                 # PrismaModule & PrismaService kết nối Pooler
 │   ├── infrastructure/                           # Dịch vụ nền tảng bên ngoài
-│   │   ├── queue/                                # BullMQ background queues
+│   │   ├── tasks/                                # Future scheduler; not implemented
 │   │   ├── redis/                                # RedisModule quản lý session & token revoke
 │   │   ├── socket/                               # Socket.io Gateway cập nhật realtime
 │   │   └── storage/                              # Supabase Storage S3-compatible service
