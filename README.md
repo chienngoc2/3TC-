@@ -39,34 +39,7 @@ Kiểm tra trước merge: `npm run check`. Integration PostgreSQL/Redis: `npm r
    ```
 
 3. **Cấu hình biến môi trường:**
-   Tạo file `.env` từ `.env.example`:
-   ```bash
-   cp .env.example .env
-   ```
-   Cấu hình mẫu chuẩn cho môi trường Supabase:
-   ```env
-   PORT=3000
-   NODE_ENV=development
-
-   # Supabase Database (Transaction Pooler port 6543)
-   DATABASE_URL="postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true"
-   # Direct Database Connection (Port 5432 - Bắt buộc dùng cho DDL migrations & constraints)
-   DIRECT_URL="postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
-
-   # Redis Configuration (Docker Redis 7)
-   REDIS_HOST="127.0.0.1"
-   REDIS_PORT=6379
-   REDIS_PASSWORD=""
-
-   # JWT Secrets
-   JWT_ACCESS_SECRET="your_access_token_secret_key"
-   JWT_ACCESS_EXPIRES_IN="15m"
-   JWT_REFRESH_SECRET="your_refresh_token_secret_key"
-   JWT_REFRESH_EXPIRES_IN="7d"
-
-   # AI LLM Provider
-   GEMINI_API_KEY="your_gemini_api_key"
-   ```
+   Không cần thiết với dự án hiện tại. file `.env` tớ đã cấu hình sẵn, pull và chạy là được.
 
 4. **Khởi chạy Redis (Docker Compose):**
    ```bash
@@ -74,23 +47,7 @@ Kiểm tra trước merge: `npm run check`. Integration PostgreSQL/Redis: `npm r
    ```
 
 5. **Đồng bộ Cơ sở dữ liệu V5 & Dữ liệu mẫu (Seed):**
-   ```bash
-   npm run db:setup
-   ```
-   > **Chi tiết quy trình `npm run db:setup`:**
-   > 1. `prisma db push`: Đồng bộ 29 Prisma models lên Supabase PostgreSQL.
-   > 2. `npm run db:constraints`: Thực thi file `prisma/migrations/manual/v5_constraints_triggers_rls.sql` qua kết nối `DIRECT_URL` (bật GiST partial exclusion, triggers chống xung đột chéo, triggers đếm kỷ luật DSS, stored procedures và RLS).
-   > 3. `npm run prisma:seed`: Khởi tạo dữ liệu chuẩn 4 bộ môn, chuyên môn (Specialties), tủ đồ (Lockers), các tài khoản 5 vai trò và bảng giá gói tập V5.
-
-   * **Áp dụng lại ràng buộc nâng cao khi cần:**
-     ```bash
-     npm run db:constraints
-     ```
-   * **Kiểm chứng toàn vẹn ràng buộc & kiểm thử tranh chấp đồng thời (Concurrency Verification):**
-     ```bash
-     npm run db:verify:v5
-     ```
-     *(Tự động tạo schema tạm cô lập, kiểm thử race-condition phòng/HLV, kiểm thử claim hủy khẩn cấp và dọn dẹp sau khi hoàn tất).*
+   Không cần thiết với dự án hiện tại, tớ cũng cấu hình DB và nạp seed data rồi.
 
 6. **Khởi động server phát triển:**
    ```bash
@@ -203,11 +160,11 @@ backend/
 
 ## 5. Tài liệu Tham khảo Liên quan
 
-* **Đặc tả Nghiệp vụ 4 Bộ môn**: [`../erd/business_rule_final.md`](../erd/business_rule_final.md)
+* **Đặc tả Nghiệp vụ 4 Bộ môn**: [`../erd/business_rule_final.md`](https://github.com/Sports-Center-Management-System/documents/blob/main/business_rule_final.md)
 * **Kế hoạch Triển khai Backend chi tiết**: [`markdown/implementation_plan_backend.md`](markdown/implementation_plan_backend.md)
-* **Mẫu Thiết kế & Logic Xử lý Tranh chấp**: [`../erd/implementation_plan.md`](../erd/implementation_plan.md)
-* **Đặc tả Cơ sở Dữ liệu DDL V5**: [`../erd/SQL_v5.md`](../erd/SQL_v5.md)
-* **Danh mục API Contract (59 Endpoints)**: [`../erd/API_CONTRACT.md`](../erd/API_CONTRACT.md)
+* **Mẫu Thiết kế & Logic Xử lý Tranh chấp**: [`../erd/implementation_plan.md`](https://github.com/Sports-Center-Management-System/documents/blob/main/implementation_plan.md)
+* **Đặc tả Cơ sở Dữ liệu DDL V5**: [`../erd/SQL_v5.md`](https://github.com/Sports-Center-Management-System/documents/blob/main/SQL_v5.md)
+* **Danh mục API Contract (59 Endpoints)**: [`../erd/API_CONTRACT.md`](https://github.com/Sports-Center-Management-System/documents/blob/main/API_CONTRACT.md)
 * **Báo cáo Khắc phục & Nghiệm thu Kỹ thuật V5**: [`markdown/v5_review_report.md`](markdown/v5_review_report.md)
 
 ---
