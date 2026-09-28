@@ -1426,16 +1426,69 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
           member,
         ),
       ).rejects.toThrow('PT_ALREADY_BOOKED_FOR_DISCIPLINE_DAY');
-      await bookings.cancel(yogaBooking.id, {}, member);
+      const quotaBeforeCancel = (
+        await db.userSubscription.findUniqueOrThrow({
+          where: { id: yogaBooking.subscriptionId },
+        })
+      ).remainingPtSessions;
+      expect((await bookings.cancel(yogaBooking.id, {}, member)).refunded).toBe(
+        true,
+      );
+      const monday = addDays(localDate(day), -((day.getUTCDay() + 6) % 7))
+        .toISOString()
+        .slice(0, 10);
+      const afterCancel = await api()
+        .get(`/api/v1/members/me/calendar?week=${monday}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(
+        afterCancel.body.data.days
+          .find(
+            (item: { date: string }) =>
+              item.date === day.toISOString().slice(0, 10),
+          )
+          .eligibility.find(
+            (item: { subscriptionId: string }) =>
+              item.subscriptionId === yogaBooking.subscriptionId,
+          ).pt.allowed,
+      ).toBe(true);
+      const rebooked = await bookings.pt(
+        { coachAvailabilityId: secondYogaSlot.id, disciplineId },
+        member,
+      );
+      expect(
+        (
+          await db.userSubscription.findUniqueOrThrow({
+            where: { id: yogaBooking.subscriptionId },
+          })
+        ).remainingPtSessions,
+      ).toBe(quotaBeforeCancel);
+      await expect(
+        bookings.pt({ coachAvailabilityId: yogaSlot.id, disciplineId }, member),
+      ).rejects.toThrow('PT_ALREADY_BOOKED_FOR_DISCIPLINE_DAY');
+      expect(
+        (await bookings.cancel(rebooked.id, {}, receptionist)).refunded,
+      ).toBe(true);
+      const rebookedAtDesk = await bookings.pt(
+        { coachAvailabilityId: yogaSlot.id, disciplineId },
+        member,
+      );
+      const lateClock = jest
+        .spyOn(Date, 'now')
+        .mockReturnValue(new Date(at(10).startTime).getTime() - 30 * 60000);
+      try {
+        expect(
+          (await bookings.cancel(rebookedAtDesk.id, {}, member)).refunded,
+        ).toBe(false);
+      } finally {
+        lateClock.mockRestore();
+      }
       await expect(
         bookings.pt(
           { coachAvailabilityId: secondYogaSlot.id, disciplineId },
           member,
         ),
       ).rejects.toThrow('PT_REBOOK_SAME_CANCELLED_DAY');
-      const monday = addDays(localDate(day), -((day.getUTCDay() + 6) % 7))
-        .toISOString()
-        .slice(0, 10);
       const calendar = await api()
         .get(`/api/v1/members/me/calendar?week=${monday}`)
         .set('Authorization', `Bearer ${token}`)
@@ -1445,6 +1498,17 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
           (booking: { id: string }) => booking.id === yogaBooking.id,
         ),
       ).toBe(true);
+      expect(
+        calendar.body.data.days
+          .find(
+            (item: { date: string }) =>
+              item.date === day.toISOString().slice(0, 10),
+          )
+          .eligibility.find(
+            (item: { subscriptionId: string }) =>
+              item.subscriptionId === yogaBooking.subscriptionId,
+          ).pt.reason,
+      ).toBe('PT_REBOOK_SAME_CANCELLED_DAY');
       expect(calendar.body.data.timezone).toBe('Asia/Ho_Chi_Minh');
     } finally {
       if (oldPort === undefined) delete process.env.PORT;
