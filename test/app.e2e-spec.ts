@@ -112,7 +112,7 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
       .overrideProvider(RedisService)
       .useValue(sessionStore)
       .compile();
-    app = fixture.createNestApplication();
+    app = fixture.createNestApplication({ rawBody: true });
     configureApp(app);
     await app.listen(0, '127.0.0.1');
     bookings = app.get(BookingsService);
@@ -1182,10 +1182,11 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
         lastCancellationResetDate: new Date('2000-01-01'),
       },
     });
+    await purchase(members[10], true);
     const slot = await coaches.createSlot(future(), coach),
       booking = await bookings.pt(
         { coachAvailabilityId: slot.id, disciplineId },
-        members[8],
+        members[10],
       );
     const req = await reviews.request(
       {
@@ -1202,5 +1203,256 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
     expect(updated.emergencyCancellationCount).toBe(
       profile.emergencyCancellationCount + 1,
     );
+  });
+  it('fulfills MEMBER mock checkout once, supports add-on/retry, and enforces PT per discipline/day', async () => {
+    const member = members[11];
+    await login(member);
+    const token = tokens.get(member.userId)!;
+    const oldPort = process.env.PORT;
+    const oldEnabled = process.env.MOCK_PAYMENT_ENABLED;
+    const oldSecret = process.env.MOCK_WEBHOOK_SECRET;
+    process.env.PORT = new URL(await app.getUrl()).port;
+    process.env.MOCK_PAYMENT_ENABLED = 'true';
+    process.env.MOCK_WEBHOOK_SECRET =
+      'test-mock-webhook-secret-at-least-32-characters';
+    try {
+      const quote = await api()
+        .get(
+          `/api/v1/billing/quotations/vip?planId=${vipId}&coachId=${coach.userId}`,
+        )
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(Number(quote.body.data.totalAmount)).toBe(
+        Number(quote.body.data.baseAmount) +
+          Number(quote.body.data.ratePerSession) * 12,
+      );
+      const payload = {
+        kind: 'NEW_SUBSCRIPTION',
+        planId: vipId,
+        coachId: coach.userId,
+      };
+      const first = await api()
+        .post('/api/v1/billing/checkouts')
+        .set('Authorization', `Bearer ${token}`)
+        .set('Idempotency-Key', 'member-vip-checkout-1')
+        .send(payload)
+        .expect(201);
+      const orderId = first.body.data.checkoutId as string;
+      const paymentId = first.body.data.paymentId as string;
+      expect(first.body.data.status).toBe('PENDING_PAYMENT');
+      expect(await db.invoice.count({ where: { checkoutId: orderId } })).toBe(
+        0,
+      );
+      await api()
+        .post('/api/v1/billing/webhooks/mock')
+        .set('x-mock-signature', '0'.repeat(64))
+        .send({ eventId: 'forged', paymentId })
+        .expect(401);
+      const replay = await api()
+        .post('/api/v1/billing/checkouts')
+        .set('Authorization', `Bearer ${token}`)
+        .set('Idempotency-Key', 'member-vip-checkout-1')
+        .send(payload)
+        .expect(201);
+      expect(replay.body.data.checkoutId).toBe(orderId);
+      await api()
+        .post('/api/v1/billing/checkouts')
+        .set('Authorization', `Bearer ${token}`)
+        .set('Idempotency-Key', 'member-vip-checkout-1')
+        .send({ kind: 'NEW_SUBSCRIPTION', planId })
+        .expect(409);
+      await api()
+        .post('/api/v1/dev/mock-payments/lookup')
+        .send({ paymentId })
+        .expect(201);
+      await api()
+        .post('/api/v1/dev/mock-payments/simulate')
+        .send({ paymentId, outcome: 'SUCCESS' })
+        .expect(201);
+      await api()
+        .post('/api/v1/dev/mock-payments/simulate')
+        .send({ paymentId, outcome: 'SUCCESS' })
+        .expect(201);
+      await api()
+        .post('/api/v1/dev/mock-payments/simulate')
+        .send({ paymentId, outcome: 'FAILURE' })
+        .expect(409);
+      const paid = await api()
+        .get(`/api/v1/billing/checkouts/${orderId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(paid.body.data.status).toBe('FULFILLED');
+      expect(await db.invoice.count({ where: { checkoutId: orderId } })).toBe(
+        1,
+      );
+      const subscriptionId = paid.body.data.subscriptionId as string;
+      const addon = await api()
+        .post('/api/v1/billing/checkouts')
+        .set('Authorization', `Bearer ${token}`)
+        .set('Idempotency-Key', 'member-addon-checkout-1')
+        .send({ kind: 'PT_ADDON', subscriptionId, addonSessions: 2 })
+        .expect(201);
+      await api()
+        .post('/api/v1/dev/mock-payments/simulate')
+        .send({ paymentId: addon.body.data.paymentId, outcome: 'SUCCESS' })
+        .expect(201);
+      expect(
+        (
+          await db.userSubscription.findUniqueOrThrow({
+            where: { id: subscriptionId },
+          })
+        ).remainingPtSessions,
+      ).toBe(14);
+
+      const renewal = await api()
+        .post('/api/v1/billing/checkouts')
+        .set('Authorization', `Bearer ${token}`)
+        .set('Idempotency-Key', 'member-renew-checkout-1')
+        .send({ kind: 'RENEWAL', subscriptionId })
+        .expect(201);
+      await api()
+        .post('/api/v1/dev/mock-payments/simulate')
+        .send({ paymentId: renewal.body.data.paymentId, outcome: 'FAILURE' })
+        .expect(201);
+      expect(
+        await db.invoice.count({
+          where: { checkoutId: renewal.body.data.checkoutId },
+        }),
+      ).toBe(0);
+      const retry = await api()
+        .post(`/api/v1/billing/checkouts/${renewal.body.data.checkoutId}/retry`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('Idempotency-Key', 'member-renew-retry-1')
+        .expect(201);
+      expect(retry.body.data.paymentId).not.toBe(renewal.body.data.paymentId);
+      await api()
+        .post('/api/v1/dev/mock-payments/simulate')
+        .send({ paymentId: retry.body.data.paymentId, outcome: 'SUCCESS' })
+        .expect(201);
+      expect(
+        await db.invoice.count({
+          where: { checkoutId: renewal.body.data.checkoutId },
+        }),
+      ).toBe(1);
+
+      const freePlan = await app.get(MembershipsService).create(
+        {
+          name: 'Member Free Trial',
+          disciplineId,
+          price: 0,
+          durationDays: 7,
+          packageTier: 'TRIAL',
+          trainingMode: 'GROUP_CLASS',
+          groupSessionQuota: 3,
+          ptSessionQuota: 0,
+          unlimitedGymEntry: false,
+        },
+        manager,
+      );
+      const free = await api()
+        .post('/api/v1/billing/checkouts')
+        .set('Authorization', `Bearer ${token}`)
+        .set('Idempotency-Key', 'member-free-trial-1')
+        .send({ kind: 'NEW_SUBSCRIPTION', planId: freePlan.id })
+        .expect(201);
+      expect(free.body.data.status).toBe('FULFILLED');
+      expect(free.body.data.paymentId).toBeNull();
+      expect(
+        (
+          await db.invoice.findUniqueOrThrow({
+            where: { checkoutId: free.body.data.checkoutId },
+          })
+        ).paymentMethod,
+      ).toBe('FREE');
+
+      const boxing = await db.discipline.create({
+        data: { code: 'BOXING', name: 'Boxing' },
+      });
+      const specialty = await db.specialty.create({
+        data: {
+          code: 'BOXING_BASIC',
+          name: 'Boxing Basic',
+          disciplineId: boxing.id,
+        },
+      });
+      const profile = await db.coachProfile.findUniqueOrThrow({
+        where: { userId: coach.userId },
+      });
+      await db.coachSpecialty.create({
+        data: { coachProfileId: profile.id, specialtyId: specialty.id },
+      });
+      const boxingPlan = await app.get(MembershipsService).create(
+        {
+          name: 'Boxing VIP',
+          disciplineId: boxing.id,
+          price: 1000000,
+          durationDays: 90,
+          packageTier: 'VIP',
+          trainingMode: 'HYBRID',
+          groupSessionQuota: 10,
+          ptSessionQuota: 12,
+          unlimitedGymEntry: false,
+        },
+        manager,
+      );
+      await billing.purchase(
+        {
+          memberId: member.userId,
+          planId: boxingPlan.id,
+          coachId: coach.userId,
+          ...payment,
+        },
+        receptionist,
+      );
+      const day = addDays(localDate(), 20);
+      const at = (hour: number) => ({
+        startTime: new Date(day.getTime() + (hour - 7) * 3600000).toISOString(),
+        endTime: new Date(day.getTime() + (hour - 6) * 3600000).toISOString(),
+      });
+      const yogaSlot = await coaches.createSlot(at(10), coach);
+      const boxingSlot = await coaches.createSlot(at(14), coach);
+      const secondYogaSlot = await coaches.createSlot(at(17), coach);
+      const yogaBooking = await bookings.pt(
+        { coachAvailabilityId: yogaSlot.id, disciplineId },
+        member,
+      );
+      await bookings.pt(
+        { coachAvailabilityId: boxingSlot.id, disciplineId: boxing.id },
+        member,
+      );
+      await expect(
+        bookings.pt(
+          { coachAvailabilityId: secondYogaSlot.id, disciplineId },
+          member,
+        ),
+      ).rejects.toThrow('PT_ALREADY_BOOKED_FOR_DISCIPLINE_DAY');
+      await bookings.cancel(yogaBooking.id, {}, member);
+      await expect(
+        bookings.pt(
+          { coachAvailabilityId: secondYogaSlot.id, disciplineId },
+          member,
+        ),
+      ).rejects.toThrow('PT_REBOOK_SAME_CANCELLED_DAY');
+      const monday = addDays(localDate(day), -((day.getUTCDay() + 6) % 7))
+        .toISOString()
+        .slice(0, 10);
+      const calendar = await api()
+        .get(`/api/v1/members/me/calendar?week=${monday}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+      expect(
+        calendar.body.data.bookings.some(
+          (booking: { id: string }) => booking.id === yogaBooking.id,
+        ),
+      ).toBe(true);
+      expect(calendar.body.data.timezone).toBe('Asia/Ho_Chi_Minh');
+    } finally {
+      if (oldPort === undefined) delete process.env.PORT;
+      else process.env.PORT = oldPort;
+      if (oldEnabled === undefined) delete process.env.MOCK_PAYMENT_ENABLED;
+      else process.env.MOCK_PAYMENT_ENABLED = oldEnabled;
+      if (oldSecret === undefined) delete process.env.MOCK_WEBHOOK_SECRET;
+      else process.env.MOCK_WEBHOOK_SECRET = oldSecret;
+    }
   });
 });

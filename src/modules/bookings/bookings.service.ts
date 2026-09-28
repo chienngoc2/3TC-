@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
@@ -210,6 +210,34 @@ export class BookingsService {
         initial.startTime > new Date(),
         'SESSION_ALREADY_STARTED',
       );
+      const localDay = localDate(initial.startTime);
+      const dayStart = new Date(localDay.getTime() - 7 * 3600000);
+      const dayEnd = new Date(dayStart.getTime() + 86400000);
+      const sameDay = await tx.booking.findMany({
+        where: {
+          memberId,
+          disciplineId: dto.disciplineId,
+          bookingType: 'PERSONAL_TRAINING',
+          status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED', 'CANCELLED'] },
+          coachAvailability: { startTime: { gte: dayStart, lt: dayEnd } },
+        },
+        select: {
+          status: true,
+          cancelledBy: true,
+          isEmergencyCancellation: true,
+        },
+      });
+      if (sameDay.some((booking) => booking.status !== 'CANCELLED'))
+        throw new ConflictException('PT_ALREADY_BOOKED_FOR_DISCIPLINE_DAY');
+      if (
+        sameDay.some(
+          (booking) =>
+            booking.status === 'CANCELLED' &&
+            booking.cancelledBy === 'MEMBER' &&
+            !booking.isEmergencyCancellation,
+        )
+      )
+        throw new ConflictException('PT_REBOOK_SAME_CANCELLED_DAY');
       const claim = await tx.coachAvailability.updateMany({
         where: { id: initial.id, isBooked: false, isEmergencyCancelled: false },
         data: { isBooked: true },

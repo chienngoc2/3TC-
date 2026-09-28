@@ -64,6 +64,14 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   JWT_REFRESH_EXPIRES_IN: string = '7d';
+
+  @IsString()
+  @IsOptional()
+  MOCK_PAYMENT_ENABLED: string = 'false';
+
+  @IsString()
+  @IsOptional()
+  MOCK_WEBHOOK_SECRET?: string;
 }
 
 export function validate(config: Record<string, unknown>) {
