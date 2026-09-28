@@ -624,6 +624,9 @@ ALTER TABLE lockers                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE locker_assignments       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cancellation_requests    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE coach_penalties          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkout_orders          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_attempts         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_webhook_events   ENABLE ROW LEVEL SECURITY;
 
 -- Catalog tables: public read
 DROP POLICY IF EXISTS "disciplines_read_all" ON disciplines;
@@ -681,6 +684,19 @@ USING (
 DROP POLICY IF EXISTS "invoices_staff_write" ON invoices;
 CREATE POLICY "invoices_staff_write" ON invoices FOR INSERT TO authenticated
 WITH CHECK (EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role IN ('ADMIN', 'CENTER_MANAGER', 'RECEPTIONIST')));
+
+DROP POLICY IF EXISTS "checkout_orders_owner_read" ON checkout_orders;
+CREATE POLICY "checkout_orders_owner_read" ON checkout_orders FOR SELECT TO authenticated
+USING (member_id = auth.uid() OR EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role IN ('ADMIN', 'CENTER_MANAGER', 'RECEPTIONIST')));
+
+DROP POLICY IF EXISTS "payment_attempts_owner_read" ON payment_attempts;
+CREATE POLICY "payment_attempts_owner_read" ON payment_attempts FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM checkout_orders co WHERE co.id = payment_attempts.checkout_id AND co.member_id = auth.uid())
+  OR EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role IN ('ADMIN', 'CENTER_MANAGER', 'RECEPTIONIST')));
+
+DROP POLICY IF EXISTS "payment_webhook_events_staff_read" ON payment_webhook_events;
+CREATE POLICY "payment_webhook_events_staff_read" ON payment_webhook_events FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role IN ('ADMIN', 'CENTER_MANAGER')));
 
 -- Bookings & Coach Availability
 DROP POLICY IF EXISTS "coach_avail_read_all" ON coach_availability;

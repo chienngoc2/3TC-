@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PackageTier } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
@@ -22,9 +23,9 @@ export class MembershipsService {
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
   ) {}
-  list() {
+  list(disciplineId?: string, packageTier?: PackageTier) {
     return this.prisma.membershipPlan.findMany({
-      where: { isActive: true },
+      where: { isActive: true, disciplineId, packageTier },
       include: { discipline: true, curriculumRequirements: true },
       orderBy: { price: 'asc' },
     });

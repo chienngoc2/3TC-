@@ -8,9 +8,10 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
+  ParseEnumPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { PackageTier, UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -27,8 +28,13 @@ import {
 export class MembershipsController {
   constructor(private readonly service: MembershipsService) {}
 
-  @Public() @Get('memberships/plans') list() {
-    return this.service.list();
+  @Public() @Get('memberships/plans') list(
+    @Query('disciplineId', new ParseUUIDPipe({ optional: true }))
+    disciplineId?: string,
+    @Query('packageTier', new ParseEnumPipe(PackageTier, { optional: true }))
+    packageTier?: PackageTier,
+  ) {
+    return this.service.list(disciplineId, packageTier);
   }
   @Roles(UserRole.CENTER_MANAGER) @Post('memberships/plans') create(
     @Body() dto: PlanDto,

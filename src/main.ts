@@ -5,7 +5,7 @@ import { AppModule } from './app.module';
 import { configureApp } from './config/configure-app';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   configureApp(app);
   app.enableCors({
     origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3001')

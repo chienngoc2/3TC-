@@ -26,6 +26,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AppService } from './app.service';
 import { SystemModule } from './modules/system/system.module';
+import { MemberCalendarModule } from './modules/member-calendar/member-calendar.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { SystemModule } from './modules/system/system.module';
       envFilePath: '.env',
     }),
     MembershipsModule,
+    MemberCalendarModule,
     BillingModule,
     SchedulesModule,
     WorkoutPlansModule,

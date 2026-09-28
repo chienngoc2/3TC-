@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, UserRole } from '@prisma/client';
+import { CheckoutOrder, Prisma, UserRole } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
@@ -66,11 +66,74 @@ export class BillingService {
       };
     });
   }
+  async vipQuote(planId: string, coachId: string) {
+    const plan = requireRecord(
+      await this.prisma.membershipPlan.findUnique({ where: { id: planId } }),
+      'PLAN_NOT_FOUND',
+    );
+    requireCondition(
+      plan.isActive && plan.packageTier === 'VIP',
+      'VIP_PLAN_REQUIRED',
+    );
+    const rate = await this.rate(this.prisma, coachId, plan.disciplineId);
+    const ptSessions = plan.ptSessionQuota ?? 0;
+    const ptAmount = rate.mul(ptSessions);
+    return {
+      planId,
+      coachId,
+      disciplineId: plan.disciplineId,
+      baseAmount: plan.price,
+      ptSessions,
+      ratePerSession: rate,
+      ptAmount,
+      totalAmount: plan.price.add(ptAmount),
+      currency: 'VND',
+      calculatedAt: new Date().toISOString(),
+      eligible: true,
+    };
+  }
+  async addonPreview(id: string, sessions: number, actor: Actor) {
+    const sub = requireRecord(
+      await this.prisma.userSubscription.findUnique({ where: { id } }),
+      'SUBSCRIPTION_NOT_FOUND',
+    );
+    requireCondition(sub.userId === actor.userId, 'FORBIDDEN_RESOURCE');
+    const today = localDate();
+    requireCondition(
+      sub.status === 'ACTIVE' &&
+        sub.startDate <= today &&
+        sub.endDate >= today &&
+        sub.assignedCoachId,
+      'INVALID_PT_SUBSCRIPTION',
+    );
+    const rate = await this.rate(
+      this.prisma,
+      sub.assignedCoachId,
+      sub.disciplineId,
+    );
+    return {
+      subscriptionId: id,
+      sessions,
+      ratePerSession: rate,
+      amount: rate.mul(sessions),
+      currency: 'VND',
+      calculatedAt: new Date().toISOString(),
+    };
+  }
   private async sell(
     tx: Prisma.TransactionClient,
     dto: PurchaseDto,
     actor: Actor,
     startDate = localDate(),
+    snapshot?: {
+      baseAmount: Prisma.Decimal;
+      ptAmount: Prisma.Decimal;
+      ptQuota: number;
+      groupQuota: number;
+      durationDays: number;
+      unlimitedGymEntry: boolean;
+    },
+    checkoutId?: string,
   ) {
     await requireRole(tx, dto.memberId, UserRole.MEMBER);
     const plan = requireRecord(
@@ -82,7 +145,9 @@ export class BillingService {
     );
     requireCondition(plan.isActive, 'PLAN_DISABLED');
     const ptQuota =
-      plan.packageTier === 'VIP' ? 12 : (plan.ptSessionQuota ?? 0);
+      snapshot?.ptQuota ??
+      (plan.packageTier === 'VIP' ? 12 : (plan.ptSessionQuota ?? 0));
+    const groupQuota = snapshot?.groupQuota ?? plan.groupSessionQuota ?? 0;
     requireCondition(!ptQuota || dto.coachId, 'COACH_REQUIRED');
     requireCondition(ptQuota > 0 || !dto.coachId, 'COACH_NOT_APPLICABLE');
     if (plan.packageTier === 'TRIAL')
@@ -96,11 +161,12 @@ export class BillingService {
         })),
         'TRIAL_ALREADY_USED',
       );
-    const rate = dto.coachId
-      ? await this.rate(tx, dto.coachId, plan.disciplineId)
-      : new Prisma.Decimal(0);
-    const ptAmount = rate.mul(ptQuota),
-      baseAmount = plan.price;
+    const rate =
+      !snapshot && dto.coachId
+        ? await this.rate(tx, dto.coachId, plan.disciplineId)
+        : new Prisma.Decimal(0);
+    const ptAmount = snapshot?.ptAmount ?? rate.mul(ptQuota),
+      baseAmount = snapshot?.baseAmount ?? plan.price;
     const subscription = await tx.userSubscription.create({
       data: {
         userId: dto.memberId,
@@ -109,17 +175,20 @@ export class BillingService {
         packageTier: plan.packageTier,
         assignedCoachId: dto.coachId,
         startDate,
-        endDate: addDays(startDate, plan.durationDays - 1),
+        endDate: addDays(
+          startDate,
+          (snapshot?.durationDays ?? plan.durationDays) - 1,
+        ),
         remainingSessions:
           plan.discipline?.code.toUpperCase() === 'GYM' &&
           plan.packageTier === 'DROP_IN'
             ? 1
-            : (plan.groupSessionQuota ?? 0) + ptQuota,
-        remainingGroupSessions: plan.groupSessionQuota ?? 0,
+            : groupQuota + ptQuota,
+        remainingGroupSessions: groupQuota,
         remainingPtSessions: ptQuota,
         hasUnlimitedGymAccess:
           plan.discipline?.code.toUpperCase() === 'GYM' &&
-          Boolean(plan.unlimitedGymEntry),
+          Boolean(snapshot?.unlimitedGymEntry ?? plan.unlimitedGymEntry),
       },
     });
     const invoice = await tx.invoice.create({
@@ -132,6 +201,7 @@ export class BillingService {
         ptAmount,
         paymentMethod: dto.paymentMethod,
         transactionRef: dto.transactionRef,
+        checkoutId,
         type: plan.packageTier === 'DROP_IN' ? 'DROP_IN' : 'SUBSCRIPTION_NEW',
       },
     });
@@ -144,6 +214,117 @@ export class BillingService {
       { invoiceId: invoice.id, amount: invoice.amount },
     );
     return { subscription, invoice };
+  }
+  async fulfillCheckout(
+    tx: Prisma.TransactionClient,
+    order: CheckoutOrder,
+    paymentId: string,
+  ) {
+    const actor: Actor = { userId: order.memberId, role: UserRole.MEMBER };
+    if (order.kind === 'PT_ADDON') {
+      const id = requireRecord(
+        order.targetSubscriptionId,
+        'SUBSCRIPTION_NOT_FOUND',
+      );
+      const sub = requireRecord(
+        await tx.userSubscription.findUnique({ where: { id } }),
+        'SUBSCRIPTION_NOT_FOUND',
+      );
+      const today = localDate();
+      requireCondition(
+        sub.userId === order.memberId &&
+          sub.status === 'ACTIVE' &&
+          sub.startDate <= today &&
+          sub.endDate >= today &&
+          sub.assignedCoachId === order.coachId,
+        'INVALID_PT_SUBSCRIPTION',
+      );
+      const sessions = requireRecord(order.addonSessions, 'INVALID_ADDON');
+      const subscription = await tx.userSubscription.update({
+        where: { id },
+        data: {
+          remainingPtSessions: { increment: sessions },
+          remainingSessions: { increment: sessions },
+        },
+      });
+      const invoice = await tx.invoice.create({
+        data: {
+          invoiceCode: `INV-${randomUUID()}`,
+          subscriptionId: id,
+          issuerId: order.memberId,
+          amount: order.amount,
+          baseAmount: order.baseAmount,
+          ptAmount: order.ptAmount,
+          paymentMethod: order.amount.isZero() ? 'FREE' : 'MOCK',
+          transactionRef: paymentId,
+          type: 'PT_ADDON',
+          checkoutId: order.id,
+        },
+      });
+      await audit(tx, actor, 'PURCHASE_PT_ADDON', 'user_subscriptions', id, {
+        invoiceId: invoice.id,
+        checkoutId: order.id,
+      });
+      return { subscription, invoice };
+    }
+    const planId = requireRecord(order.planId, 'PLAN_NOT_FOUND');
+    const price = order.priceSnapshot as Record<string, unknown>;
+    const currentPlan = requireRecord(
+      await tx.membershipPlan.findUnique({ where: { id: planId } }),
+      'PLAN_NOT_FOUND',
+    );
+    requireCondition(
+      currentPlan.disciplineId === price.disciplineId &&
+        currentPlan.packageTier === price.packageTier,
+      'PLAN_CHANGED_AFTER_CHECKOUT',
+    );
+    const snapshot = {
+      baseAmount: order.baseAmount,
+      ptAmount: order.ptAmount,
+      ptQuota: Number(price.ptQuota),
+      groupQuota: Number(price.groupQuota),
+      durationDays: Number(price.durationDays),
+      unlimitedGymEntry: Boolean(price.unlimitedGymEntry),
+    };
+    let start = localDate();
+    if (order.kind === 'RENEWAL') {
+      const original = requireRecord(
+        order.targetSubscriptionId,
+        'SUBSCRIPTION_NOT_FOUND',
+      );
+      const sub = requireRecord(
+        await tx.userSubscription.findUnique({ where: { id: original } }),
+        'SUBSCRIPTION_NOT_FOUND',
+      );
+      requireCondition(
+        sub.userId === order.memberId &&
+          sub.planId === planId &&
+          sub.status !== 'FROZEN' &&
+          sub.packageTier !== 'TRIAL' &&
+          sub.packageTier !== 'DROP_IN',
+        'SUBSCRIPTION_NOT_RENEWABLE',
+      );
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${order.memberId}:${planId}`}))`;
+      const last = await tx.userSubscription.findFirst({
+        where: { userId: order.memberId, planId, status: { not: 'FROZEN' } },
+        orderBy: { endDate: 'desc' },
+      });
+      if (last && last.endDate >= start) start = addDays(last.endDate, 1);
+    }
+    return this.sell(
+      tx,
+      {
+        memberId: order.memberId,
+        planId,
+        coachId: order.coachId ?? undefined,
+        paymentMethod: order.amount.isZero() ? 'FREE' : 'MOCK',
+        transactionRef: paymentId,
+      },
+      actor,
+      start,
+      snapshot,
+      order.id,
+    );
   }
   renew(id: string, dto: RenewDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
