@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { localDate } from '../../common/utils/domain';
+import { ptDayBlockReason } from '../../common/utils/pt-day-policy';
 
 @Injectable()
 export class MemberCalendarService {
@@ -104,15 +105,7 @@ export class MemberCalendarService {
             localDate(booking.coachAvailability.startTime).getTime() ===
               date.getTime(),
         );
-        const activePt = sameDayPt.some(
-          (booking) => booking.status !== 'CANCELLED',
-        );
-        const cancelledPt = sameDayPt.some(
-          (booking) =>
-            booking.status === 'CANCELLED' &&
-            booking.cancelledBy === 'MEMBER' &&
-            !booking.isEmergencyCancellation,
-        );
+        const dayBlock = ptDayBlockReason(sameDayPt);
         return {
           subscriptionId: sub.id,
           disciplineId: sub.disciplineId,
@@ -125,20 +118,12 @@ export class MemberCalendarService {
                 : null,
           },
           pt: {
-            allowed:
-              active &&
-              (sub.remainingPtSessions ?? 0) > 0 &&
-              !activePt &&
-              !cancelledPt,
+            allowed: active && (sub.remainingPtSessions ?? 0) > 0 && !dayBlock,
             reason: !active
               ? 'SUBSCRIPTION_NOT_ACTIVE_ON_DAY'
               : (sub.remainingPtSessions ?? 0) <= 0
                 ? 'PT_QUOTA_EXHAUSTED'
-                : activePt
-                  ? 'PT_ALREADY_BOOKED_FOR_DISCIPLINE_DAY'
-                  : cancelledPt
-                    ? 'PT_REBOOK_SAME_CANCELLED_DAY'
-                    : null,
+                : dayBlock,
           },
         };
       });

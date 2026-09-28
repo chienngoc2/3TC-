@@ -12,6 +12,7 @@ import {
   memberAccess,
   localDate,
 } from '../../common/utils/domain';
+import { ptDayBlockReason } from '../../common/utils/pt-day-policy';
 import {
   GroupBookingDto,
   PtBookingDto,
@@ -223,21 +224,13 @@ export class BookingsService {
         },
         select: {
           status: true,
-          cancelledBy: true,
+          cancelledAt: true,
+          isLateCancellation: true,
           isEmergencyCancellation: true,
         },
       });
-      if (sameDay.some((booking) => booking.status !== 'CANCELLED'))
-        throw new ConflictException('PT_ALREADY_BOOKED_FOR_DISCIPLINE_DAY');
-      if (
-        sameDay.some(
-          (booking) =>
-            booking.status === 'CANCELLED' &&
-            booking.cancelledBy === 'MEMBER' &&
-            !booking.isEmergencyCancellation,
-        )
-      )
-        throw new ConflictException('PT_REBOOK_SAME_CANCELLED_DAY');
+      const dayBlock = ptDayBlockReason(sameDay);
+      if (dayBlock) throw new ConflictException(dayBlock);
       const claim = await tx.coachAvailability.updateMany({
         where: { id: initial.id, isBooked: false, isEmergencyCancelled: false },
         data: { isBooked: true },
@@ -342,6 +335,7 @@ export class BookingsService {
         }),
       );
       await memberAccess(tx, actor, booking.memberId);
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`member:${booking.memberId}`}))`;
       const session = requireRecord(
         booking.schedule ?? booking.coachAvailability,
       );
