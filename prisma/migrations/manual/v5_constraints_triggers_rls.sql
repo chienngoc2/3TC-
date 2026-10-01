@@ -135,11 +135,17 @@ ALTER TABLE schedules ADD CONSTRAINT no_coach_schedule_overlap
     EXCLUDE USING gist (coach_id WITH =, time_range WITH &&)
     WHERE (status IN ('OPEN', 'FULL'));
 
--- 4.3. Exclusion trên coach_rates (không phụ thuộc status → giữ nguyên full)
+-- 4.3. Rates must not overlap for the same coach and discipline.
 ALTER TABLE coach_rates DROP CONSTRAINT IF EXISTS no_coach_rate_overlap;
+ALTER TABLE coach_rates DROP CONSTRAINT IF EXISTS no_legacy_coach_rate_overlap;
 ALTER TABLE coach_rates
     ADD CONSTRAINT no_coach_rate_overlap
-    EXCLUDE USING gist (coach_id WITH =, rate_range WITH &&);
+    EXCLUDE USING gist (coach_id WITH =, discipline_id WITH =, rate_range WITH &&)
+    WHERE (discipline_id IS NOT NULL);
+ALTER TABLE coach_rates
+    ADD CONSTRAINT no_legacy_coach_rate_overlap
+    EXCLUDE USING gist (coach_id WITH =, rate_range WITH &&)
+    WHERE (discipline_id IS NULL);
 
 -- 4.4. Exclusion trên staff_shifts
 ALTER TABLE staff_shifts DROP CONSTRAINT IF EXISTS no_staff_shift_overlap;
@@ -446,7 +452,10 @@ BEGIN
 
     SELECT rate_per_session INTO v_coach_rate
     FROM coach_rates
-    WHERE coach_id = p_coach_id AND CURRENT_DATE <@ rate_range
+    WHERE coach_id = p_coach_id
+      AND (discipline_id = v_plan.discipline_id OR discipline_id IS NULL)
+      AND CURRENT_DATE <@ rate_range
+    ORDER BY (discipline_id IS NOT NULL) DESC, effective_from DESC
     LIMIT 1;
     IF v_coach_rate IS NULL THEN RAISE EXCEPTION 'COACH_RATE_NOT_DEFINED'; END IF;
 
@@ -499,7 +508,10 @@ BEGIN
 
     SELECT rate_per_session INTO v_coach_rate
     FROM coach_rates
-    WHERE coach_id = v_sub.assigned_coach_id AND CURRENT_DATE <@ rate_range
+    WHERE coach_id = v_sub.assigned_coach_id
+      AND (discipline_id = v_sub.discipline_id OR discipline_id IS NULL)
+      AND CURRENT_DATE <@ rate_range
+    ORDER BY (discipline_id IS NOT NULL) DESC, effective_from DESC
     LIMIT 1;
     IF v_coach_rate IS NULL THEN RAISE EXCEPTION 'COACH_RATE_NOT_DEFINED'; END IF;
 

@@ -160,6 +160,7 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
     await db.coachRate.create({
       data: {
         coachId: coach.userId,
+        disciplineId,
         ratePerSession: 100000,
         effectiveFrom: addDays(localDate(), -10),
         effectiveTo: addDays(localDate(), 1),
@@ -640,7 +641,11 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
     await expect(
       coaches.createRate(
         coach.userId,
-        { ratePerSession: 200000, effectiveFrom: localDate().toISOString() },
+        {
+          disciplineId,
+          ratePerSession: 200000,
+          effectiveFrom: localDate().toISOString(),
+        },
         manager,
       ),
     ).rejects.toThrow();
@@ -1380,6 +1385,14 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
       });
       await db.coachSpecialty.create({
         data: { coachProfileId: profile.id, specialtyId: specialty.id },
+      });
+      await db.coachRate.create({
+        data: {
+          coachId: coach.userId,
+          disciplineId: boxing.id,
+          ratePerSession: 350000,
+          effectiveFrom: addDays(localDate(), -10),
+        },
       });
       const boxingPlan = await app.get(MembershipsService).create(
         {

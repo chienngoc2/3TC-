@@ -256,14 +256,17 @@ model CoachProfile {
 model CoachRate {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   coachId        String    @map("coach_id") @db.Uuid
+  disciplineId   String?   @map("discipline_id") @db.Uuid
   ratePerSession Decimal   @map("rate_per_session") @db.Decimal(12, 2)
   effectiveFrom  DateTime  @default(now()) @map("effective_from") @db.Date
   effectiveTo    DateTime? @map("effective_to") @db.Date
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   coach User @relation(fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_rates_coach")
+  discipline Discipline? @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_coach_rates_discipline")
 
   @@index([coachId], map: "idx_coach_rates_coach_id")
+  @@index([coachId, disciplineId], map: "idx_coach_rates_coach_discipline")
   @@map("coach_rates")
 }
 
@@ -297,6 +300,7 @@ model Discipline {
   specialties            Specialty[]
   userSubscriptions      UserSubscription[]
   bookings               Booking[]
+  coachRates             CoachRate[]
 
   @@map("disciplines")
 }
