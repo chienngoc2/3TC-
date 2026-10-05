@@ -1135,6 +1135,34 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
       .set('Authorization', `Bearer ${coachToken}`)
       .send({ monthlyEmergencyCancellations: 0 })
       .expect(400);
+    // avatarUrl is forbidden in PUT /profile/me
+    await api()
+      .put('/api/v1/users/profile/me')
+      .set('Authorization', `Bearer ${coachToken}`)
+      .send({ avatarUrl: 'https://malicious-url.com/avatar.png' })
+      .expect(400);
+    // avatar upload endpoint accepts image file and rejects non-image
+    const imageBuffer = Buffer.from('fake-image-bytes');
+    const uploadRes = await api()
+      .post('/api/v1/users/profile/me/avatar')
+      .set('Authorization', `Bearer ${coachToken}`)
+      .attach('file', imageBuffer, {
+        filename: 'avatar.webp',
+        contentType: 'image/webp',
+      })
+      .expect(201);
+    expect(uploadRes.body.data.avatarUrl).toContain(
+      '/storage/v1/object/public/avatars/',
+    );
+    // Non-image file is rejected with 400
+    await api()
+      .post('/api/v1/users/profile/me/avatar')
+      .set('Authorization', `Bearer ${coachToken}`)
+      .attach('file', Buffer.from('text content'), {
+        filename: 'test.txt',
+        contentType: 'text/plain',
+      })
+      .expect(400);
   });
   it('rolls back booking, quota and events when equipment validation fails', async () => {
     const member = members[12],

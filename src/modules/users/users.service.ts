@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
@@ -181,5 +185,82 @@ export class UsersService {
     });
     if (password || data.isActive === false) await this.redis.revokeUser(id);
     return result;
+  }
+
+  async uploadAvatar(id: string, file: Express.Multer.File, actor: Actor) {
+    if (
+      actor.userId !== id &&
+      ![UserRole.ADMIN, UserRole.CENTER_MANAGER].includes(actor.role as never)
+    ) {
+      throw new ForbiddenException('FORBIDDEN_RESOURCE');
+    }
+
+    if (!file) {
+      throw new BadRequestException('FILE_REQUIRED');
+    }
+
+    const allowedMimeTypes = [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'image/gif',
+    ];
+    if (!allowedMimeTypes.includes(file.mimetype)) {
+      throw new BadRequestException('INVALID_FILE_TYPE');
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      throw new BadRequestException('FILE_TOO_LARGE');
+    }
+
+    return this.transactions.run(async (tx) => {
+      requireRecord(
+        await tx.user.findUnique({ where: { id } }),
+        'USER_NOT_FOUND',
+      );
+
+      const ext = file.originalname.split('.').pop()?.toLowerCase() || 'webp';
+      const storagePath = `${id}/avatar.${ext}`;
+      const bucketId = 'avatars';
+
+      await tx.$executeRaw`
+        INSERT INTO storage.objects (
+          id, bucket_id, name, owner, created_at, updated_at, last_accessed_at, metadata
+        ) VALUES (
+          gen_random_uuid(),
+          ${bucketId},
+          ${storagePath},
+          ${id}::uuid,
+          NOW(),
+          NOW(),
+          NOW(),
+          jsonb_build_object(
+            'size', ${file.size},
+            'mimetype', ${file.mimetype}
+          )
+        )
+        ON CONFLICT (bucket_id, name, version) DO UPDATE SET
+          updated_at = NOW(),
+          last_accessed_at = NOW(),
+          metadata = jsonb_build_object(
+            'size', ${file.size},
+            'mimetype', ${file.mimetype}
+          );
+      `;
+
+      const projectRef = 'osewnmtackjotxohfgbg';
+      const publicUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/${bucketId}/${storagePath}?v=${Date.now()}`;
+
+      const updatedUser = await tx.user.update({
+        where: { id },
+        data: { avatarUrl: publicUrl },
+        select: { ...selection, memberProfile: true, coachProfile: true },
+      });
+
+      await audit(tx, actor, 'UPLOAD_AVATAR', 'users', id, {
+        avatarUrl: publicUrl,
+      });
+      return updatedUser;
+    });
   }
 }
