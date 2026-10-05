@@ -1,7 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 
 const db = new PrismaClient();
-const codes = ['GYM', 'BOXING', 'YOGA', 'DANCING'];
+const codes = ['GYM', 'BOXING', 'YOGA'];
 
 function todayInVietnam() {
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -41,18 +41,11 @@ async function main() {
       VIP: [500000, 4, 12],
     },
     YOGA: { TRIAL: [0, 3, 0], PLUS: [1000000, 12, 0], VIP: [600000, 4, 12] },
-    DANCING: {
-      TRIAL: [0, 1, 0],
-      DROP_IN: [100000, 1, 0],
-      PLUS: [650000, 8, 0],
-      VIP: [1000000, 4, 12],
-    },
   };
   const sharedRates = {
     GYM: 300000,
     BOXING: 420000,
     YOGA: 450000,
-    DANCING: 380000,
   };
   const report = { week: monday.toISOString().slice(0, 10), disciplines: {} };
   for (const code of codes) {

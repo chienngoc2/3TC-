@@ -16,8 +16,8 @@ import * as bcrypt from 'bcrypt';
 const db = new PrismaClient();
 const hour = 60 * 60 * 1000;
 const day = 24 * hour;
-type Code = 'GYM' | 'BOXING' | 'YOGA' | 'DANCING';
-const codes: Code[] = ['GYM', 'BOXING', 'YOGA', 'DANCING'];
+type Code = 'GYM' | 'BOXING' | 'YOGA';
+const codes: Code[] = ['GYM', 'BOXING', 'YOGA'];
 
 function seedId(...parts: string[]) {
   const hex = createHash('sha256')
@@ -63,7 +63,6 @@ async function main() {
     GYM: 'Gym & Fitness',
     BOXING: 'Boxing & Kickboxing',
     YOGA: 'Yoga & Meditation',
-    DANCING: 'Zumba & Modern Dance',
   };
   for (const code of codes) {
     disciplines[code] = await db.discipline.upsert({
@@ -114,7 +113,6 @@ async function main() {
     GYM: 'SPEC_GYM_BB',
     BOXING: 'SPEC_BOX_KB',
     YOGA: 'SPEC_YOG_AS',
-    DANCING: 'SPEC_DANCE_MODERN',
   };
   for (const code of codes) {
     specialties[code] = await db.specialty.upsert({
@@ -128,8 +126,7 @@ async function main() {
     });
   }
 
-  // The two original coaches are retained; one new coach teaches all four disciplines.
-  // Each discipline therefore has exactly four assigned coaches in the seed cohort.
+  // Each discipline has exactly four assigned coaches in the seed cohort.
   const coachMatrix: {
     key: string;
     name: string;
@@ -156,7 +153,7 @@ async function main() {
       name: 'Coach Minh Multi Sport',
       email: 'coach.minh@seed.sportscenter.test',
       phone: '0910000000',
-      rates: { GYM: 300000, BOXING: 420000, YOGA: 450000, DANCING: 380000 },
+      rates: { GYM: 300000, BOXING: 420000, YOGA: 450000 },
     },
     {
       key: 'gym2',
@@ -206,27 +203,6 @@ async function main() {
       email: 'coach.yog3@seed.sportscenter.test',
       phone: '0910000007',
       rates: { YOGA: 500000 },
-    },
-    {
-      key: 'dan1',
-      name: 'Coach Dance One',
-      email: 'coach.dan1@seed.sportscenter.test',
-      phone: '0910000008',
-      rates: { DANCING: 300000 },
-    },
-    {
-      key: 'dan2',
-      name: 'Coach Dance Two',
-      email: 'coach.dan2@seed.sportscenter.test',
-      phone: '0910000009',
-      rates: { DANCING: 350000 },
-    },
-    {
-      key: 'dan3',
-      name: 'Coach Dance Three',
-      email: 'coach.dan3@seed.sportscenter.test',
-      phone: '0910000010',
-      rates: { DANCING: 450000 },
     },
   ];
   const coaches = {} as Record<string, { id: string }>;
@@ -290,16 +266,15 @@ async function main() {
     GYM: '00000000-0000-0000-0000-000000000001',
     YOGA: '00000000-0000-0000-0000-000000000002',
     BOXING: seedId('room', 'BOXING'),
-    DANCING: seedId('room', 'DANCING'),
   };
   for (const code of codes) {
     await db.room.upsert({
       where: { id: roomIds[code] },
-      update: { capacity: code === 'DANCING' ? 20 : code === 'GYM' ? 50 : 10 },
+      update: { capacity: code === 'GYM' ? 50 : 10 },
       create: {
         id: roomIds[code],
         name: `${code} Studio`,
-        capacity: code === 'DANCING' ? 20 : code === 'GYM' ? 50 : 10,
+        capacity: code === 'GYM' ? 50 : 10,
       },
     });
   }
@@ -474,46 +449,6 @@ async function main() {
       gym: false,
       id: '00000000-0000-0000-0000-000000000040',
     },
-    {
-      code: 'DANCING',
-      tier: PackageTier.TRIAL,
-      label: 'Trial',
-      price: 0,
-      days: 7,
-      groups: 1,
-      pt: 0,
-      gym: false,
-    },
-    {
-      code: 'DANCING',
-      tier: PackageTier.DROP_IN,
-      label: 'Drop-in',
-      price: 100000,
-      days: 1,
-      groups: 1,
-      pt: 0,
-      gym: false,
-    },
-    {
-      code: 'DANCING',
-      tier: PackageTier.PLUS,
-      label: 'Plus',
-      price: 650000,
-      days: 30,
-      groups: 8,
-      pt: 0,
-      gym: false,
-    },
-    {
-      code: 'DANCING',
-      tier: PackageTier.VIP,
-      label: 'VIP',
-      price: 1000000,
-      days: 30,
-      groups: 4,
-      pt: 12,
-      gym: false,
-    },
   ];
   const plans = {} as Record<
     Code,
@@ -569,7 +504,6 @@ async function main() {
     GYM: 'alex',
     BOXING: 'box1',
     YOGA: 'elena',
-    DANCING: 'dan1',
   };
   for (const code of codes) {
     for (const tier of [PackageTier.PLUS, PackageTier.VIP]) {
@@ -672,7 +606,6 @@ async function main() {
   const groupClasses: { code: Code; coach: string; capacity: number }[] = [
     { code: 'BOXING', coach: 'box1', capacity: 10 },
     { code: 'YOGA', coach: 'elena', capacity: 10 },
-    { code: 'DANCING', coach: 'dan1', capacity: 20 },
   ];
   for (const entry of groupClasses) {
     const trainingClass = await db.class.upsert({
@@ -793,8 +726,8 @@ async function main() {
     JSON.stringify({
       week: monday.toISOString().slice(0, 10),
       plans: catalog.length,
-      coachAssignments: 16,
-      demoMembers: 8,
+      coachAssignments: 12,
+      demoMembers: codes.length * 2,
       groupClasses: groupClasses.length,
       futureSlotsPerCoach: 5,
     }),

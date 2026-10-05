@@ -43,16 +43,10 @@ export class SchedulesService {
     const room = requireRecord(
       await tx.room.findUnique({ where: { id: dto.roomId } }),
     );
-    requireCondition(
-      room.isActive && dto.capacity <= room.capacity,
-      'INVALID_ROOM_CAPACITY',
-    );
+    requireCondition(room.isActive, 'ROOM_INACTIVE');
+    requireCondition(dto.capacity <= room.capacity, 'INVALID_ROOM_CAPACITY');
     const code = cls.discipline.code.toUpperCase();
     requireCondition(code !== 'GYM', 'GYM_GROUP_CLASS_FORBIDDEN');
-    requireCondition(
-      dto.capacity <= (code === 'DANCE' || code === 'DANCING' ? 20 : 10),
-      'DISCIPLINE_CAPACITY_EXCEEDED',
-    );
     await requireRole(tx, dto.coachId, UserRole.COACH);
     requireCondition(
       await tx.coachSpecialty.findFirst({

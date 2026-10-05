@@ -230,6 +230,21 @@ CREATE TRIGGER trg_sync_schedule_capacity_status
     BEFORE INSERT OR UPDATE OF current_enrolled, capacity, status ON schedules
     FOR EACH ROW EXECUTE FUNCTION fn_sync_schedule_capacity_status();
 
+-- Trigger kiểm soát không cho phép hạ capacity xuống dưới số học viên đã đăng ký
+CREATE OR REPLACE FUNCTION fn_prevent_schedule_capacity_underflow()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.capacity < NEW.current_enrolled THEN
+        RAISE EXCEPTION 'CANNOT_REDUCE_CAPACITY_BELOW_CURRENT_ENROLLED: Capacity (%) cannot be less than current enrolled (%)', NEW.capacity, NEW.current_enrolled;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_prevent_schedule_capacity_underflow ON schedules;
+CREATE TRIGGER trg_prevent_schedule_capacity_underflow
+    BEFORE UPDATE OF capacity ON schedules
+    FOR EACH ROW EXECUTE FUNCTION fn_prevent_schedule_capacity_underflow();
+
 -- Đồng bộ các lịch active đã tồn tại; không sửa trạng thái lịch đã đóng.
 UPDATE schedules SET status = CASE
     WHEN current_enrolled >= capacity THEN 'FULL'::schedule_status
