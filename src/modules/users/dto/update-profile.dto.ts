@@ -15,7 +15,6 @@ import {
 export class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(150) fullName?: string;
   @IsOptional() @IsString() @MaxLength(20) phone?: string;
-  @IsOptional() @IsString() @MaxLength(2000) avatarUrl?: string;
   @IsOptional() @IsString() @MaxLength(4000) fitnessGoals?: string;
   @IsOptional() @IsString() @MaxLength(4000) medicalHistory?: string;
   @IsOptional() @IsNumber() @Min(1) @Max(300) heightCm?: number;

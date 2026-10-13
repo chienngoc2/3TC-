@@ -135,11 +135,17 @@ ALTER TABLE schedules ADD CONSTRAINT no_coach_schedule_overlap
     EXCLUDE USING gist (coach_id WITH =, time_range WITH &&)
     WHERE (status IN ('OPEN', 'FULL'));
 
--- 4.3. Exclusion trên coach_rates (không phụ thuộc status → giữ nguyên full)
+-- 4.3. Rates must not overlap for the same coach and discipline.
 ALTER TABLE coach_rates DROP CONSTRAINT IF EXISTS no_coach_rate_overlap;
+ALTER TABLE coach_rates DROP CONSTRAINT IF EXISTS no_legacy_coach_rate_overlap;
 ALTER TABLE coach_rates
     ADD CONSTRAINT no_coach_rate_overlap
-    EXCLUDE USING gist (coach_id WITH =, rate_range WITH &&);
+    EXCLUDE USING gist (coach_id WITH =, discipline_id WITH =, rate_range WITH &&)
+    WHERE (discipline_id IS NOT NULL);
+ALTER TABLE coach_rates
+    ADD CONSTRAINT no_legacy_coach_rate_overlap
+    EXCLUDE USING gist (coach_id WITH =, rate_range WITH &&)
+    WHERE (discipline_id IS NULL);
 
 -- 4.4. Exclusion trên staff_shifts
 ALTER TABLE staff_shifts DROP CONSTRAINT IF EXISTS no_staff_shift_overlap;
@@ -223,6 +229,21 @@ DROP TRIGGER IF EXISTS trg_sync_schedule_capacity_status ON schedules;
 CREATE TRIGGER trg_sync_schedule_capacity_status
     BEFORE INSERT OR UPDATE OF current_enrolled, capacity, status ON schedules
     FOR EACH ROW EXECUTE FUNCTION fn_sync_schedule_capacity_status();
+
+-- Trigger kiểm soát không cho phép hạ capacity xuống dưới số học viên đã đăng ký
+CREATE OR REPLACE FUNCTION fn_prevent_schedule_capacity_underflow()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.capacity < NEW.current_enrolled THEN
+        RAISE EXCEPTION 'CANNOT_REDUCE_CAPACITY_BELOW_CURRENT_ENROLLED: Capacity (%) cannot be less than current enrolled (%)', NEW.capacity, NEW.current_enrolled;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_prevent_schedule_capacity_underflow ON schedules;
+CREATE TRIGGER trg_prevent_schedule_capacity_underflow
+    BEFORE UPDATE OF capacity ON schedules
+    FOR EACH ROW EXECUTE FUNCTION fn_prevent_schedule_capacity_underflow();
 
 -- Đồng bộ các lịch active đã tồn tại; không sửa trạng thái lịch đã đóng.
 UPDATE schedules SET status = CASE
@@ -446,7 +467,10 @@ BEGIN
 
     SELECT rate_per_session INTO v_coach_rate
     FROM coach_rates
-    WHERE coach_id = p_coach_id AND CURRENT_DATE <@ rate_range
+    WHERE coach_id = p_coach_id
+      AND (discipline_id = v_plan.discipline_id OR discipline_id IS NULL)
+      AND CURRENT_DATE <@ rate_range
+    ORDER BY (discipline_id IS NOT NULL) DESC, effective_from DESC
     LIMIT 1;
     IF v_coach_rate IS NULL THEN RAISE EXCEPTION 'COACH_RATE_NOT_DEFINED'; END IF;
 
@@ -499,7 +523,10 @@ BEGIN
 
     SELECT rate_per_session INTO v_coach_rate
     FROM coach_rates
-    WHERE coach_id = v_sub.assigned_coach_id AND CURRENT_DATE <@ rate_range
+    WHERE coach_id = v_sub.assigned_coach_id
+      AND (discipline_id = v_sub.discipline_id OR discipline_id IS NULL)
+      AND CURRENT_DATE <@ rate_range
+    ORDER BY (discipline_id IS NOT NULL) DESC, effective_from DESC
     LIMIT 1;
     IF v_coach_rate IS NULL THEN RAISE EXCEPTION 'COACH_RATE_NOT_DEFINED'; END IF;
 

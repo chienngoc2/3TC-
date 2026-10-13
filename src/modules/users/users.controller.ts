@@ -8,8 +8,11 @@ import {
   Param,
   Query,
   ParseUUIDPipe,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -36,6 +39,26 @@ export class UsersController {
   ) {
     return this.users.updateProfile(actor.userId, dto, actor);
   }
+  @Post('profile/me/avatar')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  uploadAvatarMe(
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.users.uploadAvatar(actor.userId, file, actor);
+  }
   @Get('members')
   @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
   members(@Query('q') q?: string) {
@@ -49,6 +72,28 @@ export class UsersController {
     @CurrentUser() actor: Actor,
   ) {
     return this.users.updateProfile(id, dto, actor);
+  }
+  @Post('members/:id/avatar')
+  @Roles(UserRole.ADMIN, UserRole.CENTER_MANAGER)
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  uploadAvatarMember(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.users.uploadAvatar(id, file, actor);
   }
   @Get('staff')
   @Roles(UserRole.CENTER_MANAGER)

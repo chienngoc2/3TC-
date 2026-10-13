@@ -54,6 +54,7 @@ export class CoachesService {
   rates(coachId: string) {
     return this.prisma.coachRate.findMany({
       where: { coachId },
+      include: { discipline: true },
       orderBy: { effectiveFrom: 'desc' },
     });
   }
@@ -63,6 +64,15 @@ export class CoachesService {
         await tx.coachRate.findUnique({ where: { id } }),
       );
       requireCondition(rate.coachId === coachId, 'COACH_RATE_MISMATCH');
+      if (dto.disciplineId) {
+        const expertise = await tx.coachSpecialty.findFirst({
+          where: {
+            coachProfile: { userId: coachId },
+            specialty: { disciplineId: dto.disciplineId },
+          },
+        });
+        requireCondition(expertise, 'COACH_DISCIPLINE_MISMATCH');
+      }
       const effectiveFrom = dto.effectiveFrom
           ? new Date(dto.effectiveFrom)
           : rate.effectiveFrom,
@@ -105,6 +115,13 @@ export class CoachesService {
   createRate(coachId: string, dto: RateDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
       await requireRole(tx, coachId, UserRole.COACH);
+      const expertise = await tx.coachSpecialty.findFirst({
+        where: {
+          coachProfile: { userId: coachId },
+          specialty: { disciplineId: dto.disciplineId },
+        },
+      });
+      requireCondition(expertise, 'COACH_DISCIPLINE_MISMATCH');
       const effectiveFrom = new Date(dto.effectiveFrom),
         effectiveTo = dto.effectiveTo ? new Date(dto.effectiveTo) : null;
       requireCondition(
@@ -114,6 +131,7 @@ export class CoachesService {
       const value = await tx.coachRate.create({
         data: {
           coachId,
+          disciplineId: dto.disciplineId,
           ratePerSession: dto.ratePerSession,
           effectiveFrom,
           effectiveTo,

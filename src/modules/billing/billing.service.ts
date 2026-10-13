@@ -25,25 +25,32 @@ export class BillingService {
     disciplineId: string | null,
   ) {
     await requireRole(tx, coachId, UserRole.COACH);
+    requireCondition(disciplineId, 'PLAN_DISCIPLINE_REQUIRED');
     const expertise = await tx.coachSpecialty.findFirst({
       where: {
         coachProfile: { userId: coachId },
-        specialty: { disciplineId: disciplineId ?? undefined },
+        specialty: { disciplineId },
       },
     });
     requireCondition(expertise, 'COACH_DISCIPLINE_MISMATCH');
     const today = localDate();
-    return requireRecord(
-      await tx.coachRate.findFirst({
-        where: {
-          coachId,
-          effectiveFrom: { lte: today },
-          OR: [{ effectiveTo: null }, { effectiveTo: { gte: today } }],
-        },
-        orderBy: { effectiveFrom: 'desc' },
-      }),
-      'COACH_RATE_NOT_CONFIGURED',
-    ).ratePerSession;
+    const activeRate = {
+      coachId,
+      effectiveFrom: { lte: today },
+      OR: [{ effectiveTo: null }, { effectiveTo: { gte: today } }],
+    };
+    const scoped = await tx.coachRate.findFirst({
+      where: { ...activeRate, disciplineId },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+    const legacy = scoped
+      ? null
+      : await tx.coachRate.findFirst({
+          where: { ...activeRate, disciplineId: null },
+          orderBy: { effectiveFrom: 'desc' },
+        });
+    return requireRecord(scoped ?? legacy, 'COACH_RATE_NOT_CONFIGURED')
+      .ratePerSession;
   }
   purchase(dto: PurchaseDto, actor: Actor) {
     return this.transactions.run((tx) => this.sell(tx, dto, actor));

@@ -63,6 +63,7 @@ export class SlotDto {
   @IsDateString() endTime: string;
 }
 export class RateDto {
+  @IsUUID() disciplineId: string;
   @IsNumber() @Min(0) ratePerSession: number;
   @IsDateString({ strict: true }) effectiveFrom: string;
   @IsOptional() @IsDateString({ strict: true }) effectiveTo?: string;
