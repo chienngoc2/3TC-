@@ -36,20 +36,6 @@ export class EnvironmentVariables {
   DIRECT_URL: string;
 
   @IsString()
-  @IsOptional()
-  REDIS_HOST: string = '127.0.0.1';
-
-  @IsInt()
-  @Min(1)
-  @Max(65535)
-  @IsOptional()
-  REDIS_PORT: number = 6379;
-
-  @IsString()
-  @IsOptional()
-  REDIS_PASSWORD?: string;
-
-  @IsString()
   @IsNotEmpty()
   JWT_ACCESS_SECRET: string;
 

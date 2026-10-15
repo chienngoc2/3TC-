@@ -1,15 +1,12 @@
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaClient, UserRole } from '@prisma/client';
 import request from 'supertest';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/database/prisma.service';
-import { RedisService } from '../src/infrastructure/redis/redis.service';
 import { configureApp } from '../src/config/configure-app';
 import { isolatedDatabase } from './helpers/database';
-import { SessionStore } from './helpers/session-store';
 import { BookingsService } from '../src/modules/bookings/bookings.service';
 import { BillingService } from '../src/modules/billing/billing.service';
 import { SchedulesService } from '../src/modules/schedules/schedules.service';
@@ -29,8 +26,6 @@ import { WorkoutPlansService } from '../src/modules/workout-plans/workout-plans.
 jest.setTimeout(180000);
 describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
   let app: INestApplication, db: PrismaClient, cleanup: () => Promise<void>;
-  let liveRedis: RedisService | undefined;
-  let redisPrefix: string;
   let manager: Actor,
     receptionist: Actor,
     coach: Actor,
@@ -92,25 +87,9 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
   }
   beforeAll(async () => {
     ({ prisma: db, cleanup } = await isolatedDatabase());
-    let sessionStore: RedisService | SessionStore = new SessionStore();
-    if (process.env.TEST_REDIS_URL) {
-      const redisUrl = new URL(process.env.TEST_REDIS_URL);
-      redisPrefix = `backend_e2e:${Date.now()}:`;
-      liveRedis = new RedisService(
-        new ConfigService({
-          REDIS_HOST: redisUrl.hostname,
-          REDIS_PORT: Number(redisUrl.port || 6379),
-          REDIS_PASSWORD: redisUrl.password,
-          REDIS_KEY_PREFIX: redisPrefix,
-        }),
-      );
-      sessionStore = liveRedis;
-    }
     const fixture = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(PrismaService)
       .useValue(db)
-      .overrideProvider(RedisService)
-      .useValue(sessionStore)
       .compile();
     app = fixture.createNestApplication({ rawBody: true });
     configureApp(app);
@@ -232,20 +211,9 @@ describe('Backend phases 1–5 (isolated PostgreSQL + HTTP)', () => {
   });
   afterAll(async () => {
     try {
-      if (liveRedis)
-        await liveRedis
-          .getClient()
-          .eval(
-            "local cursor='0' repeat local result=redis.call('SCAN',cursor,'MATCH',ARGV[1]..'*','COUNT',100) cursor=result[1] for _,key in ipairs(result[2]) do redis.call('DEL',key) end until cursor=='0' return 1",
-            0,
-            redisPrefix,
-          );
+      if (app) await app.close();
     } finally {
-      try {
-        if (app) await app.close();
-      } finally {
-        if (cleanup) await cleanup();
-      }
+      if (cleanup) await cleanup();
     }
   });
 

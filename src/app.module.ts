@@ -17,7 +17,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validate } from './config/env.validation';
 import { PrismaModule } from './database/prisma.module';
-import { RedisModule } from './infrastructure/redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { AppController } from './app.controller';
@@ -46,7 +45,6 @@ import { MemberCalendarModule } from './modules/member-calendar/member-calendar.
     BookingsModule,
     DomainEventsModule,
     PrismaModule,
-    RedisModule,
     AuthModule,
     UsersModule,
     SystemModule,

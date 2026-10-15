@@ -10,13 +10,10 @@ const { Test } = require('@nestjs/testing');
 const { SwaggerModule, DocumentBuilder } = require('@nestjs/swagger');
 const { AppModule } = require('../dist/app.module');
 const { PrismaService } = require('../dist/database/prisma.service');
-const { RedisService } = require('../dist/infrastructure/redis/redis.service');
 const { configureApp } = require('../dist/config/configure-app');
 async function main() {
   const fixture = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(PrismaService)
-    .useValue({})
-    .overrideProvider(RedisService)
     .useValue({})
     .compile();
   const app = fixture.createNestApplication();

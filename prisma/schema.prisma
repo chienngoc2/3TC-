@@ -180,6 +180,7 @@ model User {
   role         UserRole @default(MEMBER)
   avatarUrl    String?  @map("avatar_url") @db.Text
   isActive     Boolean  @default(true) @map("is_active")
+  tokenVersion Int      @default(1) @map("token_version")
   createdById  String?  @map("created_by_id") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -213,9 +214,25 @@ model User {
   coachPenalties           CoachPenalty[]          @relation("CoachPenalties")
   auditLogs                AuditLog[]
   checkoutOrders           CheckoutOrder[]
+  sessions                 UserSession[]
 
   @@index([createdById], map: "idx_users_created_by_id")
   @@map("users")
+}
+
+model UserSession {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  refreshTokenHash String   @map("refresh_token_hash") @db.VarChar(255)
+  deviceInfo       String?  @map("device_info") @db.VarChar(255)
+  expiresAt        DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_user_sessions_user")
+
+  @@index([userId], map: "idx_user_sessions_user_id")
+  @@map("user_sessions")
 }
 
 model MemberProfile {
