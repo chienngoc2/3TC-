@@ -103,16 +103,28 @@ BEGIN
             'TRUE khi HLV hủy khẩn cấp ca này. Slot bị đặt false cho is_booked nhưng không thể nhận booking mới.';
     END IF;
 
-    -- exercise_knowledge.embedding (pgvector)
+    -- users.token_version
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name='exercise_knowledge' AND column_name='embedding'
+        WHERE table_name='users' AND column_name='token_version'
     ) THEN
-        ALTER TABLE exercise_knowledge
-            ADD COLUMN embedding vector(1536);
-        COMMENT ON COLUMN exercise_knowledge.embedding IS
-            'Vector embedding 1536 chiều cho RAG (OpenAI text-embedding-3-small / Gemini text-embedding-004).';
+        ALTER TABLE users
+            ADD COLUMN token_version INT NOT NULL DEFAULT 1;
+        COMMENT ON COLUMN users.token_version IS
+            'Epoch version dùng để tức thì vô hiệu hóa toàn bộ JWT đang lưu hành khi đổi mật khẩu hoặc khóa tài khoản.';
     END IF;
+
+    -- user_sessions table
+    CREATE TABLE IF NOT EXISTS user_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        refresh_token_hash VARCHAR(255) NOT NULL,
+        device_info VARCHAR(255),
+        expires_at TIMESTAMPTZ(6) NOT NULL,
+        created_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 END;
 $$;
 
@@ -135,11 +147,17 @@ ALTER TABLE schedules ADD CONSTRAINT no_coach_schedule_overlap
     EXCLUDE USING gist (coach_id WITH =, time_range WITH &&)
     WHERE (status IN ('OPEN', 'FULL'));
 
--- 4.3. Exclusion trên coach_rates (không phụ thuộc status → giữ nguyên full)
+-- 4.3. Rates must not overlap for the same coach and discipline.
 ALTER TABLE coach_rates DROP CONSTRAINT IF EXISTS no_coach_rate_overlap;
+ALTER TABLE coach_rates DROP CONSTRAINT IF EXISTS no_legacy_coach_rate_overlap;
 ALTER TABLE coach_rates
     ADD CONSTRAINT no_coach_rate_overlap
-    EXCLUDE USING gist (coach_id WITH =, rate_range WITH &&);
+    EXCLUDE USING gist (coach_id WITH =, discipline_id WITH =, rate_range WITH &&)
+    WHERE (discipline_id IS NOT NULL);
+ALTER TABLE coach_rates
+    ADD CONSTRAINT no_legacy_coach_rate_overlap
+    EXCLUDE USING gist (coach_id WITH =, rate_range WITH &&)
+    WHERE (discipline_id IS NULL);
 
 -- 4.4. Exclusion trên staff_shifts
 ALTER TABLE staff_shifts DROP CONSTRAINT IF EXISTS no_staff_shift_overlap;
@@ -223,6 +241,21 @@ DROP TRIGGER IF EXISTS trg_sync_schedule_capacity_status ON schedules;
 CREATE TRIGGER trg_sync_schedule_capacity_status
     BEFORE INSERT OR UPDATE OF current_enrolled, capacity, status ON schedules
     FOR EACH ROW EXECUTE FUNCTION fn_sync_schedule_capacity_status();
+
+-- Trigger kiểm soát không cho phép hạ capacity xuống dưới số học viên đã đăng ký
+CREATE OR REPLACE FUNCTION fn_prevent_schedule_capacity_underflow()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.capacity < NEW.current_enrolled THEN
+        RAISE EXCEPTION 'CANNOT_REDUCE_CAPACITY_BELOW_CURRENT_ENROLLED: Capacity (%) cannot be less than current enrolled (%)', NEW.capacity, NEW.current_enrolled;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS trg_prevent_schedule_capacity_underflow ON schedules;
+CREATE TRIGGER trg_prevent_schedule_capacity_underflow
+    BEFORE UPDATE OF capacity ON schedules
+    FOR EACH ROW EXECUTE FUNCTION fn_prevent_schedule_capacity_underflow();
 
 -- Đồng bộ các lịch active đã tồn tại; không sửa trạng thái lịch đã đóng.
 UPDATE schedules SET status = CASE
@@ -446,7 +479,10 @@ BEGIN
 
     SELECT rate_per_session INTO v_coach_rate
     FROM coach_rates
-    WHERE coach_id = p_coach_id AND CURRENT_DATE <@ rate_range
+    WHERE coach_id = p_coach_id
+      AND (discipline_id = v_plan.discipline_id OR discipline_id IS NULL)
+      AND CURRENT_DATE <@ rate_range
+    ORDER BY (discipline_id IS NOT NULL) DESC, effective_from DESC
     LIMIT 1;
     IF v_coach_rate IS NULL THEN RAISE EXCEPTION 'COACH_RATE_NOT_DEFINED'; END IF;
 
@@ -499,7 +535,10 @@ BEGIN
 
     SELECT rate_per_session INTO v_coach_rate
     FROM coach_rates
-    WHERE coach_id = v_sub.assigned_coach_id AND CURRENT_DATE <@ rate_range
+    WHERE coach_id = v_sub.assigned_coach_id
+      AND (discipline_id = v_sub.discipline_id OR discipline_id IS NULL)
+      AND CURRENT_DATE <@ rate_range
+    ORDER BY (discipline_id IS NOT NULL) DESC, effective_from DESC
     LIMIT 1;
     IF v_coach_rate IS NULL THEN RAISE EXCEPTION 'COACH_RATE_NOT_DEFINED'; END IF;
 
@@ -624,6 +663,9 @@ ALTER TABLE lockers                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE locker_assignments       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cancellation_requests    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE coach_penalties          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE checkout_orders          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_attempts         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_webhook_events   ENABLE ROW LEVEL SECURITY;
 
 -- Catalog tables: public read
 DROP POLICY IF EXISTS "disciplines_read_all" ON disciplines;
@@ -681,6 +723,19 @@ USING (
 DROP POLICY IF EXISTS "invoices_staff_write" ON invoices;
 CREATE POLICY "invoices_staff_write" ON invoices FOR INSERT TO authenticated
 WITH CHECK (EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role IN ('ADMIN', 'CENTER_MANAGER', 'RECEPTIONIST')));
+
+DROP POLICY IF EXISTS "checkout_orders_owner_read" ON checkout_orders;
+CREATE POLICY "checkout_orders_owner_read" ON checkout_orders FOR SELECT TO authenticated
+USING (member_id = auth.uid() OR EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role IN ('ADMIN', 'CENTER_MANAGER', 'RECEPTIONIST')));
+
+DROP POLICY IF EXISTS "payment_attempts_owner_read" ON payment_attempts;
+CREATE POLICY "payment_attempts_owner_read" ON payment_attempts FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM checkout_orders co WHERE co.id = payment_attempts.checkout_id AND co.member_id = auth.uid())
+  OR EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role IN ('ADMIN', 'CENTER_MANAGER', 'RECEPTIONIST')));
+
+DROP POLICY IF EXISTS "payment_webhook_events_staff_read" ON payment_webhook_events;
+CREATE POLICY "payment_webhook_events_staff_read" ON payment_webhook_events FOR SELECT TO authenticated
+USING (EXISTS (SELECT 1 FROM users u WHERE u.id = auth.uid() AND u.role IN ('ADMIN', 'CENTER_MANAGER')));
 
 -- Bookings & Coach Availability
 DROP POLICY IF EXISTS "coach_avail_read_all" ON coach_availability;

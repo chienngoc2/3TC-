@@ -1,5 +1,9 @@
 # Sports Center Management System - Backend API
 
+Logic backend cơ bản Phase 1–5 đã triển khai. Xem [báo cáo chức năng, kiểm thử và thứ tự merge](markdown/backend_phases_1_5_report.md). AI, CronJobs, workers và đóng gói production chưa nằm trong lần triển khai này.
+
+Kiểm tra trước merge: `npm run check`. Integration PostgreSQL/Redis: `npm run test:e2e -- --runInBand`; cấu hình môi trường kiểm thử và lưu ý Windows có trong báo cáo. Swagger tại `/docs`; Socket.IO tại `/realtime`. Môi trường đã kiểm chứng dùng Node 24.21.0.
+
 > Hệ thống API dịch vụ trung tâm (Core RESTful & Realtime API) cho nền tảng Quản lý Trung tâm Thể thao đa bộ môn (Gym, Boxing, Yoga, Dancing), hỗ trợ điều phối nghiệp vụ, kiểm soát giao dịch đặt lịch kép, bảo toàn quota/amenities và tích hợp trí tuệ nhân tạo (RAG AI Coaching).
 
 [![NestJS](https://img.shields.io/badge/NestJS-v12.x-E0234E?logo=nestjs&logoColor=white)](https://nestjs.com/)
@@ -9,7 +13,6 @@
 [![PostgreSQL](https://img.shields.io/badge/Supabase_PostgreSQL-v15.x-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com/)
 [![Redis](https://img.shields.io/badge/Redis-v7.x-DC382D?logo=redis&logoColor=white)](https://redis.io/)
 [![Socket.io](https://img.shields.io/badge/Socket.io-v4.x-010101?logo=socketdotio&logoColor=white)](https://socket.io/)
-[![BullMQ](https://img.shields.io/badge/BullMQ-v6.x-FF4438)](https://bullmq.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
@@ -19,7 +22,6 @@
 ### Yêu cầu tiên quyết
 * **Node.js**: `v20.x LTS` hoặc mới hơn
 * **Package Manager**: `npm`
-* **Docker & Docker Compose**: Dùng để chạy Redis 7 cục bộ
 * **Tài khoản Supabase / PostgreSQL 15+**: Đã kích hoạt extension `btree_gist` và `vector` (pgvector)
 
 ### Các bước cài đặt
@@ -36,17 +38,12 @@
    ```
 
 3. **Cấu hình biến môi trường:**
-   Không cần thiết với dự án hiện tại. file `.env` tớ đã cấu hình sẵn, pull và chạy là được.
+   Không cần thiết với dự án hiện tại. file `.env` đã cấu hình sẵn, pull và chạy là được.
 
-4. **Khởi chạy Redis (Docker Compose):**
-   ```bash
-   docker-compose up -d redis
-   ```
+4. **Đồng bộ Cơ sở dữ liệu V5 & Dữ liệu mẫu (Seed):**
+   Không cần thiết với dự án hiện tại, đã cấu hình DB và nạp seed data.
 
-5. **Đồng bộ Cơ sở dữ liệu V5 & Dữ liệu mẫu (Seed):**
-   Không cần thiết với dự án hiện tại, tớ cũng cấu hình DB và nạp seed data rồi.
-
-6. **Khởi động server phát triển:**
+5. **Khởi động server phát triển:**
    ```bash
    npm run start:dev
    ```
@@ -108,7 +105,7 @@ backend/
 │   ├── config/                                   # Nạp và validate env qua class-validator
 │   ├── database/                                 # PrismaModule & PrismaService kết nối Pooler
 │   ├── infrastructure/                           # Dịch vụ nền tảng bên ngoài
-│   │   ├── queue/                                # BullMQ background queues
+│   │   ├── tasks/                                # Future scheduler; not implemented
 │   │   ├── redis/                                # RedisModule quản lý session & token revoke
 │   │   ├── socket/                               # Socket.io Gateway cập nhật realtime
 │   │   └── storage/                              # Supabase Storage S3-compatible service
@@ -126,7 +123,6 @@ backend/
 │   │   └── analytics/                            # [Kế hoạch] Báo cáo doanh thu & tỷ lệ lấp đầy
 │   ├── app.module.ts                             # Root Application Module
 │   └── main.ts                                   # Bootstrap: Swagger, CORS, Global Guards & Filters
-├── docker-compose.yml                            # Redis 7 service
 ├── package.json
 └── tsconfig.json
 ```

@@ -1,426 +1,742 @@
 import {
-  PrismaClient,
-  UserRole,
-  PlanType,
-  PackageTier,
-  TrainingMode,
+  InvoiceStatus,
+  InvoiceType,
   LockerStatus,
+  PackageTier,
+  PaymentMethod,
+  PlanType,
+  PrismaClient,
+  SubscriptionStatus,
+  TrainingMode,
+  UserRole,
 } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import * as bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
+const db = new PrismaClient();
+const hour = 60 * 60 * 1000;
+const day = 24 * hour;
+type Code = 'GYM' | 'BOXING' | 'YOGA';
+const codes: Code[] = ['GYM', 'BOXING', 'YOGA'];
+
+function seedId(...parts: string[]) {
+  const hex = createHash('sha256')
+    .update(`sportscenter-seed:${parts.join(':')}`)
+    .digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+function vietnamToday() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(
+    parts.map((part) => [part.type, part.value]),
+  );
+  return new Date(
+    Date.UTC(Number(value.year), Number(value.month) - 1, Number(value.day)),
+  );
+}
+
+function localTime(date: Date, h: number) {
+  return new Date(date.getTime() + (h - 7) * hour);
+}
+
+function intersects(a: Date, b: Date, c: Date, d: Date) {
+  return a < d && c < b;
+}
 
 async function main() {
-  console.log('--- SEEDING PRODUCTION V5 DATA (4 DISCIPLINES, SPECIALTIES, LOCKERS, 5 ROLES) ---');
+  const today = vietnamToday();
+  const monday = new Date(
+    today.getTime() - ((today.getUTCDay() + 6) % 7) * day,
+  );
+  const nextMonday = new Date(monday.getTime() + 7 * day);
+  const weekStart = localTime(monday, 0);
+  const weekEnd = localTime(nextMonday, 0);
+  const passwordHash = await bcrypt.hash('Password123!', 10);
+  const disciplines = {} as Record<Code, { id: string }>;
+  const names: Record<Code, string> = {
+    GYM: 'Gym & Fitness',
+    BOXING: 'Boxing & Kickboxing',
+    YOGA: 'Yoga & Meditation',
+  };
+  for (const code of codes) {
+    disciplines[code] = await db.discipline.upsert({
+      where: { code },
+      update: { name: names[code] },
+      create: { code, name: names[code] },
+    });
+  }
 
-  const defaultPassword = 'Password123!';
-  const passwordHash = await bcrypt.hash(defaultPassword, 10);
-
-  // 1. Seed Disciplines (4 Bộ môn chuẩn: GYM, BOXING, YOGA, DANCING)
-  const gym = await prisma.discipline.upsert({
-    where: { code: 'GYM' },
-    update: {},
-    create: {
-      code: 'GYM',
-      name: 'Gym & Fitness',
-      description: 'Luyện tập thể hình tự do và kèm 1:1 cùng Huấn luyện viên (Không có lớp nhóm)',
-    },
-  });
-
-  const boxing = await prisma.discipline.upsert({
-    where: { code: 'BOXING' },
-    update: {},
-    create: {
-      code: 'BOXING',
-      name: 'Boxing & Kickboxing',
-      description: 'Võ đối kháng rèn luyện thể lực, phản xạ, tự vệ và đốt mỡ cường độ cao',
-    },
-  });
-
-  const yoga = await prisma.discipline.upsert({
-    where: { code: 'YOGA' },
-    update: {},
-    create: {
-      code: 'YOGA',
-      name: 'Yoga & Meditation',
-      description: 'Cải thiện độ dẻo dai, nhịp thở, cột sống và thư giãn tinh thần',
-    },
-  });
-
-  const dancing = await prisma.discipline.upsert({
-    where: { code: 'DANCING' },
-    update: {},
-    create: {
-      code: 'DANCING',
-      name: 'Zumba & Modern Dance',
-      description: 'Nhảy hiện đại và khiêu vũ thể thao sôi động giải tỏa căng thẳng',
-    },
-  });
-
-  // 2. Seed Specialties (Danh mục chuyên môn)
-  const specBodybuilding = await prisma.specialty.upsert({
-    where: { code: 'SPEC_GYM_BB' },
-    update: {},
-    create: {
-      disciplineId: gym.id,
-      code: 'SPEC_GYM_BB',
-      name: 'Bodybuilding & Hypertrophy',
-      description: 'Chuyên môn tăng cơ, siết mỡ thể hình chuyên sâu',
-    },
-  });
-
-  const specPowerlifting = await prisma.specialty.upsert({
-    where: { code: 'SPEC_GYM_PL' },
-    update: {},
-    create: {
-      disciplineId: gym.id,
-      code: 'SPEC_GYM_PL',
-      name: 'Powerlifting & Strength',
-      description: 'Sức mạnh Squat, Bench, Deadlift tối đa',
-    },
-  });
-
-  const specKickboxing = await prisma.specialty.upsert({
-    where: { code: 'SPEC_BOX_KB' },
-    update: {},
-    create: {
-      disciplineId: boxing.id,
-      code: 'SPEC_BOX_KB',
-      name: 'Kickboxing & Self Defense',
-      description: 'Kỹ thuật đấm đá và phản xạ tự vệ thực chiến',
-    },
-  });
-
-  const specAshtangaYoga = await prisma.specialty.upsert({
-    where: { code: 'SPEC_YOG_AS' },
-    update: {},
-    create: {
-      disciplineId: yoga.id,
-      code: 'SPEC_YOG_AS',
-      name: 'Ashtanga & Vinyasa Flow',
-      description: 'Dòng Yoga chuyển động linh hoạt và sức bền thể lực',
-    },
-  });
-
-  // 3. Seed Users (5 Vai trò: ADMIN -> CENTER_MANAGER -> COACH & RECEPTIONIST -> MEMBER)
-  // Admin (IT)
-  const admin = await prisma.user.upsert({
+  const admin = await db.user.upsert({
     where: { email: 'admin@sportscenter.com' },
     update: {},
     create: {
       email: 'admin@sportscenter.com',
-      passwordHash,
-      fullName: 'System Administrator (IT)',
+      fullName: 'System Administrator',
       phone: '0901000000',
       role: UserRole.ADMIN,
+      passwordHash,
     },
   });
-
-  // Center Manager (Do Admin tạo)
-  const manager = await prisma.user.upsert({
+  const manager = await db.user.upsert({
     where: { email: 'manager@sportscenter.com' },
     update: {},
     create: {
       email: 'manager@sportscenter.com',
-      passwordHash,
-      fullName: 'Tran Van Quan Ly (Director)',
+      fullName: 'Center Manager',
       phone: '0901000001',
       role: UserRole.CENTER_MANAGER,
       createdById: admin.id,
-    },
-  });
-
-  // Coach 1: Alex (Gym + Boxing)
-  const coach1 = await prisma.user.upsert({
-    where: { email: 'coach.alex@sportscenter.com' },
-    update: {},
-    create: {
-      email: 'coach.alex@sportscenter.com',
       passwordHash,
-      fullName: 'Alex Ferguson (Coach Gym)',
-      phone: '0901000002',
-      role: UserRole.COACH,
-      createdById: manager.id,
-      coachProfile: {
-        create: {
-          specialties: 'Gym Bodybuilding, Sức mạnh',
-          yearsExperience: 7,
-          bio: 'Chuyên gia thể hình với 7 năm kinh nghiệm thi đấu quốc gia.',
-        },
-      },
-      coachRates: {
-        create: {
-          ratePerSession: 350000,
-          effectiveFrom: new Date(),
-        },
-      },
     },
-    include: { coachProfile: true },
   });
-
-  if (coach1.coachProfile) {
-    await prisma.coachSpecialty.upsert({
-      where: {
-        coachProfileId_specialtyId: {
-          coachProfileId: coach1.coachProfile.id,
-          specialtyId: specBodybuilding.id,
-        },
-      },
-      update: {},
-      create: {
-        coachProfileId: coach1.coachProfile.id,
-        specialtyId: specBodybuilding.id,
-      },
-    });
-  }
-
-  // Coach 2: Elena (Yoga)
-  const coach2 = await prisma.user.upsert({
-    where: { email: 'coach.elena@sportscenter.com' },
-    update: {},
-    create: {
-      email: 'coach.elena@sportscenter.com',
-      passwordHash,
-      fullName: 'Elena Rostova (Coach Yoga)',
-      phone: '0901000003',
-      role: UserRole.COACH,
-      createdById: manager.id,
-      coachProfile: {
-        create: {
-          specialties: 'Ashtanga, Vinyasa, Phục hồi',
-          yearsExperience: 5,
-          bio: 'Chứng chỉ Yoga Alliance 500h quốc tế.',
-        },
-      },
-      coachRates: {
-        create: {
-          ratePerSession: 400000,
-          effectiveFrom: new Date(),
-        },
-      },
-    },
-    include: { coachProfile: true },
-  });
-
-  if (coach2.coachProfile) {
-    await prisma.coachSpecialty.upsert({
-      where: {
-        coachProfileId_specialtyId: {
-          coachProfileId: coach2.coachProfile.id,
-          specialtyId: specAshtangaYoga.id,
-        },
-      },
-      update: {},
-      create: {
-        coachProfileId: coach2.coachProfile.id,
-        specialtyId: specAshtangaYoga.id,
-      },
-    });
-  }
-
-  // Receptionist (Lễ tân)
-  const receptionist = await prisma.user.upsert({
+  const receptionist = await db.user.upsert({
     where: { email: 'receptionist@sportscenter.com' },
     update: {},
     create: {
       email: 'receptionist@sportscenter.com',
-      passwordHash,
-      fullName: 'Le Thi Le Tan',
+      fullName: 'Receptionist',
       phone: '0901000004',
       role: UserRole.RECEPTIONIST,
       createdById: manager.id,
-    },
-  });
-
-  // Member 1 (John Doe)
-  const member1 = await prisma.user.upsert({
-    where: { email: 'member.john@example.com' },
-    update: {},
-    create: {
-      email: 'member.john@example.com',
       passwordHash,
-      fullName: 'Nguyen Van John',
-      phone: '0901000005',
-      role: UserRole.MEMBER,
-      createdById: receptionist.id,
-      memberProfile: {
-        create: {
-          heightCm: 175.5,
-          weightKg: 74.0,
-          bmi: 24.03,
-          bodyFatPct: 18.5,
-          fitnessGoals: 'Tăng cơ giảm mỡ, cải thiện sức bền',
-        },
-      },
     },
   });
 
-  // InBody log mẫu cho Member 1
-  await prisma.memberInbodyLog.create({
-    data: {
-      userId: member1.id,
-      measuredById: receptionist.id,
-      heightCm: 175.5,
-      weightKg: 74.0,
-      muscleMassKg: 34.2,
-      bodyFatPct: 18.5,
-      bmi: 24.03,
-      visceralFatLevel: 6,
-      notes: 'Chỉ số đo đầu vào ngày khai mạc thẻ',
-    },
-  });
-
-  // 4. Seed Rooms & Equipment
-  const roomGym = await prisma.room.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000001' },
-    update: {},
-    create: {
-      id: '00000000-0000-0000-0000-000000000001',
-      name: 'Phòng Gym Thể Hình 101',
-      capacity: 50,
-      locationNote: 'Tầng 1 - Khu Thể Thao Tự Do',
-      equipment: {
-        create: [
-          { name: 'Máy chạy bộ Technogym Pro 1', equipmentType: 'CARDIO' },
-          { name: 'Khung gánh tạ Smith Machine Alpha', equipmentType: 'STRENGTH' },
-          { name: 'Ghế đẩy ngực Olympic Flat Bench', equipmentType: 'FREE_WEIGHT' },
-        ],
-      },
-    },
-  });
-
-  const roomYoga = await prisma.room.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000002' },
-    update: {},
-    create: {
-      id: '00000000-0000-0000-0000-000000000002',
-      name: 'Studio Yoga Sen Vàng 201',
-      capacity: 20,
-      locationNote: 'Tầng 2 - Khu Yên Tĩnh & Thiền',
-    },
-  });
-
-  // 5. Seed Lockers (Tủ đồ Nam/Nữ/VIP)
-  for (let i = 1; i <= 5; i++) {
-    const num = i.toString().padStart(2, '0');
-    await prisma.locker.upsert({
-      where: { lockerNumber: `M-${num}` },
-      update: {},
+  const specialties = {} as Record<Code, { id: string }>;
+  const specialtyCodes: Record<Code, string> = {
+    GYM: 'SPEC_GYM_BB',
+    BOXING: 'SPEC_BOX_KB',
+    YOGA: 'SPEC_YOG_AS',
+  };
+  for (const code of codes) {
+    specialties[code] = await db.specialty.upsert({
+      where: { code: specialtyCodes[code] },
+      update: { name: `${code} coaching`, disciplineId: disciplines[code].id },
       create: {
-        lockerNumber: `M-${num}`,
-        zone: 'MALE_LOCKER',
-        status: LockerStatus.AVAILABLE,
-      },
-    });
-    await prisma.locker.upsert({
-      where: { lockerNumber: `F-${num}` },
-      update: {},
-      create: {
-        lockerNumber: `F-${num}`,
-        zone: 'FEMALE_LOCKER',
-        status: LockerStatus.AVAILABLE,
+        code: specialtyCodes[code],
+        name: `${code} coaching`,
+        disciplineId: disciplines[code].id,
       },
     });
   }
 
-  // 6. Seed Membership Plans theo ma trận 4 môn V5
-  // ⚠️ update block có giá trị thực để seed idempotent/self-correcting khi chạy lại.
-  //    update:{} là anti-pattern — chạy lại seed không sửa được số liệu sai.
-
-  // Gói 1: Gym Plus — 300.000đ / 30 ngày / Vào cổng tự do không giới hạn
-  const gymPlusPlan = await prisma.membershipPlan.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000010' },
-    update: { price: 300000, durationDays: 30, groupSessionQuota: 0, ptSessionQuota: 0, unlimitedGymEntry: true },
-    create: {
-      id: '00000000-0000-0000-0000-000000000010',
-      disciplineId: gym.id,
-      name: 'Gói Gym Plus 30 Ngày',
-      description: 'Vào cửa tập luyện tự do không giới hạn số lượt trong 30 ngày',
-      price: 300000,
-      durationDays: 30,
-      planType: PlanType.GENERAL,
-      packageTier: PackageTier.PLUS,
-      trainingMode: TrainingMode.CUSTOM,
-      unlimitedGymEntry: true,
-      groupSessionQuota: 0,
-      ptSessionQuota: 0,
+  // Each discipline has exactly four assigned coaches in the seed cohort.
+  const coachMatrix: {
+    key: string;
+    name: string;
+    email: string;
+    phone: string;
+    rates: Partial<Record<Code, number>>;
+  }[] = [
+    {
+      key: 'alex',
+      name: 'Alex Ferguson',
+      email: 'coach.alex@sportscenter.com',
+      phone: '0901000002',
+      rates: { GYM: 350000 },
     },
-  });
+    {
+      key: 'elena',
+      name: 'Elena Rostova',
+      email: 'coach.elena@sportscenter.com',
+      phone: '0901000003',
+      rates: { YOGA: 400000 },
+    },
+    {
+      key: 'shared',
+      name: 'Coach Minh Multi Sport',
+      email: 'coach.minh@seed.sportscenter.test',
+      phone: '0910000000',
+      rates: { GYM: 300000, BOXING: 420000, YOGA: 450000 },
+    },
+    {
+      key: 'gym2',
+      name: 'Coach Gym Two',
+      email: 'coach.gym2@seed.sportscenter.test',
+      phone: '0910000001',
+      rates: { GYM: 250000 },
+    },
+    {
+      key: 'gym3',
+      name: 'Coach Gym Three',
+      email: 'coach.gym3@seed.sportscenter.test',
+      phone: '0910000002',
+      rates: { GYM: 450000 },
+    },
+    {
+      key: 'box1',
+      name: 'Coach Boxing One',
+      email: 'coach.box1@seed.sportscenter.test',
+      phone: '0910000003',
+      rates: { BOXING: 350000 },
+    },
+    {
+      key: 'box2',
+      name: 'Coach Boxing Two',
+      email: 'coach.box2@seed.sportscenter.test',
+      phone: '0910000004',
+      rates: { BOXING: 400000 },
+    },
+    {
+      key: 'box3',
+      name: 'Coach Boxing Three',
+      email: 'coach.box3@seed.sportscenter.test',
+      phone: '0910000005',
+      rates: { BOXING: 500000 },
+    },
+    {
+      key: 'yog2',
+      name: 'Coach Yoga Two',
+      email: 'coach.yog2@seed.sportscenter.test',
+      phone: '0910000006',
+      rates: { YOGA: 350000 },
+    },
+    {
+      key: 'yog3',
+      name: 'Coach Yoga Three',
+      email: 'coach.yog3@seed.sportscenter.test',
+      phone: '0910000007',
+      rates: { YOGA: 500000 },
+    },
+  ];
+  const coaches = {} as Record<string, { id: string }>;
+  for (const item of coachMatrix) {
+    const user = await db.user.upsert({
+      where: { email: item.email },
+      update: {},
+      create: {
+        email: item.email,
+        fullName: item.name,
+        phone: item.phone,
+        role: UserRole.COACH,
+        passwordHash,
+        createdById: manager.id,
+      },
+    });
+    if (user.role !== UserRole.COACH)
+      throw new Error(`Seed email belongs to another role: ${item.email}`);
+    coaches[item.key] = user;
+    const profile = await db.coachProfile.upsert({
+      where: { userId: user.id },
+      update: {},
+      create: {
+        userId: user.id,
+        specialties: Object.keys(item.rates).join(', '),
+        yearsExperience: 5,
+      },
+    });
+    for (const code of Object.keys(item.rates) as Code[]) {
+      await db.coachSpecialty.upsert({
+        where: {
+          coachProfileId_specialtyId: {
+            coachProfileId: profile.id,
+            specialtyId: specialties[code].id,
+          },
+        },
+        update: {},
+        create: {
+          coachProfileId: profile.id,
+          specialtyId: specialties[code].id,
+        },
+      });
+      await db.coachRate.upsert({
+        where: { id: seedId('rate', item.key, code) },
+        update: {
+          ratePerSession: item.rates[code]!,
+          disciplineId: disciplines[code].id,
+        },
+        create: {
+          id: seedId('rate', item.key, code),
+          coachId: user.id,
+          disciplineId: disciplines[code].id,
+          ratePerSession: item.rates[code]!,
+          effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      });
+    }
+  }
 
-  // Gói 2: Yoga Trial — 0đ / 7 ngày / 3 buổi thử (chỉ 1 lần / môn, bảo vệ bởi DB partial unique index)
-  const yogaTrialPlan = await prisma.membershipPlan.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000020' },
-    update: { price: 0, durationDays: 7, groupSessionQuota: 3 },
-    create: {
-      id: '00000000-0000-0000-0000-000000000020',
-      disciplineId: yoga.id,
-      name: 'Gói Yoga Trải Nghiệm (Free Trial)',
-      description: 'Tập thử 3 buổi lớp nhóm Yoga miễn phí trong 7 ngày (Chỉ áp dụng 1 lần / môn)',
+  const roomIds: Record<Code, string> = {
+    GYM: '00000000-0000-0000-0000-000000000001',
+    YOGA: '00000000-0000-0000-0000-000000000002',
+    BOXING: seedId('room', 'BOXING'),
+  };
+  for (const code of codes) {
+    await db.room.upsert({
+      where: { id: roomIds[code] },
+      update: { capacity: code === 'GYM' ? 50 : 10 },
+      create: {
+        id: roomIds[code],
+        name: `${code} Studio`,
+        capacity: code === 'GYM' ? 50 : 10,
+      },
+    });
+  }
+  for (let i = 1; i <= 5; i++) {
+    for (const prefix of ['M', 'F']) {
+      const lockerNumber = `${prefix}-${String(i).padStart(2, '0')}`;
+      await db.locker.upsert({
+        where: { lockerNumber },
+        update: {},
+        create: {
+          lockerNumber,
+          zone: prefix === 'M' ? 'MALE_LOCKER' : 'FEMALE_LOCKER',
+          status: LockerStatus.AVAILABLE,
+        },
+      });
+    }
+  }
+
+  // VIP price is the base amount only; checkout adds 12 x the selected coach's discipline rate.
+  const catalog: {
+    code: Code;
+    tier: PackageTier;
+    label: string;
+    price: number;
+    days: number;
+    groups: number;
+    pt: number;
+    gym: boolean;
+    id?: string;
+  }[] = [
+    {
+      code: 'GYM',
+      tier: PackageTier.TRIAL,
+      label: 'Trial',
       price: 0,
-      durationDays: 7,
-      planType: PlanType.GENERAL,
-      packageTier: PackageTier.TRIAL,
-      trainingMode: TrainingMode.GROUP_CLASS,
-      groupSessionQuota: 3,
-      ptSessionQuota: 0,
+      days: 3,
+      groups: 0,
+      pt: 0,
+      gym: true,
     },
-  });
-
-  // Gói 3: Yoga Plus — 1.000.000đ / 30 ngày / 15 buổi lớp nhóm
-  const yogaPlusPlan = await prisma.membershipPlan.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000030' },
-    update: { name: 'Gói Yoga Lớp Nhóm 15 Buổi', price: 1000000, durationDays: 30, groupSessionQuota: 15 },
-    create: {
+    {
+      code: 'GYM',
+      tier: PackageTier.DROP_IN,
+      label: 'Drop-in',
+      price: 50000,
+      days: 1,
+      groups: 0,
+      pt: 0,
+      gym: false,
+    },
+    {
+      code: 'GYM',
+      tier: PackageTier.PLUS,
+      label: 'Plus',
+      price: 300000,
+      days: 30,
+      groups: 0,
+      pt: 0,
+      gym: true,
+      id: '00000000-0000-0000-0000-000000000010',
+    },
+    {
+      code: 'GYM',
+      tier: PackageTier.VIP,
+      label: 'VIP',
+      price: 300000,
+      days: 30,
+      groups: 0,
+      pt: 12,
+      gym: true,
+    },
+    {
+      code: 'BOXING',
+      tier: PackageTier.TRIAL,
+      label: 'Trial',
+      price: 0,
+      days: 7,
+      groups: 1,
+      pt: 0,
+      gym: false,
+    },
+    {
+      code: 'BOXING',
+      tier: PackageTier.DROP_IN,
+      label: 'Drop-in',
+      price: 80000,
+      days: 1,
+      groups: 1,
+      pt: 0,
+      gym: false,
+    },
+    {
+      code: 'BOXING',
+      tier: PackageTier.PLUS,
+      label: 'Plus',
+      price: 700000,
+      days: 30,
+      groups: 10,
+      pt: 0,
+      gym: false,
+    },
+    {
+      code: 'BOXING',
+      tier: PackageTier.VIP,
+      label: 'VIP',
+      price: 500000,
+      days: 30,
+      groups: 4,
+      pt: 12,
+      gym: false,
+    },
+    {
+      code: 'YOGA',
+      tier: PackageTier.TRIAL,
+      label: 'Trial',
+      price: 0,
+      days: 7,
+      groups: 3,
+      pt: 0,
+      gym: false,
+      id: '00000000-0000-0000-0000-000000000020',
+    },
+    {
+      code: 'YOGA',
+      tier: PackageTier.DROP_IN,
+      label: 'Drop-in Hatha',
+      price: 120000,
+      days: 1,
+      groups: 1,
+      pt: 0,
+      gym: false,
+    },
+    {
+      code: 'YOGA',
+      tier: PackageTier.DROP_IN,
+      label: 'Drop-in Vinyasa',
+      price: 150000,
+      days: 1,
+      groups: 1,
+      pt: 0,
+      gym: false,
+    },
+    {
+      code: 'YOGA',
+      tier: PackageTier.DROP_IN,
+      label: 'Drop-in Hot Yoga',
+      price: 180000,
+      days: 1,
+      groups: 1,
+      pt: 0,
+      gym: false,
+    },
+    {
+      code: 'YOGA',
+      tier: PackageTier.PLUS,
+      label: 'Plus',
+      price: 1000000,
+      days: 30,
+      groups: 12,
+      pt: 0,
+      gym: false,
       id: '00000000-0000-0000-0000-000000000030',
-      disciplineId: yoga.id,
-      name: 'Gói Yoga Lớp Nhóm 15 Buổi',
-      description: 'Tham gia 15 buổi học Yoga nhóm trong 30 ngày',
-      price: 1000000,         // Ma trận V5: 1.000.000đ / tháng
-      durationDays: 30,       // Ma trận V5: 30 ngày
-      planType: PlanType.GENERAL,
-      packageTier: PackageTier.PLUS,
-      trainingMode: TrainingMode.GROUP_CLASS,
-      groupSessionQuota: 15,
-      ptSessionQuota: 0,
     },
-  });
-
-  // Gói 4: Yoga VIP — Base 1.000.000đ / 30 ngày / 12PT + 15 Nhóm
-  // ⚠️ price = BASE PRICE. Tổng thực = base + 12 × coach_rate — tính tại runtime bởi sp_purchase_vip_subscription.
-  const yogaVipPlan = await prisma.membershipPlan.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000040' },
-    update: { name: 'Gói VIP Yoga (12 PT + 15 Lớp Nhóm)', description: 'Gói cao cấp: 12 buổi PT 1:1 + 15 buổi lớp nhóm / 30 ngày. Tổng = 1tr + 12 × coach_rate.', price: 1000000, durationDays: 30, groupSessionQuota: 15, ptSessionQuota: 12, unlimitedGymEntry: true },
-    create: {
+    {
+      code: 'YOGA',
+      tier: PackageTier.VIP,
+      label: 'VIP',
+      price: 600000,
+      days: 30,
+      groups: 4,
+      pt: 12,
+      gym: false,
       id: '00000000-0000-0000-0000-000000000040',
-      disciplineId: yoga.id,
-      name: 'Gói VIP Yoga (12 PT + 15 Lớp Nhóm)',
-      description: 'Gói cao cấp: 12 buổi PT 1:1 + 15 buổi lớp nhóm / 30 ngày. Tổng = 1tr + 12 × coach_rate.',
-      price: 1000000,         // BASE PRICE — tổng thực tính lúc checkout khi biết coach
-      durationDays: 30,
-      planType: PlanType.PERSONAL_TRAINING,
-      packageTier: PackageTier.VIP,
-      trainingMode: TrainingMode.HYBRID,
-      groupSessionQuota: 15,
-      ptSessionQuota: 12,
-      unlimitedGymEntry: true,
     },
+  ];
+  const plans = {} as Record<
+    Code,
+    Partial<Record<PackageTier, { id: string }>>
+  >;
+  for (const code of codes) plans[code] = {};
+  for (const item of catalog) {
+    const id = item.id ?? seedId('plan', item.code, item.label);
+    const data = {
+      disciplineId: disciplines[item.code].id,
+      name: `${item.code} ${item.label}`,
+      description:
+        item.code === 'BOXING' && item.tier === PackageTier.VIP
+          ? '4 group classes + 12 PT sessions + free boxing bag access'
+          : `${item.groups} group classes + ${item.pt} PT sessions`,
+      price: item.price,
+      durationDays: item.days,
+      sessionQuota: item.groups,
+      planType: item.pt ? PlanType.PERSONAL_TRAINING : PlanType.GENERAL,
+      packageTier: item.tier,
+      trainingMode:
+        item.code === 'GYM'
+          ? TrainingMode.CUSTOM
+          : item.pt
+            ? TrainingMode.HYBRID
+            : TrainingMode.GROUP_CLASS,
+      groupSessionQuota: item.groups,
+      ptSessionQuota: item.pt,
+      unlimitedGymEntry: item.gym,
+      isActive: true,
+    };
+    const plan = await db.membershipPlan.upsert({
+      where: { id },
+      update: data,
+      create: { id, ...data },
+    });
+    if (item.label === 'Plus' || item.label === 'VIP')
+      plans[item.code][item.tier] = plan;
+  }
+
+  // Keep the historic sale but remove a zero-quota Boxing trial from the catalog.
+  await db.membershipPlan.updateMany({
+    where: {
+      disciplineId: disciplines.BOXING.id,
+      name: 'Free Trial',
+      packageTier: PackageTier.TRIAL,
+      groupSessionQuota: 0,
+    },
+    data: { isActive: false },
   });
 
-  console.log('--- SEEDING PRODUCTION V5 COMPLETED SUCCESSFULLY! ---');
-  console.log({
-    disciplines: [gym.name, boxing.name, yoga.name, dancing.name],
-    specialties: [specBodybuilding.name, specPowerlifting.name, specKickboxing.name, specAshtangaYoga.name],
-    users: [admin.email, manager.email, coach1.email, coach2.email, receptionist.email, member1.email],
-    plans: [gymPlusPlan.name, yogaTrialPlan.name, yogaPlusPlan.name, yogaVipPlan.name],
-    lockersCount: 10,
-  });
+  const vipCoaches: Record<Code, string> = {
+    GYM: 'alex',
+    BOXING: 'box1',
+    YOGA: 'elena',
+  };
+  for (const code of codes) {
+    for (const tier of [PackageTier.PLUS, PackageTier.VIP]) {
+      const key = `${code.toLowerCase()}-${tier.toLowerCase()}`;
+      const email = `${key}@seed.sportscenter.test`;
+      const member = await db.user.upsert({
+        where: { email },
+        update: {},
+        create: {
+          email,
+          fullName: `Demo ${code} ${tier}`,
+          role: UserRole.MEMBER,
+          passwordHash,
+          phone: `0920${String(codes.indexOf(code) * 2 + (tier === PackageTier.VIP ? 1 : 0)).padStart(6, '0')}`,
+          createdById: receptionist.id,
+        },
+      });
+      if (member.role !== UserRole.MEMBER)
+        throw new Error(`Seed email belongs to another role: ${email}`);
+      await db.memberProfile.upsert({
+        where: { userId: member.id },
+        update: {},
+        create: { userId: member.id, fitnessGoals: `${code} ${tier} demo` },
+      });
+      const plan = plans[code][tier]!;
+      const product = catalog.find((p) => p.code === code && p.tier === tier)!;
+      const existing = await db.userSubscription.findFirst({
+        where: {
+          userId: member.id,
+          planId: plan.id,
+          status: SubscriptionStatus.ACTIVE,
+          endDate: { gte: today },
+        },
+      });
+      if (existing) {
+        const bookings = await db.booking.count({
+          where: { subscriptionId: existing.id },
+        });
+        const originalEnd = new Date(
+          existing.startDate.getTime() + product.days * day,
+        );
+        if (
+          bookings === 0 &&
+          existing.endDate.getTime() === originalEnd.getTime() &&
+          existing.remainingSessions === product.groups
+        ) {
+          await db.userSubscription.update({
+            where: { id: existing.id },
+            data: {
+              endDate: new Date(
+                existing.startDate.getTime() + (product.days - 1) * day,
+              ),
+              remainingSessions: product.groups + product.pt,
+            },
+          });
+        }
+        continue; // Preserve consumed quotas and booking history on future runs.
+      }
+      const assignedCoachId =
+        tier === PackageTier.VIP ? coaches[vipCoaches[code]].id : null;
+      const subscription = await db.userSubscription.create({
+        data: {
+          id: seedId('subscription', key, monday.toISOString().slice(0, 10)),
+          userId: member.id,
+          planId: plan.id,
+          disciplineId: disciplines[code].id,
+          packageTier: tier,
+          assignedCoachId,
+          startDate: monday,
+          endDate: new Date(monday.getTime() + (product.days - 1) * day),
+          remainingSessions: product.groups + product.pt,
+          remainingGroupSessions: product.groups,
+          remainingPtSessions: product.pt,
+          hasUnlimitedGymAccess: product.gym,
+          status: SubscriptionStatus.ACTIVE,
+        },
+      });
+      const ptAmount =
+        tier === PackageTier.VIP
+          ? product.pt *
+            coachMatrix.find((c) => c.key === vipCoaches[code])!.rates[code]!
+          : 0;
+      await db.invoice.create({
+        data: {
+          id: seedId('invoice', subscription.id),
+          invoiceCode: `DEMO-${code}-${tier}-${monday.toISOString().slice(0, 10)}`,
+          subscriptionId: subscription.id,
+          issuerId: receptionist.id,
+          baseAmount: product.price,
+          ptAmount,
+          amount: product.price + ptAmount,
+          paymentMethod: PaymentMethod.MOCK,
+          status: InvoiceStatus.PAID,
+          type: InvoiceType.SUBSCRIPTION_NEW,
+        },
+      });
+    }
+  }
+
+  const groupClasses: { code: Code; coach: string; capacity: number }[] = [
+    { code: 'BOXING', coach: 'box1', capacity: 10 },
+    { code: 'YOGA', coach: 'elena', capacity: 10 },
+  ];
+  for (const entry of groupClasses) {
+    const trainingClass = await db.class.upsert({
+      where: { id: seedId('class', entry.code) },
+      update: { name: `${entry.code} Weekly Group Class` },
+      create: {
+        id: seedId('class', entry.code),
+        disciplineId: disciplines[entry.code].id,
+        name: `${entry.code} Weekly Group Class`,
+      },
+    });
+    const scheduleId = seedId(
+      'schedule',
+      entry.code,
+      monday.toISOString().slice(0, 10),
+    );
+    if (await db.schedule.findUnique({ where: { id: scheduleId } })) continue;
+    let created = false;
+    for (let d = 0; d < 7 && !created; d++) {
+      const date = new Date(monday.getTime() + d * day);
+      for (const h of [18, 17, 16, 14, 10]) {
+        const startTime = localTime(date, h),
+          endTime = new Date(startTime.getTime() + hour);
+        if (startTime <= new Date()) continue;
+        const conflict = await db.schedule.findFirst({
+          where: {
+            status: { in: ['OPEN', 'FULL'] },
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
+            OR: [
+              { roomId: roomIds[entry.code] },
+              { coachId: coaches[entry.coach].id },
+            ],
+          },
+        });
+        const slot = await db.coachAvailability.findFirst({
+          where: {
+            coachId: coaches[entry.coach].id,
+            isEmergencyCancelled: false,
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
+          },
+        });
+        if (conflict || slot) continue;
+        await db.schedule.create({
+          data: {
+            id: scheduleId,
+            classId: trainingClass.id,
+            roomId: roomIds[entry.code],
+            coachId: coaches[entry.coach].id,
+            startTime,
+            endTime,
+            capacity: entry.capacity,
+          },
+        });
+        created = true;
+        break;
+      }
+    }
+    if (!created)
+      throw new Error(
+        `No future group class time remains this week for ${entry.code}`,
+      );
+  }
+
+  for (const coach of coachMatrix) {
+    const coachId = coaches[coach.key].id;
+    const slots = await db.coachAvailability.findMany({
+      where: {
+        coachId,
+        startTime: { gte: weekStart, lt: weekEnd },
+        isBooked: false,
+        isEmergencyCancelled: false,
+      },
+    });
+    let futureFree = slots.filter((slot) => slot.startTime > new Date()).length;
+    if (futureFree >= 5) continue;
+    const schedules = await db.schedule.findMany({
+      where: {
+        coachId,
+        status: { in: ['OPEN', 'FULL'] },
+        startTime: { lt: weekEnd },
+        endTime: { gt: weekStart },
+      },
+    });
+    for (const h of [8, 10, 14, 16, 18]) {
+      for (let d = 0; d < 7 && futureFree < 5; d++) {
+        const startTime = localTime(new Date(monday.getTime() + d * day), h);
+        const endTime = new Date(startTime.getTime() + hour);
+        if (startTime <= new Date()) continue;
+        if (
+          slots.some((s) =>
+            intersects(startTime, endTime, s.startTime, s.endTime),
+          ) ||
+          schedules.some((s) =>
+            intersects(startTime, endTime, s.startTime, s.endTime),
+          )
+        )
+          continue;
+        const slot = await db.coachAvailability.create({
+          data: {
+            id: seedId('slot', coach.key, startTime.toISOString()),
+            coachId,
+            startTime,
+            endTime,
+          },
+        });
+        slots.push(slot);
+        futureFree++;
+      }
+    }
+    if (futureFree < 5)
+      throw new Error(
+        `Fewer than five future PT slots this week for ${coach.email}`,
+      );
+  }
+  console.log(
+    JSON.stringify({
+      week: monday.toISOString().slice(0, 10),
+      plans: catalog.length,
+      coachAssignments: 12,
+      demoMembers: codes.length * 2,
+      groupClasses: groupClasses.length,
+      futureSlotsPerCoach: 5,
+    }),
+  );
 }
 
 main()
-  .catch((e) => {
-    console.error('Error during seeding:', e);
-    process.exit(1);
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
   })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .finally(async () => db.$disconnect());

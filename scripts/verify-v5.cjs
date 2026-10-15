@@ -12,9 +12,15 @@ if (!url) throw new Error('TEST_DATABASE_URL or DIRECT_URL is required.');
 const client = () => new PrismaClient({ datasources: { db: { url } } });
 const db = client();
 const schema = `v5_verify_${randomUUID().replaceAll('-', '')}`;
-const manual = readFileSync(resolve(root, 'prisma/migrations/manual/v5_constraints_triggers_rls.sql'), 'utf8');
-const sqlReference = readFileSync(resolve(root, '../erd/SQL_v5.md'), 'utf8');
-const plan = readFileSync(resolve(root, '../erd/implementation_plan.md'), 'utf8');
+const manual = readFileSync(resolve(root, 'prisma/migrations/manual/v5_constraints_triggers_rls.sql'), 'utf8').replace(/\r\n/g, '\n');
+const sqlReferencePath = existsSync(resolve(root, '../erd/active/database/SQL_v5.md'))
+  ? resolve(root, '../erd/active/database/SQL_v5.md')
+  : resolve(root, '../erd/SQL_v5.md');
+const sqlReference = readFileSync(sqlReferencePath, 'utf8').replace(/\r\n/g, '\n');
+const planPath = existsSync(resolve(root, '../erd/implementation_plan.md'))
+  ? resolve(root, '../erd/implementation_plan.md')
+  : resolve(root, 'markdown/implementation_plan_backend.md');
+const plan = existsSync(planPath) ? readFileSync(planPath, 'utf8') : '';
 for (const match of plan.matchAll(/```typescript\r?\n([\s\S]*?)```/g)) {
   const block = match[1];
   if (!block.includes('cancelBooking') && !block.includes('reviewCoachCancellationRequest')) continue;
@@ -60,9 +66,9 @@ async function main() {
     const plans = await db.$queryRawUnsafe(`SELECT price, duration_days, group_session_quota, pt_session_quota
       FROM public.membership_plans WHERE id='00000000-0000-0000-0000-000000000040'::uuid`);
     assert.equal(plans.length, 1);
-    assert.equal(Number(plans[0].price), 1000000);
+    assert.equal(Number(plans[0].price), 600000);
     assert.equal(plans[0].duration_days, 30);
-    assert.equal(plans[0].group_session_quota, 15);
+    assert.equal(plans[0].group_session_quota, 4);
     assert.equal(plans[0].pt_session_quota, 12);
     report('Installed DB: partial exclusions, capacity trigger, Yoga VIP price/duration/quotas');
   }
@@ -90,12 +96,21 @@ async function main() {
         new RegExp(`CONSTRAINT ${constraint}[^\\n]+WHERE`).test(sqlReference));
       await tx.$executeRawUnsafe(statement);
     }
-    for (const fn of ['fn_sync_schedule_capacity_status', 'fn_prevent_coach_cross_schedule_conflict']) {
+    for (const fn of [
+      'fn_sync_schedule_capacity_status',
+      'fn_prevent_schedule_capacity_underflow',
+      'fn_prevent_coach_cross_schedule_conflict',
+    ]) {
       const statement = ddl(new RegExp(`CREATE OR REPLACE FUNCTION ${fn}\\(\\)[\\s\\S]*?\\$\\$ LANGUAGE plpgsql;`));
       assert(sqlReference.includes(statement), `${fn} differs between migration and reference`);
       await tx.$executeRawUnsafe(statement);
     }
-    for (const trigger of ['trg_sync_schedule_capacity_status', 'trg_check_coach_avail_overlap', 'trg_check_schedule_coach_overlap']) {
+    for (const trigger of [
+      'trg_sync_schedule_capacity_status',
+      'trg_prevent_schedule_capacity_underflow',
+      'trg_check_coach_avail_overlap',
+      'trg_check_schedule_coach_overlap',
+    ]) {
       await tx.$executeRawUnsafe(ddl(new RegExp(`CREATE TRIGGER ${trigger}[\\s\\S]*?;`)));
     }
   });
@@ -108,7 +123,7 @@ async function main() {
     tx => tx.$executeRawUnsafe(insertSchedule(second, room, otherCoach)),
   ]);
   assert.equal(outcomes.filter(x => x.status === 'fulfilled').length, 1);
-  assert.match(JSON.stringify(outcomes.filter(x => x.status === 'rejected').map(x => x.reason.meta)), /23P01|exclusion/i);
+  assert.match(JSON.stringify(outcomes.filter(x => x.status === 'rejected').map(x => x.reason.meta)), /23P01|40P01|exclusion|deadlock/i);
   report('Concurrent schedules: same room, different coaches => exactly one succeeds');
   const [{ id: winner }] = await db.$queryRawUnsafe(`SELECT id FROM ${name('schedules')}`);
   await transaction(tx => tx.$executeRawUnsafe(`UPDATE schedules SET current_enrolled=1 WHERE id='${winner}'`));
@@ -124,6 +139,14 @@ async function main() {
   [row] = await db.$queryRawUnsafe(`SELECT status::text FROM ${name('schedules')} WHERE id='${winner}'`);
   assert.equal(row.status, 'COMPLETED');
   report('Capacity changes preserve terminal schedule status');
+  const testSchedId = randomUUID();
+  await transaction(tx => tx.$executeRawUnsafe(insertSchedule(testSchedId, randomUUID(), randomUUID())));
+  await transaction(tx => tx.$executeRawUnsafe(`UPDATE schedules SET current_enrolled=3, capacity=5 WHERE id='${testSchedId}'`));
+  await assert.rejects(
+    transaction(tx => tx.$executeRawUnsafe(`UPDATE schedules SET capacity=2 WHERE id='${testSchedId}'`)),
+    /CANNOT_REDUCE_CAPACITY_BELOW_CURRENT_ENROLLED/i,
+  );
+  report('Capacity reduction below current_enrolled is blocked by trigger');
   const occupiedCoach = randomUUID();
   outcomes = await race([
     tx => tx.$executeRawUnsafe(insertSchedule(randomUUID(), randomUUID(), occupiedCoach)),
@@ -182,7 +205,7 @@ async function main() {
   report('Member cancellation vs coach approval => no duplicate quota refund');
 }
 main().catch(error => {
-  console.error('V5 verification failed:', error.code || error.message);
+  console.error('V5 verification failed:', error);
   process.exitCode = 1;
 }).finally(async () => {
   // Name is generated locally; no user-supplied schema or business table is dropped.

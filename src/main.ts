@@ -1,62 +1,33 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { TransformResponseInterceptor } from './common/interceptors/transform-response.interceptor';
+import { configureApp } from './config/configure-app';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
-
 async function bootstrap() {
-  const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule);
-
-  // Global Prefix
-  app.setGlobalPrefix('api/v1');
-
-  // Global CORS
+  const app = await NestFactory.create(AppModule, { rawBody: true });
+  configureApp(app);
   app.enableCors({
-    origin: '*',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3001')
+      .split(',')
+      .map((value) => value.trim()),
     credentials: true,
   });
-
-  // Global Validation Pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
-
-  // Global Exception Filter & Interceptors
-  app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(
-    new LoggingInterceptor(),
-    new TransformResponseInterceptor(),
-  );
-
-  // Swagger Documentation Setup
+  app.enableShutdownHooks();
+  app.useGlobalInterceptors(new LoggingInterceptor());
   const config = new DocumentBuilder()
-    .setTitle('Sports Center Management System - API')
+    .setTitle('Sports Center Management API')
     .setDescription(
-      'Hệ thống RESTful API cho nền tảng Quản lý Trung tâm Thể thao đa bộ môn (Gym, Yoga, Boxing). Hỗ trợ xác thực JWT, phân quyền RBAC 4 vai trò, kiểm soát đặt chỗ ACID và realtime.',
+      'V5 backend: five roles, transactional bookings and authenticated realtime.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()
     .build();
-
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document);
-
+  SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config));
   const port = process.env.PORT || 3000;
   await app.listen(port);
-
-  logger.log(`Server is running at: http://localhost:${port}/api/v1`);
-  logger.log(`Swagger documentation: http://localhost:${port}/docs`);
+  new Logger('Bootstrap').log(
+    `API: http://localhost:${port}/api/v1; Swagger: /docs`,
+  );
 }
-bootstrap();
-
+void bootstrap();
