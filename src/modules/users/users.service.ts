@@ -7,7 +7,6 @@ import * as bcrypt from 'bcrypt';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
-import { RedisService } from '../../infrastructure/redis/redis.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto, UpdateUserDto } from './dto/update-profile.dto';
 import { Actor } from '../../common/types/actor';
@@ -27,7 +26,6 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
-    private readonly redis: RedisService,
   ) {}
   async createUser(dto: CreateUserDto, actor: Actor) {
     const allowed: UserRole[] =
@@ -168,11 +166,19 @@ export class UsersService {
     const { password, ...data } = dto;
     const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
     const result = await this.transactions.run(async (tx) => {
+      const shouldRevoke = password || data.isActive === false;
       const user = await tx.user.update({
         where: { id },
-        data: { ...data, passwordHash },
+        data: {
+          ...data,
+          passwordHash,
+          ...(shouldRevoke ? { tokenVersion: { increment: 1 } } : {}),
+        },
         select: selection,
       });
+      if (shouldRevoke) {
+        await tx.userSession.deleteMany({ where: { userId: id } });
+      }
       await audit(
         tx,
         actor,
@@ -183,7 +189,6 @@ export class UsersService {
       );
       return user;
     });
-    if (password || data.isActive === false) await this.redis.revokeUser(id);
     return result;
   }
 

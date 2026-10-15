@@ -103,16 +103,28 @@ BEGIN
             'TRUE khi HLV hủy khẩn cấp ca này. Slot bị đặt false cho is_booked nhưng không thể nhận booking mới.';
     END IF;
 
-    -- exercise_knowledge.embedding (pgvector)
+    -- users.token_version
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name='exercise_knowledge' AND column_name='embedding'
+        WHERE table_name='users' AND column_name='token_version'
     ) THEN
-        ALTER TABLE exercise_knowledge
-            ADD COLUMN embedding vector(1536);
-        COMMENT ON COLUMN exercise_knowledge.embedding IS
-            'Vector embedding 1536 chiều cho RAG (OpenAI text-embedding-3-small / Gemini text-embedding-004).';
+        ALTER TABLE users
+            ADD COLUMN token_version INT NOT NULL DEFAULT 1;
+        COMMENT ON COLUMN users.token_version IS
+            'Epoch version dùng để tức thì vô hiệu hóa toàn bộ JWT đang lưu hành khi đổi mật khẩu hoặc khóa tài khoản.';
     END IF;
+
+    -- user_sessions table
+    CREATE TABLE IF NOT EXISTS user_sessions (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        refresh_token_hash VARCHAR(255) NOT NULL,
+        device_info VARCHAR(255),
+        expires_at TIMESTAMPTZ(6) NOT NULL,
+        created_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ(6) NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id);
 END;
 $$;
 
