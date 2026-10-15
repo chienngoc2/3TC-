@@ -22,7 +22,6 @@ Kiểm tra trước merge: `npm run check`. Integration PostgreSQL/Redis: `npm r
 ### Yêu cầu tiên quyết
 * **Node.js**: `v20.x LTS` hoặc mới hơn
 * **Package Manager**: `npm`
-* **Docker & Docker Compose**: Dùng để chạy Redis 7 cục bộ
 * **Tài khoản Supabase / PostgreSQL 15+**: Đã kích hoạt extension `btree_gist` và `vector` (pgvector)
 
 ### Các bước cài đặt
@@ -39,17 +38,12 @@ Kiểm tra trước merge: `npm run check`. Integration PostgreSQL/Redis: `npm r
    ```
 
 3. **Cấu hình biến môi trường:**
-   Không cần thiết với dự án hiện tại. file `.env` tớ đã cấu hình sẵn, pull và chạy là được.
+   Không cần thiết với dự án hiện tại. file `.env` đã cấu hình sẵn, pull và chạy là được.
 
-4. **Khởi chạy Redis (Docker Compose):**
-   ```bash
-   docker-compose up -d redis
-   ```
+4. **Đồng bộ Cơ sở dữ liệu V5 & Dữ liệu mẫu (Seed):**
+   Không cần thiết với dự án hiện tại, đã cấu hình DB và nạp seed data.
 
-5. **Đồng bộ Cơ sở dữ liệu V5 & Dữ liệu mẫu (Seed):**
-   Không cần thiết với dự án hiện tại, tớ cũng cấu hình DB và nạp seed data rồi.
-
-6. **Khởi động server phát triển:**
+5. **Khởi động server phát triển:**
    ```bash
    npm run start:dev
    ```
@@ -129,7 +123,6 @@ backend/
 │   │   └── analytics/                            # [Kế hoạch] Báo cáo doanh thu & tỷ lệ lấp đầy
 │   ├── app.module.ts                             # Root Application Module
 │   └── main.ts                                   # Bootstrap: Swagger, CORS, Global Guards & Filters
-├── docker-compose.yml                            # Redis 7 service
 ├── package.json
 └── tsconfig.json
 ```
