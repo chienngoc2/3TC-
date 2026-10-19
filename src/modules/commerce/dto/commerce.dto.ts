@@ -88,6 +88,7 @@ export class CancelDto {
   @IsOptional() @IsString() @MaxLength(2000) reason?: string;
 }
 export class CancellationRequestDto {
+  @IsOptional() @IsUUID() coachId?: string;
   @IsOptional()
   @IsEnum(CancellationTargetType)
   targetType?: CancellationTargetType;

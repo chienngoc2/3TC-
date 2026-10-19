@@ -56,6 +56,12 @@ export class CoachesController {
   ) {
     return this.service.schedule(actor);
   }
+  @Roles(UserRole.COACH) @Get('members') members(
+    @CurrentUser() actor: Actor,
+    @Query('q') query?: string,
+  ) {
+    return this.service.members(actor, query);
+  }
   @Get(':id/rates') rates(@Param('id', ParseUUIDPipe) id: string) {
     return this.service.rates(id);
   }

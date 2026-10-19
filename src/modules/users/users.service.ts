@@ -33,7 +33,9 @@ export class UsersService {
         ? [UserRole.CENTER_MANAGER]
         : actor.role === UserRole.CENTER_MANAGER
           ? [UserRole.COACH, UserRole.RECEPTIONIST, UserRole.MEMBER]
-          : [];
+          : actor.role === UserRole.RECEPTIONIST
+            ? [UserRole.MEMBER]
+            : [];
     if (!allowed.includes(dto.role))
       throw new ForbiddenException('ROLE_HIERARCHY_VIOLATION');
     const passwordHash = await bcrypt.hash(dto.password, 10);
