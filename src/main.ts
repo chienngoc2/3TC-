@@ -1,7 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import basicAuth from 'express-basic-auth'; 
+import basicAuth from 'express-basic-auth';
 import { AppModule } from './app.module';
 import { configureApp } from './config/configure-app';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -30,7 +30,7 @@ async function bootstrap() {
       app.use(
         ['/docs', '/docs-json', '/docs-yaml'],
         basicAuth({
-          challenge: true, 
+          challenge: true,
           users: {
             [swaggerUser]: swaggerPassword,
           },
@@ -47,11 +47,16 @@ async function bootstrap() {
       .addBearerAuth()
       .build();
 
-    SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, config), {
-      swaggerOptions: {
-        persistAuthorization: true, 
+    SwaggerModule.setup(
+      'docs',
+      app,
+      SwaggerModule.createDocument(app, config),
+      {
+        swaggerOptions: {
+          persistAuthorization: true,
+        },
       },
-    });
+    );
   }
 
   const port = Number(process.env.PORT) || 3000;

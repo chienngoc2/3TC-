@@ -24,7 +24,11 @@ export class CancellationReviewService {
     private readonly bookings: BookingsService,
     private readonly events: DomainEvents,
   ) {}
-  async request(dto: CancellationRequestDto, actor: Actor) {
+  async request(
+    dto: CancellationRequestDto,
+    actor: Actor,
+    coachId = actor.userId,
+  ) {
     const value = await this.transactions.run(async (tx) => {
       requireCondition(
         Boolean(dto.bookingId) !== Boolean(dto.scheduleId),
@@ -56,7 +60,17 @@ export class CancellationReviewService {
       const target = requireRecord(
         schedule ?? booking?.coachAvailability ?? null,
       );
-      requireOwner(actor, target.coachId);
+      requireCondition(target.coachId === coachId, 'COACH_TARGET_MISMATCH');
+      if (actor.role === 'COACH') requireOwner(actor, target.coachId);
+      else
+        requireCondition(
+          actor.role === 'RECEPTIONIST' && Boolean(dto.coachId),
+          'COACH_REQUIRED',
+        );
+      await requireRecord(
+        await tx.coachProfile.findUnique({ where: { userId: coachId } }),
+        'COACH_NOT_FOUND',
+      );
       requireCondition(
         target.startTime > new Date(),
         'SESSION_ALREADY_STARTED',
@@ -84,7 +98,7 @@ export class CancellationReviewService {
       );
       const created = await tx.cancellationRequest.create({
         data: {
-          coachId: actor.userId,
+          coachId,
           bookingId: booking?.id,
           scheduleId: schedule?.id,
           targetType: booking ? 'PERSONAL_TRAINING' : 'GROUP_CLASS',
@@ -104,7 +118,7 @@ export class CancellationReviewService {
     this.events.publish({
       name: 'cancellation.requested',
       data: value,
-      userIds: [actor.userId],
+      userIds: [...new Set([actor.userId, coachId])],
       roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
     });
     return value;
