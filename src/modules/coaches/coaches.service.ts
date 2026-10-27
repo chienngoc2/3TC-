@@ -180,7 +180,26 @@ export class CoachesService {
     return Promise.all([
       this.prisma.schedule.findMany({
         where: { coachId: actor.userId, startTime: { gte: start, lt: end } },
-        include: { class: true },
+        include: {
+          class: true,
+          room: true,
+          bookings: {
+            where: { status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED'] } },
+            include: {
+              member: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  phone: true,
+                  avatarUrl: true,
+                  memberProfile: true,
+                },
+              },
+              attendance: true,
+            },
+            orderBy: { bookedAt: 'asc' },
+          },
+        },
       }),
       this.prisma.coachAvailability.findMany({
         where: {
@@ -188,8 +207,62 @@ export class CoachesService {
           startTime: { gte: start, lt: end },
           isBooked: true,
         },
-        include: { bookings: { where: { status: 'CONFIRMED' } } },
+        include: {
+          bookings: {
+            where: { status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED'] } },
+            include: {
+              member: {
+                select: {
+                  id: true,
+                  fullName: true,
+                  phone: true,
+                  avatarUrl: true,
+                  memberProfile: true,
+                },
+              },
+              attendance: true,
+            },
+          },
+        },
       }),
     ]).then(([classes, pt]) => ({ classes, pt }));
+  }
+  members(actor: Actor, query?: string) {
+    return this.prisma.userSubscription.findMany({
+      where: {
+        assignedCoachId: actor.userId,
+        status: 'ACTIVE',
+        user: query
+          ? {
+              OR: [
+                { fullName: { contains: query, mode: 'insensitive' } },
+                { phone: { contains: query } },
+                { email: { contains: query, mode: 'insensitive' } },
+              ],
+            }
+          : undefined,
+      },
+      select: {
+        id: true,
+        disciplineId: true,
+        endDate: true,
+        remainingGroupSessions: true,
+        remainingPtSessions: true,
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            phone: true,
+            email: true,
+            avatarUrl: true,
+            memberProfile: true,
+            memberInbodyLogs: { orderBy: { measuredAt: 'desc' }, take: 5 },
+          },
+        },
+      },
+      distinct: ['userId'],
+      orderBy: { endDate: 'desc' },
+      take: 200,
+    });
   }
 }

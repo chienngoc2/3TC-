@@ -66,6 +66,14 @@ export class BookingsController {
   request(@Body() dto: CancellationRequestDto, @CurrentUser() actor: Actor) {
     return this.reviewService.request(dto, actor);
   }
+  @Roles(UserRole.RECEPTIONIST)
+  @Post('cancellation-requests/on-behalf')
+  requestForCoach(
+    @Body() dto: CancellationRequestDto,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.reviewService.request(dto, actor, dto.coachId);
+  }
   @Roles(UserRole.COACH, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Get('cancellation-requests')
   requests(@CurrentUser() actor: Actor) {

@@ -64,6 +64,14 @@ export class UsersController {
   members(@Query('q') q?: string) {
     return this.users.findAll(UserRole.MEMBER, q);
   }
+  @Post('members')
+  @Roles(UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
+  registerMember(@Body() dto: CreateUserDto, @CurrentUser() actor: Actor) {
+    return this.users.createUser(
+      { ...dto, role: dto.role ?? UserRole.MEMBER },
+      actor,
+    );
+  }
   @Put('members/:id')
   @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
   memberProfile(
