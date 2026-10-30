@@ -41,3 +41,24 @@ export class KnowledgeDto {
   @IsString() @MinLength(2) @MaxLength(50) category: string;
   @IsString() @MinLength(10) @MaxLength(10000) instructions: string;
 }
+
+export class WorkoutTemplatesQueryDto {
+  @IsOptional()
+  @IsString()
+  discipline?: string;
+}
+
+export class AssignTemplateDto {
+  @IsUUID()
+  bookingId: string;
+
+  @IsOptional()
+  @IsString()
+  templateCode?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  sessionOrder?: number;
+}

@@ -6,6 +6,7 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -14,7 +15,12 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
 import { WorkoutPlansService } from './workout-plans.service';
-import { WorkoutDto, UpdateWorkoutDto, KnowledgeDto } from './dto/workout.dto';
+import {
+  WorkoutDto,
+  UpdateWorkoutDto,
+  KnowledgeDto,
+  AssignTemplateDto,
+} from './dto/workout.dto';
 @Controller()
 @ApiTags('Manual workout plans')
 @ApiBearerAuth()
@@ -54,5 +60,23 @@ export class WorkoutPlansController {
     @CurrentUser() actor: Actor,
   ) {
     return this.service.createKnowledge(dto, actor);
+  }
+  @Roles(UserRole.MEMBER, UserRole.COACH, UserRole.CENTER_MANAGER)
+  @Get('workout-templates')
+  templates(@Query('discipline') discipline?: string) {
+    return this.service.templates(discipline);
+  }
+  @Roles(UserRole.COACH, UserRole.CENTER_MANAGER)
+  @Post('workout-plans/assign-template')
+  assignTemplate(@Body() dto: AssignTemplateDto, @CurrentUser() actor: Actor) {
+    return this.service.assignTemplate(dto, actor);
+  }
+  @Roles(UserRole.MEMBER, UserRole.COACH, UserRole.CENTER_MANAGER)
+  @Get('bookings/:bookingId/workout-plan')
+  planByBooking(
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.getPlanByBooking(bookingId, actor);
   }
 }

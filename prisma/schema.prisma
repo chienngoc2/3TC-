@@ -620,6 +620,7 @@ model Booking {
   equipmentReservation EquipmentReservation?
   cancellationRequests CancellationRequest[]
   coachPenalties       CoachPenalty[]
+  workoutPlans         WorkoutPlan[]
 
   @@index([subscriptionId], map: "idx_bookings_subscription_id")
   @@index([disciplineId], map: "idx_bookings_discipline_id")
@@ -766,19 +767,26 @@ model CoachPenalty {
 }
 
 model WorkoutPlan {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  memberId  String   @map("member_id") @db.Uuid
-  coachId   String   @map("coach_id") @db.Uuid
-  title     String   @db.VarChar(150)
-  notes     String?  @db.Text
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId     String            @map("member_id") @db.Uuid
+  coachId      String            @map("coach_id") @db.Uuid
+  bookingId    String?           @map("booking_id") @db.Uuid
+  templateId   String?           @map("template_id") @db.Uuid
+  sessionOrder Int?              @map("session_order")
+  title        String            @db.VarChar(150)
+  notes        String?           @db.Text
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  member    User              @relation("MemberWorkoutPlans", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_workout_plans_member")
-  coach     User              @relation("CoachWorkoutPlans", fields: [coachId], references: [id], onDelete: Restrict, map: "fk_workout_plans_coach")
-  exercises WorkoutExercise[]
+  member       User              @relation("MemberWorkoutPlans", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_workout_plans_member")
+  coach        User              @relation("CoachWorkoutPlans", fields: [coachId], references: [id], onDelete: Restrict, map: "fk_workout_plans_coach")
+  booking      Booking?          @relation(fields: [bookingId], references: [id], onDelete: SetNull, map: "fk_workout_plans_booking")
+  template     WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull, map: "fk_workout_plans_template")
+  exercises    WorkoutExercise[]
 
   @@index([memberId], map: "idx_workout_plans_member_id")
   @@index([coachId], map: "idx_workout_plans_coach_id")
+  @@index([bookingId], map: "idx_workout_plans_booking_id")
+  @@index([templateId], map: "idx_workout_plans_template_id")
   @@map("workout_plans")
 }
 
@@ -793,9 +801,46 @@ model ExerciseKnowledge {
   // Index: CREATE INDEX ON exercise_knowledge USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
   embedding    Unsupported("vector(1536)")?
 
-  exercises WorkoutExercise[]
+  exercises         WorkoutExercise[]
+  templateExercises WorkoutTemplateExercise[]
 
   @@map("exercise_knowledge")
+}
+
+model WorkoutTemplate {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  templateCode   String                    @unique(map: "uq_workout_templates_code") @map("template_code") @db.VarChar(50)
+  disciplineCode String                    @map("discipline_code") @db.VarChar(20)
+  title          String                    @db.VarChar(150)
+  weekNumber     Int                       @map("week_number")
+  sessionOrder   Int                       @map("session_order")
+  description    String?                   @db.Text
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  exercises      WorkoutTemplateExercise[]
+  workoutPlans   WorkoutPlan[]
+
+  @@index([disciplineCode], map: "idx_workout_templates_discipline_code")
+  @@map("workout_templates")
+}
+
+model WorkoutTemplateExercise {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  templateId  String            @map("template_id") @db.Uuid
+  exerciseId  String            @map("exercise_id") @db.Uuid
+  sets        Int?
+  reps        Int?
+  unit        String?           @default("reps") @db.VarChar(20)
+  weightKg    Decimal?          @map("weight_kg") @db.Decimal(5, 2)
+  restSeconds Int?              @map("rest_seconds")
+  orderIndex  Int               @default(0) @map("order_index")
+
+  template    WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade, map: "fk_workout_template_exercises_template")
+  exercise    ExerciseKnowledge @relation(fields: [exerciseId], references: [id], onDelete: Restrict, map: "fk_workout_template_exercises_exercise")
+
+  @@index([templateId], map: "idx_workout_template_exercises_template_id")
+  @@index([exerciseId], map: "idx_workout_template_exercises_exercise_id")
+  @@map("workout_template_exercises")
 }
 
 model WorkoutExercise {

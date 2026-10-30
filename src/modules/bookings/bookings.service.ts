@@ -123,6 +123,62 @@ export class BookingsService {
       data: { equipmentId, bookingId, startTime, endTime },
     });
   }
+  private async autoAssignWorkoutPlan(
+    tx: Prisma.TransactionClient,
+    bookingId: string,
+    subscriptionId: string,
+    memberId: string,
+    coachId: string,
+    disciplineId?: string | null,
+  ) {
+    if (!disciplineId) return;
+    const discipline = await tx.discipline.findUnique({
+      where: { id: disciplineId },
+    });
+    if (!discipline) return;
+
+    const sessionCount = await tx.booking.count({
+      where: {
+        subscriptionId,
+        bookingType: 'PERSONAL_TRAINING',
+        status: { in: ['CONFIRMED', 'ATTENDED'] },
+      },
+    });
+
+    if (sessionCount >= 1 && sessionCount <= 12) {
+      const template = await (tx as any).workoutTemplate.findFirst({
+        where: {
+          disciplineCode: { equals: discipline.code, mode: 'insensitive' },
+          sessionOrder: sessionCount,
+        },
+        include: { exercises: { orderBy: { orderIndex: 'asc' } } },
+      });
+
+      if (template) {
+        await (tx as any).workoutPlan.create({
+          data: {
+            memberId,
+            coachId,
+            bookingId,
+            templateId: template.id,
+            sessionOrder: template.sessionOrder,
+            title: template.title,
+            notes: template.description,
+            exercises: {
+              create: template.exercises.map((e: any, orderIndex: number) => ({
+                exerciseId: e.exerciseId,
+                sets: e.sets,
+                reps: e.reps,
+                weightKg: e.weightKg,
+                restSeconds: e.restSeconds,
+                orderIndex,
+              })),
+            },
+          },
+        });
+      }
+    }
+  }
   async group(dto: GroupBookingDto, actor: Actor) {
     const result = await this.transactions.run(async (tx) => {
       const memberId = await this.member(tx, actor, dto.memberId);
@@ -260,6 +316,14 @@ export class BookingsService {
         booking.id,
         initial.startTime,
         initial.endTime,
+      );
+      await this.autoAssignWorkoutPlan(
+        tx,
+        booking.id,
+        sub.id,
+        memberId,
+        initial.coachId,
+        dto.disciplineId,
       );
       await audit(tx, actor, 'BOOK_PT', 'bookings', booking.id);
       return {

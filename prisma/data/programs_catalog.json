@@ -1,0 +1,338 @@
+[
+  {
+    "discipline": "BOXING",
+    "description": "Boxing 4 tuần: nền tảng → combo & phòng thủ → cường độ cao → tổng hợp. Mỗi 'round' = sets × reps(giây).",
+    "sessions_per_week": 3,
+    "total_weeks": 4,
+    "workout_plans": [
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_01",
+        "title": "Nền tảng: Tư thế & Jab-Cross",
+        "week": 1,
+        "session_order": 1,
+        "exercises": [
+          { "exercise_id": "EXERCISE_JUMP_ROPE", "sets": 3, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 1 },
+          { "exercise_id": "EXERCISE_BOXING_STANCE_FOOTWORK", "sets": 3, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 2 },
+          { "exercise_id": "EXERCISE_JAB_CROSS_DRILL", "sets": 4, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_SHADOW_BOXING", "sets": 3, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 4 },
+          { "exercise_id": "EXERCISE_PLANK", "sets": 3, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_02",
+        "title": "Thể lực Boxing cơ bản",
+        "week": 1,
+        "session_order": 2,
+        "exercises": [
+          { "exercise_id": "EXERCISE_JUMP_ROPE", "sets": 3, "reps": 150, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 1 },
+          { "exercise_id": "EXERCISE_SQUAT", "sets": 3, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 2 },
+          { "exercise_id": "EXERCISE_PUSH_UP", "sets": 3, "reps": 10, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_MOUNTAIN_CLIMBER", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 4 },
+          { "exercise_id": "EXERCISE_BICYCLE_CRUNCH", "sets": 3, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_03",
+        "title": "Đấm bao cơ bản",
+        "week": 1,
+        "session_order": 3,
+        "exercises": [
+          { "exercise_id": "EXERCISE_SHADOW_BOXING", "sets": 2, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 1 },
+          { "exercise_id": "EXERCISE_HEAVY_BAG", "sets": 3, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 2 },
+          { "exercise_id": "EXERCISE_JAB_CROSS_DRILL", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_BLOCK_PARRY", "sets": 3, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 4 },
+          { "exercise_id": "EXERCISE_RUSSIAN_TWIST", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_04",
+        "title": "Hook & Combo Jab-Cross-Hook",
+        "week": 2,
+        "session_order": 4,
+        "exercises": [
+          { "exercise_id": "EXERCISE_JUMP_ROPE", "sets": 3, "reps": 150, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 1 },
+          { "exercise_id": "EXERCISE_HOOK_DRILL", "sets": 4, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 2 },
+          { "exercise_id": "EXERCISE_COMBO_JAB_CROSS_HOOK", "sets": 4, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_SHADOW_BOXING", "sets": 3, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 4 },
+          { "exercise_id": "EXERCISE_PLANK", "sets": 3, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_05",
+        "title": "Phòng thủ & Di chuyển",
+        "week": 2,
+        "session_order": 5,
+        "exercises": [
+          { "exercise_id": "EXERCISE_BOXING_STANCE_FOOTWORK", "sets": 3, "reps": 90, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 1 },
+          { "exercise_id": "EXERCISE_SLIP_BOB_WEAVE", "sets": 4, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 2 },
+          { "exercise_id": "EXERCISE_BLOCK_PARRY", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_FOCUS_MITT", "sets": 3, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 4 },
+          { "exercise_id": "EXERCISE_LUNGES", "sets": 3, "reps": 12, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_06",
+        "title": "Đấm bao & Core",
+        "week": 2,
+        "session_order": 6,
+        "exercises": [
+          { "exercise_id": "EXERCISE_HEAVY_BAG", "sets": 4, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 1 },
+          { "exercise_id": "EXERCISE_COMBO_JAB_CROSS_HOOK", "sets": 3, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 2 },
+          { "exercise_id": "EXERCISE_RUSSIAN_TWIST", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_BICYCLE_CRUNCH", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 4 },
+          { "exercise_id": "EXERCISE_PLANK", "sets": 3, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_07",
+        "title": "Uppercut & Combo 4-5 đòn",
+        "week": 3,
+        "session_order": 7,
+        "exercises": [
+          { "exercise_id": "EXERCISE_JUMP_ROPE", "sets": 3, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 1 },
+          { "exercise_id": "EXERCISE_UPPERCUT_DRILL", "sets": 4, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 2 },
+          { "exercise_id": "EXERCISE_COMBO_ADVANCED", "sets": 4, "reps": 12, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_SHADOW_BOXING", "sets": 3, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 4 },
+          { "exercise_id": "EXERCISE_MOUNTAIN_CLIMBER", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_08",
+        "title": "Cardio cường độ cao",
+        "week": 3,
+        "session_order": 8,
+        "exercises": [
+          { "exercise_id": "EXERCISE_JUMP_ROPE", "sets": 4, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 1 },
+          { "exercise_id": "EXERCISE_BURPEE", "sets": 3, "reps": 10, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 2 },
+          { "exercise_id": "EXERCISE_MEDICINE_BALL_SLAM", "sets": 3, "reps": 12, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_JUMPING_JACK", "sets": 3, "reps": 30, "unit": "reps", "weight_kg": null, "rest_seconds": 30, "order_index": 4 },
+          { "exercise_id": "EXERCISE_PLANK", "sets": 3, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_09",
+        "title": "Pad work (Đấm bia)",
+        "week": 3,
+        "session_order": 9,
+        "exercises": [
+          { "exercise_id": "EXERCISE_SHADOW_BOXING", "sets": 2, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 1 },
+          { "exercise_id": "EXERCISE_FOCUS_MITT", "sets": 5, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 2 },
+          { "exercise_id": "EXERCISE_COUNTER_PUNCH_DRILL", "sets": 3, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_SLIP_BOB_WEAVE", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 4 },
+          { "exercise_id": "EXERCISE_RUSSIAN_TWIST", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_10",
+        "title": "Combo nâng cao & Phản đòn",
+        "week": 4,
+        "session_order": 10,
+        "exercises": [
+          { "exercise_id": "EXERCISE_JUMP_ROPE", "sets": 3, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 1 },
+          { "exercise_id": "EXERCISE_COMBO_ADVANCED", "sets": 4, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 2 },
+          { "exercise_id": "EXERCISE_COUNTER_PUNCH_DRILL", "sets": 4, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_HEAVY_BAG", "sets": 4, "reps": 150, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 4 },
+          { "exercise_id": "EXERCISE_PLANK", "sets": 3, "reps": 50, "unit": "seconds", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_11",
+        "title": "Sức bền Boxing (HIIT)",
+        "week": 4,
+        "session_order": 11,
+        "exercises": [
+          { "exercise_id": "EXERCISE_JUMP_ROPE", "sets": 4, "reps": 150, "unit": "seconds", "weight_kg": null, "rest_seconds": 30, "order_index": 1 },
+          { "exercise_id": "EXERCISE_HEAVY_BAG", "sets": 5, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 45, "order_index": 2 },
+          { "exercise_id": "EXERCISE_BURPEE", "sets": 4, "reps": 10, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 3 },
+          { "exercise_id": "EXERCISE_MEDICINE_BALL_SLAM", "sets": 3, "reps": 15, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 4 },
+          { "exercise_id": "EXERCISE_MOUNTAIN_CLIMBER", "sets": 4, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_BOXING_12",
+        "title": "Tổng hợp & Sparring nhẹ",
+        "week": 4,
+        "session_order": 12,
+        "exercises": [
+          { "exercise_id": "EXERCISE_SHADOW_BOXING", "sets": 2, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 1 },
+          { "exercise_id": "EXERCISE_FOCUS_MITT", "sets": 4, "reps": 150, "unit": "seconds", "weight_kg": null, "rest_seconds": 60, "order_index": 2 },
+          { "exercise_id": "EXERCISE_SPARRING_LIGHT", "sets": 3, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 90, "order_index": 3 },
+          { "exercise_id": "EXERCISE_SLIP_BOB_WEAVE", "sets": 3, "reps": 20, "unit": "reps", "weight_kg": null, "rest_seconds": 45, "order_index": 4 },
+          { "exercise_id": "EXERCISE_STATIC_STRETCH", "sets": 1, "reps": 5, "unit": "minutes", "weight_kg": null, "rest_seconds": 0, "order_index": 5 }
+        ]
+      }
+    ]
+  },
+  {
+    "discipline": "YOGA",
+    "description": "Yoga 4 tuần: nền tảng → linh hoạt & tư thế đứng → sức mạnh & thăng bằng → nâng cao & phục hồi. reps = thời gian giữ (giây).",
+    "sessions_per_week": 3,
+    "total_weeks": 4,
+    "workout_plans": [
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_01",
+        "title": "Nền tảng & Hơi thở",
+        "week": 1,
+        "session_order": 1,
+        "exercises": [
+          { "exercise_id": "EXERCISE_DIAPHRAGMATIC_BREATHING", "sets": 1, "reps": 120, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 1 },
+          { "exercise_id": "EXERCISE_CAT_COW", "sets": 2, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 2 },
+          { "exercise_id": "EXERCISE_DOWNWARD_DOG", "sets": 3, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_CHILD_POSE", "sets": 2, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 4 },
+          { "exercise_id": "EXERCISE_COBRA", "sets": 3, "reps": 20, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 5 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 6 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_02",
+        "title": "Chào mặt trời A",
+        "week": 1,
+        "session_order": 2,
+        "exercises": [
+          { "exercise_id": "EXERCISE_MOUNTAIN_POSE", "sets": 1, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 1 },
+          { "exercise_id": "EXERCISE_SUN_SALUTATION_A", "sets": 1, "reps": 5, "unit": "rounds", "weight_kg": null, "rest_seconds": 15, "order_index": 2 },
+          { "exercise_id": "EXERCISE_DOWNWARD_DOG", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_CHILD_POSE", "sets": 1, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 4 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_03",
+        "title": "Linh hoạt thân dưới",
+        "week": 1,
+        "session_order": 3,
+        "exercises": [
+          { "exercise_id": "EXERCISE_LOW_LUNGE", "sets": 2, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 1 },
+          { "exercise_id": "EXERCISE_SEATED_FORWARD_FOLD", "sets": 3, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 2 },
+          { "exercise_id": "EXERCISE_PIGEON_POSE", "sets": 2, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_HAPPY_BABY", "sets": 2, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 4 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_04",
+        "title": "Tư thế đứng & Chân khỏe",
+        "week": 2,
+        "session_order": 4,
+        "exercises": [
+          { "exercise_id": "EXERCISE_SUN_SALUTATION_A", "sets": 1, "reps": 3, "unit": "rounds", "weight_kg": null, "rest_seconds": 15, "order_index": 1 },
+          { "exercise_id": "EXERCISE_WARRIOR_I", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 2 },
+          { "exercise_id": "EXERCISE_WARRIOR_II", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_TRIANGLE_POSE", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 4 },
+          { "exercise_id": "EXERCISE_TREE_POSE", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 5 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 6 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_05",
+        "title": "Core & Lưng",
+        "week": 2,
+        "session_order": 5,
+        "exercises": [
+          { "exercise_id": "EXERCISE_CAT_COW", "sets": 2, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 1 },
+          { "exercise_id": "EXERCISE_BOAT_POSE", "sets": 3, "reps": 20, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 2 },
+          { "exercise_id": "EXERCISE_PLANK", "sets": 3, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 3 },
+          { "exercise_id": "EXERCISE_BRIDGE_POSE", "sets": 3, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 4 },
+          { "exercise_id": "EXERCISE_SEATED_TWIST", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 5 },
+          { "exercise_id": "EXERCISE_CHILD_POSE", "sets": 1, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 6 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_06",
+        "title": "Giãn vai – gáy – hông",
+        "week": 2,
+        "session_order": 6,
+        "exercises": [
+          { "exercise_id": "EXERCISE_THREAD_THE_NEEDLE", "sets": 2, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 1 },
+          { "exercise_id": "EXERCISE_EAGLE_POSE", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 2 },
+          { "exercise_id": "EXERCISE_LIZARD_POSE", "sets": 2, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_PIGEON_POSE", "sets": 2, "reps": 50, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 4 },
+          { "exercise_id": "EXERCISE_SUPINE_TWIST", "sets": 2, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 5 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 6 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_07",
+        "title": "Flow sức mạnh",
+        "week": 3,
+        "session_order": 7,
+        "exercises": [
+          { "exercise_id": "EXERCISE_SUN_SALUTATION_A", "sets": 1, "reps": 6, "unit": "rounds", "weight_kg": null, "rest_seconds": 15, "order_index": 1 },
+          { "exercise_id": "EXERCISE_CHAIR_POSE", "sets": 3, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 2 },
+          { "exercise_id": "EXERCISE_WARRIOR_II", "sets": 2, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_PLANK", "sets": 3, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 4 },
+          { "exercise_id": "EXERCISE_DOWNWARD_DOG", "sets": 2, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 5 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 6 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_08",
+        "title": "Thăng bằng",
+        "week": 3,
+        "session_order": 8,
+        "exercises": [
+          { "exercise_id": "EXERCISE_TREE_POSE", "sets": 2, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 1 },
+          { "exercise_id": "EXERCISE_WARRIOR_III", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 2 },
+          { "exercise_id": "EXERCISE_HALF_MOON", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 3 },
+          { "exercise_id": "EXERCISE_EAGLE_POSE", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 4 },
+          { "exercise_id": "EXERCISE_CHILD_POSE", "sets": 1, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 5 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_09",
+        "title": "Mở hông & Lưng",
+        "week": 3,
+        "session_order": 9,
+        "exercises": [
+          { "exercise_id": "EXERCISE_GARLAND_POSE", "sets": 3, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 1 },
+          { "exercise_id": "EXERCISE_LIZARD_POSE", "sets": 2, "reps": 45, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 2 },
+          { "exercise_id": "EXERCISE_PIGEON_POSE", "sets": 2, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_CAMEL_POSE", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 4 },
+          { "exercise_id": "EXERCISE_CHILD_POSE", "sets": 2, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 5 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 6 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_10",
+        "title": "Power Flow",
+        "week": 4,
+        "session_order": 10,
+        "exercises": [
+          { "exercise_id": "EXERCISE_SUN_SALUTATION_B", "sets": 1, "reps": 5, "unit": "rounds", "weight_kg": null, "rest_seconds": 15, "order_index": 1 },
+          { "exercise_id": "EXERCISE_CHAIR_POSE", "sets": 3, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 2 },
+          { "exercise_id": "EXERCISE_WARRIOR_I", "sets": 2, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_WARRIOR_III", "sets": 2, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 4 },
+          { "exercise_id": "EXERCISE_PLANK", "sets": 3, "reps": 50, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 5 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 6 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_11",
+        "title": "Core & Thăng bằng nâng cao",
+        "week": 4,
+        "session_order": 11,
+        "exercises": [
+          { "exercise_id": "EXERCISE_BOAT_POSE", "sets": 3, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 1 },
+          { "exercise_id": "EXERCISE_SIDE_PLANK", "sets": 3, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 2 },
+          { "exercise_id": "EXERCISE_WARRIOR_III", "sets": 3, "reps": 30, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 3 },
+          { "exercise_id": "EXERCISE_HALF_MOON", "sets": 2, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 4 },
+          { "exercise_id": "EXERCISE_BRIDGE_POSE", "sets": 3, "reps": 40, "unit": "seconds", "weight_kg": null, "rest_seconds": 15, "order_index": 5 },
+          { "exercise_id": "EXERCISE_CHILD_POSE", "sets": 1, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 6 }
+        ]
+      },
+      {
+        "workout_plan_id": "WORKOUT_PLAN_YOGA_12",
+        "title": "Phục hồi sâu",
+        "week": 4,
+        "session_order": 12,
+        "exercises": [
+          { "exercise_id": "EXERCISE_DIAPHRAGMATIC_BREATHING", "sets": 1, "reps": 180, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 1 },
+          { "exercise_id": "EXERCISE_HAPPY_BABY", "sets": 2, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 2 },
+          { "exercise_id": "EXERCISE_SUPINE_TWIST", "sets": 2, "reps": 60, "unit": "seconds", "weight_kg": null, "rest_seconds": 10, "order_index": 3 },
+          { "exercise_id": "EXERCISE_LEGS_UP_WALL", "sets": 1, "reps": 300, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 4 },
+          { "exercise_id": "EXERCISE_SAVASANA", "sets": 1, "reps": 300, "unit": "seconds", "weight_kg": null, "rest_seconds": 0, "order_index": 5 }
+        ]
+      }
+    ]
+  }
+]
