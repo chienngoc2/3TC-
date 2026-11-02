@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
 import type { Actor } from '../../common/types/actor';
@@ -9,7 +9,13 @@ import {
   audit,
   requireRole,
 } from '../../common/utils/domain';
-import { WorkoutDto, UpdateWorkoutDto, KnowledgeDto } from './dto/workout.dto';
+import {
+  WorkoutDto,
+  UpdateWorkoutDto,
+  KnowledgeDto,
+  AssignTemplateDto,
+} from './dto/workout.dto';
+import { UserRole } from '@prisma/client';
 @Injectable()
 export class WorkoutPlansService {
   constructor(
@@ -116,5 +122,187 @@ export class WorkoutPlansService {
       );
       return value;
     });
+  }
+
+  templates(discipline?: string) {
+    return (this.prisma as any).workoutTemplate.findMany({
+      where: discipline
+        ? {
+            disciplineCode: {
+              equals: discipline,
+              mode: 'insensitive',
+            },
+          }
+        : {},
+      include: {
+        exercises: {
+          include: { exercise: true },
+          orderBy: { orderIndex: 'asc' },
+        },
+      },
+      orderBy: [{ disciplineCode: 'asc' }, { sessionOrder: 'asc' }],
+    });
+  }
+
+  assignTemplate(dto: AssignTemplateDto, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      const booking = requireRecord(
+        await tx.booking.findUnique({
+          where: { id: dto.bookingId },
+          include: {
+            coachAvailability: true,
+            schedule: true,
+            discipline: true,
+          },
+        }),
+      );
+
+      const coachId =
+        booking.coachAvailability?.coachId ||
+        booking.schedule?.coachId ||
+        actor.userId;
+
+      if (actor.role === UserRole.COACH && actor.userId !== coachId) {
+        await memberAccess(tx, actor, booking.memberId);
+      }
+
+      let template: any;
+      if (dto.templateCode) {
+        template = requireRecord(
+          await (tx as any).workoutTemplate.findUnique({
+            where: { templateCode: dto.templateCode },
+            include: { exercises: { orderBy: { orderIndex: 'asc' } } },
+          }),
+        );
+      } else {
+        const disciplineCode = booking.discipline?.code || 'BOXING';
+        let sessionOrder = dto.sessionOrder;
+        if (!sessionOrder) {
+          // Tự động đếm số thứ tự buổi tập trong subscription này
+          const count = await tx.booking.count({
+            where: {
+              subscriptionId: booking.subscriptionId,
+              status: { in: ['CONFIRMED', 'ATTENDED'] },
+              bookedAt: { lte: booking.bookedAt },
+            },
+          });
+          sessionOrder = Math.max(count, 1);
+        }
+
+        if (sessionOrder > 12) {
+          throw new BadRequestException(
+            `Khóa tập tiêu chuẩn chỉ gồm 12 buổi template (buổi 1-12). Buổi tập số ${sessionOrder} là buổi tự do/cardio nhẹ do HLV tự thiết kế thủ công.`,
+          );
+        }
+
+        template = requireRecord(
+          await (tx as any).workoutTemplate.findFirst({
+            where: {
+              disciplineCode: { equals: disciplineCode, mode: 'insensitive' },
+              sessionOrder,
+            },
+            include: { exercises: { orderBy: { orderIndex: 'asc' } } },
+          }),
+        );
+      }
+
+      const existing = await (tx as any).workoutPlan.findFirst({
+        where: { bookingId: dto.bookingId },
+      });
+
+      if (existing) {
+        await tx.workoutExercise.deleteMany({
+          where: { workoutPlanId: existing.id },
+        });
+        const updated = await (tx as any).workoutPlan.update({
+          where: { id: existing.id },
+          data: {
+            templateId: template.id,
+            sessionOrder: template.sessionOrder,
+            title: template.title,
+            exercises: {
+              create: template.exercises.map((e: any, orderIndex: number) => ({
+                exerciseId: e.exerciseId,
+                sets: e.sets,
+                reps: e.reps,
+                weightKg: e.weightKg,
+                restSeconds: e.restSeconds,
+                orderIndex,
+              })),
+            },
+          },
+          include: {
+            exercises: {
+              include: { exercise: true },
+              orderBy: { orderIndex: 'asc' },
+            },
+          },
+        });
+        await audit(
+          tx,
+          actor,
+          'ASSIGN_WORKOUT_TEMPLATE',
+          'workout_plans',
+          updated.id,
+        );
+        return updated;
+      }
+
+      const created = await (tx as any).workoutPlan.create({
+        data: {
+          memberId: booking.memberId,
+          coachId,
+          bookingId: dto.bookingId,
+          templateId: template.id,
+          sessionOrder: template.sessionOrder,
+          title: template.title,
+          notes: template.description,
+          exercises: {
+            create: template.exercises.map((e: any, orderIndex: number) => ({
+              exerciseId: e.exerciseId,
+              sets: e.sets,
+              reps: e.reps,
+              weightKg: e.weightKg,
+              restSeconds: e.restSeconds,
+              orderIndex,
+            })),
+          },
+        },
+        include: {
+          exercises: {
+            include: { exercise: true },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
+      });
+
+      await audit(
+        tx,
+        actor,
+        'ASSIGN_WORKOUT_TEMPLATE',
+        'workout_plans',
+        created.id,
+      );
+      return created;
+    });
+  }
+
+  async getPlanByBooking(bookingId: string, actor: Actor) {
+    const plan = await (this.prisma as any).workoutPlan.findFirst({
+      where: { bookingId },
+      include: {
+        exercises: {
+          include: { exercise: true },
+          orderBy: { orderIndex: 'asc' },
+        },
+        template: true,
+      },
+    });
+
+    if (plan && actor.role === UserRole.MEMBER) {
+      requireOwner(actor, plan.memberId);
+    }
+
+    return plan;
   }
 }
