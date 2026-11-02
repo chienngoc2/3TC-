@@ -1,0 +1,842 @@
+[
+  {
+    "exercise_id": "EXERCISE_SQUAT",
+    "name_vi": "Squat",
+    "name_en": "Barbell Back Squat",
+    "category": "strength",
+    "primary_muscle": "legs",
+    "equipment": "barbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_BENCH_PRESS",
+    "name_vi": "Đẩy ngực ghế phẳng",
+    "name_en": "Barbell Bench Press",
+    "category": "strength",
+    "primary_muscle": "chest",
+    "equipment": "barbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_LAT_PULLDOWN",
+    "name_vi": "Kéo xô",
+    "name_en": "Lat Pulldown",
+    "category": "strength",
+    "primary_muscle": "back",
+    "equipment": "cable_machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_PLANK",
+    "name_vi": "Plank",
+    "name_en": "Plank",
+    "category": "core",
+    "primary_muscle": "core",
+    "equipment": "bodyweight",
+    "unit": "seconds",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_TREADMILL",
+    "name_vi": "Máy chạy bộ",
+    "name_en": "Treadmill",
+    "category": "cardio",
+    "primary_muscle": "full_body",
+    "equipment": "treadmill",
+    "unit": "minutes",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_MOUNTAIN_CLIMBER",
+    "name_vi": "Mountain climber",
+    "name_en": "Mountain Climber",
+    "category": "cardio",
+    "primary_muscle": "core",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_BICYCLE_CRUNCH",
+    "name_vi": "Gập bụng xe đạp",
+    "name_en": "Bicycle Crunch",
+    "category": "core",
+    "primary_muscle": "core",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_LEG_PRESS",
+    "name_vi": "Đạp đùi",
+    "name_en": "Leg Press",
+    "category": "strength",
+    "primary_muscle": "legs",
+    "equipment": "machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_DUMBBELL_BENCH_PRESS",
+    "name_vi": "Đẩy ngực tạ đơn",
+    "name_en": "Dumbbell Bench Press",
+    "category": "strength",
+    "primary_muscle": "chest",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_SEATED_CABLE_ROW",
+    "name_vi": "Kéo cáp ngồi",
+    "name_en": "Seated Cable Row",
+    "category": "strength",
+    "primary_muscle": "back",
+    "equipment": "cable_machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_DUMBBELL_CURL",
+    "name_vi": "Cuốn tạ đơn tay trước",
+    "name_en": "Dumbbell Curl",
+    "category": "strength",
+    "primary_muscle": "biceps",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_GOBLET_SQUAT",
+    "name_vi": "Goblet squat",
+    "name_en": "Goblet Squat",
+    "category": "strength",
+    "primary_muscle": "legs",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_BULGARIAN_SPLIT_SQUAT",
+    "name_vi": "Bulgarian split squat",
+    "name_en": "Bulgarian Split Squat",
+    "category": "strength",
+    "primary_muscle": "legs",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_LEG_CURL",
+    "name_vi": "Gập đùi sau",
+    "name_en": "Leg Curl",
+    "category": "strength",
+    "primary_muscle": "hamstrings",
+    "equipment": "machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_INCLINE_DUMBBELL_PRESS",
+    "name_vi": "Đẩy ngực trên tạ đơn",
+    "name_en": "Incline Dumbbell Press",
+    "category": "strength",
+    "primary_muscle": "upper_chest",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_SHOULDER_PRESS",
+    "name_vi": "Đẩy vai",
+    "name_en": "Shoulder Press",
+    "category": "strength",
+    "primary_muscle": "shoulders",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_LATERAL_RAISE",
+    "name_vi": "Nâng tạ đơn ngang (vai giữa)",
+    "name_en": "Lateral Raise",
+    "category": "strength",
+    "primary_muscle": "shoulders",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_TRICEP_PUSHDOWN",
+    "name_vi": "Đẩy cáp tay sau",
+    "name_en": "Tricep Pushdown",
+    "category": "strength",
+    "primary_muscle": "triceps",
+    "equipment": "cable_machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_JUMPING_JACK",
+    "name_vi": "Jumping jack",
+    "name_en": "Jumping Jack",
+    "category": "cardio",
+    "primary_muscle": "full_body",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_RUSSIAN_TWIST",
+    "name_vi": "Xoay người kiểu Nga",
+    "name_en": "Russian Twist",
+    "category": "core",
+    "primary_muscle": "core",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_HIP_THRUST",
+    "name_vi": "Hip thrust",
+    "name_en": "Hip Thrust",
+    "category": "strength",
+    "primary_muscle": "glutes",
+    "equipment": "barbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_LUNGES",
+    "name_vi": "Lunge",
+    "name_en": "Lunges",
+    "category": "strength",
+    "primary_muscle": "legs",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_CALF_RAISE",
+    "name_vi": "Nhón bắp chân",
+    "name_en": "Calf Raise",
+    "category": "strength",
+    "primary_muscle": "calves",
+    "equipment": "machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_ROMANIAN_DEADLIFT",
+    "name_vi": "Romanian deadlift",
+    "name_en": "Romanian Deadlift",
+    "category": "strength",
+    "primary_muscle": "hamstrings",
+    "equipment": "barbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_BARBELL_ROW",
+    "name_vi": "Kéo tạ đòn",
+    "name_en": "Barbell Row",
+    "category": "strength",
+    "primary_muscle": "back",
+    "equipment": "barbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_INCLINE_BENCH_PRESS",
+    "name_vi": "Đẩy ngực trên tạ đòn",
+    "name_en": "Incline Bench Press",
+    "category": "strength",
+    "primary_muscle": "upper_chest",
+    "equipment": "barbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_CABLE_FLY",
+    "name_vi": "Ép ngực cáp",
+    "name_en": "Cable Fly",
+    "category": "strength",
+    "primary_muscle": "chest",
+    "equipment": "cable_machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_OVERHEAD_TRICEP_EXTENSION",
+    "name_vi": "Duỗi tay sau qua đầu",
+    "name_en": "Overhead Tricep Extension",
+    "category": "strength",
+    "primary_muscle": "triceps",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_FRONT_SQUAT",
+    "name_vi": "Front squat",
+    "name_en": "Front Squat",
+    "category": "strength",
+    "primary_muscle": "quads",
+    "equipment": "barbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_LEG_EXTENSION",
+    "name_vi": "Đá đùi trước",
+    "name_en": "Leg Extension",
+    "category": "strength",
+    "primary_muscle": "quads",
+    "equipment": "machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_PULL_UP",
+    "name_vi": "Hít xà",
+    "name_en": "Pull Up",
+    "category": "strength",
+    "primary_muscle": "back",
+    "equipment": "pull_up_bar",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_CHEST_SUPPORTED_ROW",
+    "name_vi": "Kéo tạ có tựa ngực",
+    "name_en": "Chest Supported Row",
+    "category": "strength",
+    "primary_muscle": "back",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_HAMMER_CURL",
+    "name_vi": "Cuốn tạ đơn kiểu búa",
+    "name_en": "Hammer Curl",
+    "category": "strength",
+    "primary_muscle": "biceps",
+    "equipment": "dumbbell",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_ASSISTED_PULL_UP",
+    "name_vi": "Hít xà có hỗ trợ",
+    "name_en": "Assisted Pull Up",
+    "category": "strength",
+    "primary_muscle": "back",
+    "equipment": "assist_machine",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_PUSH_UP",
+    "name_vi": "Hít đất",
+    "name_en": "Push Up",
+    "category": "strength",
+    "primary_muscle": "chest",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_DYNAMIC_WARMUP",
+    "name_vi": "Khởi động động",
+    "name_en": "Dynamic Warm-up",
+    "category": "warmup",
+    "primary_muscle": "full_body",
+    "equipment": "bodyweight",
+    "unit": "minutes",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_STATIC_STRETCH",
+    "name_vi": "Giãn cơ tĩnh",
+    "name_en": "Static Stretch",
+    "category": "cooldown",
+    "primary_muscle": "full_body",
+    "equipment": "bodyweight",
+    "unit": "minutes",
+    "discipline": "GYM"
+  },
+  {
+    "exercise_id": "EXERCISE_JUMP_ROPE",
+    "name_vi": "Nhảy dây",
+    "name_en": "Jump Rope",
+    "category": "cardio",
+    "primary_muscle": "full_body",
+    "equipment": "jump_rope",
+    "unit": "seconds",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_BOXING_STANCE_FOOTWORK",
+    "name_vi": "Tư thế & di chuyển chân",
+    "name_en": "Boxing Stance & Footwork",
+    "category": "technique",
+    "primary_muscle": "legs",
+    "equipment": "bodyweight",
+    "unit": "seconds",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_SHADOW_BOXING",
+    "name_vi": "Đấm gió",
+    "name_en": "Shadow Boxing",
+    "category": "technique",
+    "primary_muscle": "full_body",
+    "equipment": "bodyweight",
+    "unit": "seconds",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_JAB_CROSS_DRILL",
+    "name_vi": "Jab – Cross",
+    "name_en": "Jab-Cross Drill",
+    "category": "technique",
+    "primary_muscle": "shoulders",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_HOOK_DRILL",
+    "name_vi": "Móc (Hook)",
+    "name_en": "Hook Drill",
+    "category": "technique",
+    "primary_muscle": "core",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_UPPERCUT_DRILL",
+    "name_vi": "Móc ngược (Uppercut)",
+    "name_en": "Uppercut Drill",
+    "category": "technique",
+    "primary_muscle": "core",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_COMBO_JAB_CROSS_HOOK",
+    "name_vi": "Combo Jab – Cross – Hook",
+    "name_en": "Jab-Cross-Hook Combo",
+    "category": "technique",
+    "primary_muscle": "full_body",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_COMBO_ADVANCED",
+    "name_vi": "Combo 4-5 đòn",
+    "name_en": "Advanced Combo (4-5 punches)",
+    "category": "technique",
+    "primary_muscle": "full_body",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_SLIP_BOB_WEAVE",
+    "name_vi": "Né – Cúi – Lách",
+    "name_en": "Slip, Bob & Weave",
+    "category": "technique",
+    "primary_muscle": "core",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_BLOCK_PARRY",
+    "name_vi": "Đỡ & gạt đòn",
+    "name_en": "Block & Parry",
+    "category": "technique",
+    "primary_muscle": "arms",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_COUNTER_PUNCH_DRILL",
+    "name_vi": "Phản đòn",
+    "name_en": "Counter Punch Drill",
+    "category": "technique",
+    "primary_muscle": "full_body",
+    "equipment": "focus_mitts",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_HEAVY_BAG",
+    "name_vi": "Đấm bao nặng",
+    "name_en": "Heavy Bag Rounds",
+    "category": "cardio",
+    "primary_muscle": "full_body",
+    "equipment": "heavy_bag",
+    "unit": "seconds",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_FOCUS_MITT",
+    "name_vi": "Đấm bia (pad work)",
+    "name_en": "Focus Mitt Rounds",
+    "category": "technique",
+    "primary_muscle": "full_body",
+    "equipment": "focus_mitts",
+    "unit": "seconds",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_BURPEE",
+    "name_vi": "Burpee",
+    "name_en": "Burpee",
+    "category": "cardio",
+    "primary_muscle": "full_body",
+    "equipment": "bodyweight",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_MEDICINE_BALL_SLAM",
+    "name_vi": "Đập bóng tạ",
+    "name_en": "Medicine Ball Slam",
+    "category": "power",
+    "primary_muscle": "full_body",
+    "equipment": "medicine_ball",
+    "unit": "reps",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_SPARRING_LIGHT",
+    "name_vi": "Sparring nhẹ (có HLV)",
+    "name_en": "Light Sparring (coach supervised)",
+    "category": "sparring",
+    "primary_muscle": "full_body",
+    "equipment": "gloves_headgear",
+    "unit": "seconds",
+    "discipline": "BOXING"
+  },
+  {
+    "exercise_id": "EXERCISE_DIAPHRAGMATIC_BREATHING",
+    "name_vi": "Thở bụng",
+    "name_en": "Diaphragmatic Breathing",
+    "category": "recovery",
+    "primary_muscle": "breath",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_CAT_COW",
+    "name_vi": "Mèo – Bò",
+    "name_en": "Cat-Cow",
+    "category": "yoga_pose",
+    "primary_muscle": "spine",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_DOWNWARD_DOG",
+    "name_vi": "Chó úp mặt",
+    "name_en": "Downward-Facing Dog",
+    "category": "yoga_pose",
+    "primary_muscle": "full_body",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_CHILD_POSE",
+    "name_vi": "Tư thế em bé",
+    "name_en": "Child's Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "back",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_COBRA",
+    "name_vi": "Rắn hổ mang",
+    "name_en": "Cobra Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "back",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_SAVASANA",
+    "name_vi": "Thả lỏng (Savasana)",
+    "name_en": "Savasana",
+    "category": "recovery",
+    "primary_muscle": "relax",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_MOUNTAIN_POSE",
+    "name_vi": "Tư thế núi",
+    "name_en": "Mountain Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "full_body",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_SUN_SALUTATION_A",
+    "name_vi": "Chào mặt trời A",
+    "name_en": "Sun Salutation A",
+    "category": "yoga_pose",
+    "primary_muscle": "full_body",
+    "equipment": "yoga_mat",
+    "unit": "rounds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_SUN_SALUTATION_B",
+    "name_vi": "Chào mặt trời B",
+    "name_en": "Sun Salutation B",
+    "category": "yoga_pose",
+    "primary_muscle": "full_body",
+    "equipment": "yoga_mat",
+    "unit": "rounds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_LOW_LUNGE",
+    "name_vi": "Lunge thấp",
+    "name_en": "Low Lunge",
+    "category": "yoga_pose",
+    "primary_muscle": "hips",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_SEATED_FORWARD_FOLD",
+    "name_vi": "Gập người ngồi",
+    "name_en": "Seated Forward Fold",
+    "category": "yoga_pose",
+    "primary_muscle": "hamstrings",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_PIGEON_POSE",
+    "name_vi": "Tư thế chim bồ câu",
+    "name_en": "Pigeon Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "hips",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_HAPPY_BABY",
+    "name_vi": "Em bé vui vẻ",
+    "name_en": "Happy Baby",
+    "category": "yoga_pose",
+    "primary_muscle": "hips",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_WARRIOR_I",
+    "name_vi": "Chiến binh I",
+    "name_en": "Warrior I",
+    "category": "yoga_pose",
+    "primary_muscle": "legs",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_WARRIOR_II",
+    "name_vi": "Chiến binh II",
+    "name_en": "Warrior II",
+    "category": "yoga_pose",
+    "primary_muscle": "legs",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_WARRIOR_III",
+    "name_vi": "Chiến binh III",
+    "name_en": "Warrior III",
+    "category": "yoga_pose",
+    "primary_muscle": "balance",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_TRIANGLE_POSE",
+    "name_vi": "Tam giác",
+    "name_en": "Triangle Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "legs",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_TREE_POSE",
+    "name_vi": "Cây",
+    "name_en": "Tree Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "balance",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_HALF_MOON",
+    "name_vi": "Nửa vầng trăng",
+    "name_en": "Half Moon Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "balance",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_EAGLE_POSE",
+    "name_vi": "Đại bàng",
+    "name_en": "Eagle Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "balance",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_CHAIR_POSE",
+    "name_vi": "Cái ghế",
+    "name_en": "Chair Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "legs",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_BOAT_POSE",
+    "name_vi": "Con thuyền",
+    "name_en": "Boat Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "core",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_BRIDGE_POSE",
+    "name_vi": "Cây cầu",
+    "name_en": "Bridge Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "glutes",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_SIDE_PLANK",
+    "name_vi": "Plank nghiêng",
+    "name_en": "Side Plank",
+    "category": "yoga_pose",
+    "primary_muscle": "core",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_SEATED_TWIST",
+    "name_vi": "Xoay người ngồi",
+    "name_en": "Seated Twist",
+    "category": "yoga_pose",
+    "primary_muscle": "spine",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_SUPINE_TWIST",
+    "name_vi": "Xoay người nằm",
+    "name_en": "Supine Twist",
+    "category": "yoga_pose",
+    "primary_muscle": "spine",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_THREAD_THE_NEEDLE",
+    "name_vi": "Xỏ kim",
+    "name_en": "Thread the Needle",
+    "category": "yoga_pose",
+    "primary_muscle": "shoulders",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_LIZARD_POSE",
+    "name_vi": "Thằn lằn",
+    "name_en": "Lizard Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "hips",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_GARLAND_POSE",
+    "name_vi": "Squat yoga (Malasana)",
+    "name_en": "Garland Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "hips",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_CAMEL_POSE",
+    "name_vi": "Lạc đà",
+    "name_en": "Camel Pose",
+    "category": "yoga_pose",
+    "primary_muscle": "back",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  },
+  {
+    "exercise_id": "EXERCISE_LEGS_UP_WALL",
+    "name_vi": "Gác chân lên tường",
+    "name_en": "Legs Up the Wall",
+    "category": "recovery",
+    "primary_muscle": "relax",
+    "equipment": "yoga_mat",
+    "unit": "seconds",
+    "discipline": "YOGA"
+  }
+]
