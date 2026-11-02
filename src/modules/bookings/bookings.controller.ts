@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Put,
+  Delete,
   Body,
   Param,
   ParseUUIDPipe,
@@ -87,6 +88,25 @@ export class BookingsController {
     @CurrentUser() actor: Actor,
   ) {
     return this.reviewService.review(id, dto, actor);
+  }
+  @Roles(UserRole.COACH, UserRole.CENTER_MANAGER)
+  @Put([
+    'cancellation-requests/:id/cancel',
+    'coaches/cancellation-requests/:id/cancel',
+  ])
+  cancelRequest(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.reviewService.cancel(id, actor);
+  }
+  @Roles(UserRole.COACH, UserRole.CENTER_MANAGER)
+  @Delete(['cancellation-requests/:id', 'coaches/cancellation-requests/:id'])
+  deleteRequest(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.reviewService.cancel(id, actor);
   }
   @Roles(UserRole.COACH, UserRole.CENTER_MANAGER)
   @Get('coach-penalties')

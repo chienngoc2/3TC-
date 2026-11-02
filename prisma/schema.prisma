@@ -147,6 +147,7 @@ enum CancellationRequestStatus {
   PENDING
   APPROVED
   REJECTED
+  CANCELLED
 
   @@map("cancellation_request_status")
 }

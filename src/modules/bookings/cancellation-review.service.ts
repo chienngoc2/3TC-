@@ -130,6 +130,41 @@ export class CancellationReviewService {
       take: 200,
     });
   }
+  async cancel(id: string, actor: Actor) {
+    const value = await this.transactions.run(async (tx) => {
+      const request = requireRecord(
+        await tx.cancellationRequest.findUnique({ where: { id } }),
+      );
+      if (actor.role === 'COACH') {
+        requireOwner(actor, request.coachId);
+      }
+      requireCondition(request.status === 'PENDING', 'REQUEST_NOT_PENDING');
+      const claim = await tx.cancellationRequest.updateMany({
+        where: { id, status: 'PENDING' },
+        data: {
+          status: 'CANCELLED',
+        },
+      });
+      requireCondition(claim.count === 1, 'REQUEST_ALREADY_REVIEWED');
+      await audit(
+        tx,
+        actor,
+        'CANCEL_EMERGENCY_REQUEST',
+        'cancellation_requests',
+        id,
+      );
+      return requireRecord(
+        await tx.cancellationRequest.findUnique({ where: { id } }),
+      );
+    });
+    this.events.publish({
+      name: 'cancellation.cancelled',
+      data: value,
+      userIds: [value.coachId],
+      roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+    });
+    return value;
+  }
   async review(id: string, dto: ReviewDto, actor: Actor) {
     requireCondition(
       (dto.approve !== undefined) !== (dto.action !== undefined),
