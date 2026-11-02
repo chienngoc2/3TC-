@@ -142,7 +142,7 @@ export class CancellationReviewService {
       const claim = await tx.cancellationRequest.updateMany({
         where: { id, status: 'PENDING' },
         data: {
-          status: 'CANCELLED',
+          status: 'CANCELLED' as any,
         },
       });
       requireCondition(claim.count === 1, 'REQUEST_ALREADY_REVIEWED');
