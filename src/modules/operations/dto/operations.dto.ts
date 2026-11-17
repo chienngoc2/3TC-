@@ -11,7 +11,9 @@ import {
   MaxLength,
   IsArray,
   ArrayUnique,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { LockerStatus } from '@prisma/client';
 import { PartialType } from '@nestjs/swagger';
 export class DisciplineDto {
@@ -62,6 +64,12 @@ export class SlotDto {
   @IsDateString() startTime: string;
   @IsDateString() endTime: string;
 }
+export class BulkCreateSlotsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SlotDto)
+  slots: SlotDto[];
+}
 export class RateDto {
   @IsUUID() disciplineId: string;
   @IsNumber() @Min(0) ratePerSession: number;
@@ -79,6 +87,12 @@ export class ShiftDto extends SlotDto {
 export class UpdateShiftDto extends PartialType(ShiftDto, {
   skipNullProperties: false,
 }) {}
+export class BulkCreateShiftsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ShiftDto)
+  shifts: ShiftDto[];
+}
 export class CloneWeeklyShiftsDto {
   @IsDateString() sourceWeekStart: string;
   @IsDateString() targetWeekStart: string;

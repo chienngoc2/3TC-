@@ -18,6 +18,7 @@ import type { Actor } from '../../common/types/actor';
 import { CoachesService } from './coaches.service';
 import {
   SlotDto,
+  BulkCreateSlotsDto,
   RateDto,
   UpdateRateDto,
 } from '../operations/dto/operations.dto';
@@ -44,6 +45,12 @@ export class CoachesController {
     @CurrentUser() actor: Actor,
   ) {
     return this.service.createSlot(dto, actor);
+  }
+  @Roles(UserRole.COACH) @Post('availability/bulk') createSlotsBulk(
+    @Body() dto: BulkCreateSlotsDto,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.createSlotsBulk(dto, actor);
   }
   @Roles(UserRole.COACH) @Delete('availability/:id') deleteSlot(
     @Param('id', ParseUUIDPipe) id: string,

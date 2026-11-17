@@ -18,6 +18,7 @@ import type { Actor } from '../../common/types/actor';
 import { StaffShiftsService } from './staff-shifts.service';
 import {
   ShiftDto,
+  BulkCreateShiftsDto,
   UpdateShiftDto,
   CloneWeeklyShiftsDto,
 } from '../operations/dto/operations.dto';
@@ -37,6 +38,12 @@ export class StaffShiftsController {
   }
   @Post() create(@Body() dto: ShiftDto, @CurrentUser() actor: Actor) {
     return this.service.create(dto, actor);
+  }
+  @Post('bulk') createBulk(
+    @Body() dto: BulkCreateShiftsDto,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.createBulk(dto, actor);
   }
   @Post('clone-weekly') cloneWeekly(
     @Body() dto: CloneWeeklyShiftsDto,

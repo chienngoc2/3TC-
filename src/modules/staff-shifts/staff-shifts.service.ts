@@ -13,6 +13,7 @@ import {
 } from '../../common/utils/domain';
 import {
   ShiftDto,
+  BulkCreateShiftsDto,
   UpdateShiftDto,
   CloneWeeklyShiftsDto,
 } from '../operations/dto/operations.dto';
@@ -49,6 +50,53 @@ export class StaffShiftsService {
       });
       await audit(tx, actor, 'CREATE_SHIFT', 'staff_shifts', value.id);
       return value;
+    });
+  }
+  createBulk(dto: BulkCreateShiftsDto, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      requireCondition(
+        dto.shifts && dto.shifts.length > 0,
+        'NO_SHIFTS_TO_CREATE',
+      );
+      const created = [];
+      for (const shiftDto of dto.shifts) {
+        await requireAnyRole(tx, shiftDto.staffId, [
+          UserRole.RECEPTIONIST,
+          UserRole.COACH,
+        ]);
+        const startTime = new Date(shiftDto.startTime),
+          endTime = new Date(shiftDto.endTime);
+        timeRange(startTime, endTime);
+
+        const existing = await tx.staffShift.findFirst({
+          where: {
+            staffId: shiftDto.staffId,
+            startTime,
+            endTime,
+          },
+        });
+        if (!existing) {
+          const value = await tx.staffShift.create({
+            data: {
+              ...shiftDto,
+              startTime,
+              endTime,
+              shiftDate: new Date(shiftDto.shiftDate),
+              assignedById: actor.userId,
+            },
+          });
+          created.push(value);
+        }
+      }
+      await audit(
+        tx,
+        actor,
+        'CREATE_SHIFTS_BULK',
+        'staff_shifts',
+        actor.userId,
+        { count: created.length },
+      );
+      return { count: created.length, shifts: created };
     });
   }
   update(id: string, dto: UpdateShiftDto, actor: Actor) {
