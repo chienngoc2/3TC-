@@ -79,6 +79,10 @@ export class ShiftDto extends SlotDto {
 export class UpdateShiftDto extends PartialType(ShiftDto, {
   skipNullProperties: false,
 }) {}
+export class CloneWeeklyShiftsDto {
+  @IsDateString() sourceWeekStart: string;
+  @IsDateString() targetWeekStart: string;
+}
 export class LockerDto {
   @IsString() @MaxLength(20) lockerNumber: string;
   @IsEnum({

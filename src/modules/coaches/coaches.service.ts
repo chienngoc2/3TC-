@@ -149,6 +149,22 @@ export class CoachesService {
       timeRange(startTime, endTime);
       requireCondition(startTime > new Date(), 'SLOT_MUST_BE_FUTURE');
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${actor.userId}))`;
+      const shift = await tx.staffShift.findFirst({
+        where: {
+          staffId: actor.userId,
+          startTime: { lte: startTime },
+          endTime: { gte: endTime },
+        },
+      });
+      requireCondition(shift, 'SLOT_OUTSIDE_ASSIGNED_SHIFT');
+      const slotCount = await tx.coachAvailability.count({
+        where: {
+          coachId: actor.userId,
+          startTime: { gte: shift.startTime, lte: shift.endTime },
+          isEmergencyCancelled: false,
+        },
+      });
+      requireCondition(slotCount < 4, 'SHIFT_PT_CAPACITY_REACHED');
       const value = await tx.coachAvailability.create({
         data: { coachId: actor.userId, startTime, endTime },
       });

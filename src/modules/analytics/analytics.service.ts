@@ -112,4 +112,126 @@ export class AnalyticsService {
       })),
     };
   }
+
+  async topPlans() {
+    const thirtyDaysAgo = addDays(localDate(), -30);
+    const rows = await this.prisma.invoice.groupBy({
+      by: ['subscriptionId'],
+      where: {
+        status: 'PAID',
+        createdAt: { gte: thirtyDaysAgo },
+      },
+      _count: { id: true },
+      _sum: { amount: true },
+    });
+
+    const subIds = rows.map((r) => r.subscriptionId);
+    const subs = await this.prisma.userSubscription.findMany({
+      where: { id: { in: subIds } },
+      include: { plan: { include: { discipline: true } } },
+    });
+
+    const planAgg = new Map<
+      string,
+      {
+        planId: string;
+        planName: string;
+        discipline: string;
+        tier: string;
+        salesCount: number;
+        totalRevenue: number;
+      }
+    >();
+
+    for (const r of rows) {
+      const sub = subs.find((s) => s.id === r.subscriptionId);
+      if (!sub?.plan) continue;
+      const existing = planAgg.get(sub.plan.id) ?? {
+        planId: sub.plan.id,
+        planName: sub.plan.name,
+        discipline: sub.plan.discipline?.code ?? 'GENERAL',
+        tier: sub.plan.packageTier,
+        salesCount: 0,
+        totalRevenue: 0,
+      };
+      existing.salesCount += r._count.id;
+      existing.totalRevenue += Number(r._sum.amount ?? 0);
+      planAgg.set(sub.plan.id, existing);
+    }
+
+    return Array.from(planAgg.values())
+      .sort((a, b) => b.salesCount - a.salesCount)
+      .slice(0, 5);
+  }
+
+  async topCoaches() {
+    const today = localDate();
+    const coaches = await this.prisma.user.findMany({
+      where: { role: 'COACH', isActive: true },
+      select: {
+        id: true,
+        fullName: true,
+        avatarUrl: true,
+        coachRates: {
+          where: {
+            effectiveFrom: { lte: today },
+            OR: [{ effectiveTo: null }, { effectiveTo: { gte: today } }],
+          },
+          orderBy: { effectiveFrom: 'desc' },
+          take: 1,
+        },
+        _count: {
+          select: {
+            coachedSchedules: { where: { status: 'COMPLETED' } },
+            bookings: { where: { status: 'ATTENDED' } },
+          },
+        },
+      },
+    });
+
+    return coaches
+      .map((c) => ({
+        coachId: c.id,
+        fullName: c.fullName,
+        avatarUrl: c.avatarUrl,
+        currentRate: Number(c.coachRates[0]?.ratePerSession ?? 0),
+        completedClasses: c._count.coachedSchedules,
+      }))
+      .sort((a, b) => b.currentRate - a.currentRate)
+      .slice(0, 3);
+  }
+
+  async dssSummary() {
+    const [pendingCancellations, pendingPenalties, flaggedCoaches] =
+      await Promise.all([
+        this.prisma.cancellationRequest.count({
+          where: { status: 'PENDING' },
+        }),
+        this.prisma.coachPenalty.count({
+          where: { isReviewedByManager: false },
+        }),
+        this.prisma.coachProfile.findMany({
+          where: { monthlyEmergencyCancellations: { gte: 2 } },
+          include: {
+            user: { select: { id: true, fullName: true, phone: true } },
+          },
+        }),
+      ]);
+
+    return {
+      pendingCancellationRequests: pendingCancellations,
+      unreviewedPenalties: pendingPenalties,
+      flaggedCoaches: flaggedCoaches.map((p) => ({
+        coachId: p.userId,
+        fullName: p.user.fullName,
+        phone: p.user.phone,
+        monthlyEmergencyCancellations: p.monthlyEmergencyCancellations,
+        lifetimeEmergencyCancellations: p.emergencyCancellationCount,
+        recommendation:
+          p.monthlyEmergencyCancellations >= 3
+            ? 'CRITICAL_REVIEW_RATE_REDUCTION'
+            : 'WARNING_ADVISORY',
+      })),
+    };
+  }
 }
