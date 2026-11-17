@@ -23,6 +23,14 @@ enum UserRole {
   @@map("user_role")
 }
 
+enum UserGender {
+  MALE
+  FEMALE
+  OTHER
+
+  @@map("user_gender")
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -178,8 +186,9 @@ model User {
   passwordHash String   @map("password_hash") @db.VarChar(255)
   fullName     String   @map("full_name") @db.VarChar(150)
   phone        String   @unique(map: "uq_users_phone") @db.VarChar(20)
-  role         UserRole @default(MEMBER)
-  avatarUrl    String?  @map("avatar_url") @db.Text
+  role         UserRole   @default(MEMBER)
+  gender       UserGender @default(OTHER) @map("gender")
+  avatarUrl    String?    @map("avatar_url") @db.Text
   isActive     Boolean  @default(true) @map("is_active")
   tokenVersion Int      @default(1) @map("token_version")
   createdById  String?  @map("created_by_id") @db.Uuid

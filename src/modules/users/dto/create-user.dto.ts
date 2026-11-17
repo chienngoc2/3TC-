@@ -7,7 +7,7 @@ import {
   IsString,
   MinLength,
 } from 'class-validator';
-import { UserRole } from '@prisma/client';
+import { UserGender, UserRole } from '@prisma/client';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'coach1@sportscenter.com' })
@@ -34,6 +34,11 @@ export class CreateUserDto {
   @IsEnum(UserRole, { message: 'Vai trò người dùng không hợp lệ' })
   @IsOptional()
   role: UserRole = UserRole.MEMBER;
+
+  @ApiProperty({ enum: UserGender, default: UserGender.OTHER, required: false })
+  @IsEnum(UserGender, { message: 'Giới tính không hợp lệ' })
+  @IsOptional()
+  gender?: UserGender = UserGender.OTHER;
 
   @ApiProperty({ required: false })
   @IsOptional()

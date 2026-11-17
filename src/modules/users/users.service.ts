@@ -17,6 +17,7 @@ const selection = {
   fullName: true,
   phone: true,
   role: true,
+  gender: true,
   isActive: true,
   avatarUrl: true,
   createdAt: true,
@@ -47,6 +48,7 @@ export class UsersService {
           phone: dto.phone,
           avatarUrl: dto.avatarUrl,
           role: dto.role,
+          gender: dto.gender,
           passwordHash,
           createdById: actor.userId,
           ...(dto.role === UserRole.COACH
