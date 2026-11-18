@@ -1,11 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
+  IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
   MinLength,
 } from 'class-validator';
+import { UserGender } from '@prisma/client';
 
 export class RegisterDto {
   @ApiProperty({ example: 'member@example.com' })
@@ -27,6 +29,11 @@ export class RegisterDto {
   @IsString()
   @IsNotEmpty({ message: 'Số điện thoại không được để trống' })
   phone: string;
+
+  @ApiProperty({ enum: UserGender, default: UserGender.OTHER, required: false })
+  @IsEnum(UserGender, { message: 'Giới tính không hợp lệ' })
+  @IsOptional()
+  gender?: UserGender = UserGender.OTHER;
 
   @ApiProperty({ required: false })
   @IsOptional()

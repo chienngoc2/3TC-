@@ -36,6 +36,9 @@ async function main() {
       ['/api/v1/attendances/class-checkin/{id}', 'put'],
       ['/api/v1/coaches/cancellation-requests', 'post'],
       ['/api/v1/workout-plans', 'post'],
+      ['/api/v1/coaches/availability/bulk', 'post'],
+      ['/api/v1/staff-shifts/bulk', 'post'],
+      ['/api/v1/workout-plans/recommendations/{memberId}', 'get'],
     ])
       assert(paths[path]?.[method], `Missing contract: ${method} ${path}`);
     for (const [schema, property] of [

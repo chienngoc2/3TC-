@@ -18,6 +18,15 @@ export class AnalyticsController {
   @Get('kpi') kpi() {
     return this.service.kpi();
   }
+  @Get('top-plans') topPlans() {
+    return this.service.topPlans();
+  }
+  @Get('top-coaches') topCoaches() {
+    return this.service.topCoaches();
+  }
+  @Get('dss-summary') dssSummary() {
+    return this.service.dssSummary();
+  }
   @Roles(UserRole.ADMIN) @Get('system-metrics') metrics() {
     return {
       uptimeSeconds: process.uptime(),

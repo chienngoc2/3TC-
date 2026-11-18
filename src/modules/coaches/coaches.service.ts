@@ -15,6 +15,7 @@ import {
 } from '../../common/utils/domain';
 import {
   SlotDto,
+  BulkCreateSlotsDto,
   RateDto,
   UpdateRateDto,
 } from '../operations/dto/operations.dto';
@@ -149,11 +150,87 @@ export class CoachesService {
       timeRange(startTime, endTime);
       requireCondition(startTime > new Date(), 'SLOT_MUST_BE_FUTURE');
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${actor.userId}))`;
+      const shift = await tx.staffShift.findFirst({
+        where: {
+          staffId: actor.userId,
+          startTime: { lte: startTime },
+          endTime: { gte: endTime },
+        },
+      });
+      requireCondition(shift, 'SLOT_OUTSIDE_ASSIGNED_SHIFT');
+      const slotCount = await tx.coachAvailability.count({
+        where: {
+          coachId: actor.userId,
+          startTime: { gte: shift.startTime, lte: shift.endTime },
+          isEmergencyCancelled: false,
+        },
+      });
+      requireCondition(slotCount < 4, 'SHIFT_PT_CAPACITY_REACHED');
       const value = await tx.coachAvailability.create({
         data: { coachId: actor.userId, startTime, endTime },
       });
       await audit(tx, actor, 'CREATE_PT_SLOT', 'coach_availability', value.id);
       return value;
+    });
+  }
+  createSlotsBulk(dto: BulkCreateSlotsDto, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      await requireRole(tx, actor.userId, UserRole.COACH);
+      requireCondition(dto.slots && dto.slots.length > 0, 'NO_SLOTS_TO_CREATE');
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${actor.userId}))`;
+
+      const now = new Date();
+      const created = [];
+
+      for (const slotDto of dto.slots) {
+        const startTime = new Date(slotDto.startTime);
+        const endTime = new Date(slotDto.endTime);
+        timeRange(startTime, endTime);
+        requireCondition(startTime > now, 'SLOT_MUST_BE_FUTURE');
+
+        const shift = await tx.staffShift.findFirst({
+          where: {
+            staffId: actor.userId,
+            startTime: { lte: startTime },
+            endTime: { gte: endTime },
+          },
+        });
+        requireCondition(shift, 'SLOT_OUTSIDE_ASSIGNED_SHIFT');
+
+        const slotCount = await tx.coachAvailability.count({
+          where: {
+            coachId: actor.userId,
+            startTime: { gte: shift.startTime, lte: shift.endTime },
+            isEmergencyCancelled: false,
+          },
+        });
+        requireCondition(slotCount < 4, 'SHIFT_PT_CAPACITY_REACHED');
+
+        const existing = await tx.coachAvailability.findFirst({
+          where: {
+            coachId: actor.userId,
+            startTime,
+            endTime,
+            isEmergencyCancelled: false,
+          },
+        });
+        if (!existing) {
+          const val = await tx.coachAvailability.create({
+            data: { coachId: actor.userId, startTime, endTime },
+          });
+          created.push(val);
+        }
+      }
+
+      await audit(
+        tx,
+        actor,
+        'CREATE_SLOTS_BULK',
+        'coach_availability',
+        actor.userId,
+        { count: created.length },
+      );
+      return { count: created.length, slots: created };
     });
   }
   deleteSlot(id: string, actor: Actor) {

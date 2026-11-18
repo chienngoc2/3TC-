@@ -29,7 +29,11 @@ export class SchedulesService {
       take: 200,
     });
   }
-  async validate(tx: Prisma.TransactionClient, dto: ScheduleDto) {
+  async validate(
+    tx: Prisma.TransactionClient,
+    dto: ScheduleDto,
+    excludeScheduleId?: string,
+  ) {
     const start = new Date(dto.startTime),
       end = new Date(dto.endTime);
     timeRange(start, end);
@@ -56,6 +60,30 @@ export class SchedulesService {
         },
       }),
       'COACH_DISCIPLINE_MISMATCH',
+    );
+    const shift = await tx.staffShift.findFirst({
+      where: {
+        staffId: dto.coachId,
+        startTime: { lte: start },
+        endTime: { gte: end },
+      },
+    });
+    requireCondition(shift, 'COACH_NOT_ON_DUTY_SHIFT');
+    const dayStart = new Date(start);
+    dayStart.setUTCHours(0, 0, 0, 0);
+    const dayEnd = new Date(start);
+    dayEnd.setUTCHours(23, 59, 59, 999);
+    const existingClassCount = await tx.schedule.count({
+      where: {
+        coachId: dto.coachId,
+        startTime: { gte: dayStart, lte: dayEnd },
+        status: { in: ['OPEN', 'FULL'] },
+        ...(excludeScheduleId ? { id: { not: excludeScheduleId } } : {}),
+      },
+    });
+    requireCondition(
+      existingClassCount < 1,
+      'COACH_DAILY_CLASS_LIMIT_EXCEEDED',
     );
   }
   create(dto: ScheduleDto, actor: Actor) {
@@ -96,7 +124,7 @@ export class SchedulesService {
         endTime: old.endTime.toISOString(),
         ...dto,
       };
-      await this.validate(tx, merged);
+      await this.validate(tx, merged, id);
       const value = await tx.schedule.update({
         where: { id },
         data: {

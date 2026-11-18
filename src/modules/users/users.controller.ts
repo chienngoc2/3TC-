@@ -25,6 +25,11 @@ import type { Actor } from '../../common/types/actor';
 @Controller('users')
 export class UsersController {
   constructor(private readonly users: UsersService) {}
+  @Get()
+  @Roles(UserRole.ADMIN)
+  listAll(@Query('role') role?: UserRole, @Query('q') q?: string) {
+    return this.users.findAll(role, q);
+  }
   @Post()
   @Roles(UserRole.ADMIN, UserRole.CENTER_MANAGER)
   create(@Body() dto: CreateUserDto, @CurrentUser() actor: Actor) {

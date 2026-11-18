@@ -11,10 +11,13 @@ import {
   IsUrl,
   IsBoolean,
   MinLength,
+  IsEnum,
 } from 'class-validator';
+import { UserGender } from '@prisma/client';
 export class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(150) fullName?: string;
   @IsOptional() @IsString() @MaxLength(20) phone?: string;
+  @IsOptional() @IsEnum(UserGender, { message: 'Giới tính không hợp lệ' }) gender?: UserGender;
   @IsOptional() @IsString() @MaxLength(4000) fitnessGoals?: string;
   @IsOptional() @IsString() @MaxLength(4000) medicalHistory?: string;
   @IsOptional() @IsNumber() @Min(1) @Max(300) heightCm?: number;
@@ -29,6 +32,7 @@ export class UpdateProfileDto {
 export class UpdateUserDto {
   @IsOptional() @IsString() @MaxLength(150) fullName?: string;
   @IsOptional() @IsString() @MaxLength(20) phone?: string;
+  @IsOptional() @IsEnum(UserGender, { message: 'Giới tính không hợp lệ' }) gender?: UserGender;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsString() @MinLength(8) password?: string;
 }
