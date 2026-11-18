@@ -678,17 +678,27 @@ model Attendance {
 }
 
 model MemberInbodyLog {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String   @map("user_id") @db.Uuid
-  measuredById     String?  @map("measured_by_id") @db.Uuid
-  heightCm         Decimal  @map("height_cm") @db.Decimal(5, 2)
-  weightKg         Decimal  @map("weight_kg") @db.Decimal(5, 2)
-  muscleMassKg     Decimal? @map("muscle_mass_kg") @db.Decimal(5, 2)
-  bodyFatPct       Decimal? @map("body_fat_pct") @db.Decimal(4, 2)
-  bmi              Decimal? @map("bmi") @db.Decimal(4, 2)
-  visceralFatLevel Int?     @map("visceral_fat_level")
-  notes            String?  @db.Text
-  measuredAt       DateTime @default(now()) @map("measured_at") @db.Timestamptz(6)
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  measuredById         String?  @map("measured_by_id") @db.Uuid
+  heightCm             Decimal  @map("height_cm") @db.Decimal(5, 2)
+  weightKg             Decimal  @map("weight_kg") @db.Decimal(5, 2)
+  muscleMassKg         Decimal? @map("muscle_mass_kg") @db.Decimal(5, 2)
+  bodyFatPct           Decimal? @map("body_fat_pct") @db.Decimal(4, 2)
+  bmi                  Decimal? @map("bmi") @db.Decimal(4, 2)
+  bodyFatMassKg        Decimal? @map("body_fat_mass_kg") @db.Decimal(5, 2)
+  leanBodyMassKg       Decimal? @map("lean_body_mass_kg") @db.Decimal(5, 2)
+  skeletalMuscleMassKg Decimal? @map("skeletal_muscle_mass_kg") @db.Decimal(5, 2)
+  tbwLiters            Decimal? @map("tbw_liters") @db.Decimal(5, 2)
+  proteinKg            Decimal? @map("protein_kg") @db.Decimal(5, 2)
+  mineralKg            Decimal? @map("mineral_kg") @db.Decimal(5, 2)
+  visceralFatLevel     Int?     @map("visceral_fat_level")
+  bmrKcal              Int?     @map("bmr_kcal")
+  waistHipRatio        Decimal? @map("waist_hip_ratio") @db.Decimal(4, 2)
+  inbodyScore          Int?     @map("inbody_score")
+  segmentalLean        Json?    @default("{\"rightArm\":null,\"leftArm\":null,\"trunk\":null,\"rightLeg\":null,\"leftLeg\":null}") @map("segmental_lean")
+  notes                String?  @db.Text
+  measuredAt           DateTime @default(now()) @map("measured_at") @db.Timestamptz(6)
 
   user       User  @relation("MemberInbodyLogs", fields: [userId], references: [id], onDelete: Cascade, map: "fk_inbody_user")
   measuredBy User? @relation("MeasuredByStaff", fields: [measuredById], references: [id], onDelete: SetNull, map: "fk_inbody_measurer")

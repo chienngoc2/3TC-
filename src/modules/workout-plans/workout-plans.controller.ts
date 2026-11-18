@@ -71,6 +71,15 @@ export class WorkoutPlansController {
   assignTemplate(@Body() dto: AssignTemplateDto, @CurrentUser() actor: Actor) {
     return this.service.assignTemplate(dto, actor);
   }
+  @Roles(UserRole.COACH, UserRole.CENTER_MANAGER)
+  @Get('workout-plans/recommendations/:memberId')
+  recommendations(
+    @Param('memberId', ParseUUIDPipe) memberId: string,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.getRecommendations(memberId, actor);
+  }
+
   @Roles(UserRole.MEMBER, UserRole.COACH, UserRole.CENTER_MANAGER)
   @Get('bookings/:bookingId/workout-plan')
   planByBooking(

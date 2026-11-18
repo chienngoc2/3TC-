@@ -114,9 +114,19 @@ export class InbodyDto {
   @IsNumber() @Min(1) @Max(300) heightCm: number;
   @IsNumber() @Min(1) @Max(500) weightKg: number;
   @IsOptional() @IsNumber() @Min(0) @Max(500) muscleMassKg?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(500) skeletalMuscleMassKg?: number;
   @IsOptional() @IsNumber() @Min(0) @Max(100) bodyFatPct?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(500) bodyFatMassKg?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(500) leanBodyMassKg?: number;
   @IsOptional() @IsNumber() @Min(0) @Max(100) bmi?: number;
-  @IsOptional() @IsInt() @Min(0) visceralFatLevel?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(300) tbwLiters?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(100) proteinKg?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(50) mineralKg?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(30) visceralFatLevel?: number;
+  @IsOptional() @IsNumber() @Min(0) @Max(3) waistHipRatio?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(100) inbodyScore?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(10000) bmrKcal?: number;
+  @IsOptional() segmentalLean?: any;
   @IsOptional() @IsString() notes?: string;
 }
 export class UpdateInbodyDto extends PartialType(InbodyDto, {
