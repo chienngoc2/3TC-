@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -15,15 +16,19 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
 import { SchedulesService } from './schedules.service';
-import { ScheduleDto, UpdateScheduleDto } from '../commerce/dto/commerce.dto';
+import {
+  ScheduleDto,
+  ScheduleQueryDto,
+  UpdateScheduleDto,
+} from '../commerce/dto/commerce.dto';
 @Controller()
 @ApiTags('Schedules')
 @ApiBearerAuth()
 export class SchedulesController {
   constructor(private readonly service: SchedulesService) {}
 
-  @Get('schedules') list() {
-    return this.service.list();
+  @Get('schedules') list(@Query() query?: ScheduleQueryDto) {
+    return this.service.list(query);
   }
   @Roles(UserRole.CENTER_MANAGER) @Post('schedules') create(
     @Body() dto: ScheduleDto,

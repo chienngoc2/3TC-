@@ -7,16 +7,20 @@ import {
   Body,
   Param,
   Query,
+  Res,
   ParseUUIDPipe,
   UseInterceptors,
   UploadedFile,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto, UpdateUserDto } from './dto/update-profile.dto';
+import { UserQueryDto } from './dto/user-query.dto';
+import { applyPaginationHeaders } from '../../common/dto/pagination.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
@@ -27,8 +31,18 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
   @Get()
   @Roles(UserRole.ADMIN)
-  listAll(@Query('role') role?: UserRole, @Query('q') q?: string) {
-    return this.users.findAll(role, q);
+  async listAll(
+    @Query() query: UserQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, total, page, limit } = await this.users.findAll(
+      query?.role,
+      query?.q,
+      query?.page,
+      query?.limit,
+    );
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
   @Post()
   @Roles(UserRole.ADMIN, UserRole.CENTER_MANAGER)
@@ -66,8 +80,18 @@ export class UsersController {
   }
   @Get('members')
   @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
-  members(@Query('q') q?: string) {
-    return this.users.findAll(UserRole.MEMBER, q);
+  async members(
+    @Query() query: UserQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, total, page, limit } = await this.users.findAll(
+      UserRole.MEMBER,
+      query?.q,
+      query?.page,
+      query?.limit,
+    );
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
   @Post('members')
   @Roles(UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
@@ -112,8 +136,8 @@ export class UsersController {
   @Roles(UserRole.CENTER_MANAGER)
   staff() {
     return Promise.all([
-      this.users.findAll(UserRole.COACH),
-      this.users.findAll(UserRole.RECEPTIONIST),
+      this.users.findAll(UserRole.COACH).then((res) => res.items),
+      this.users.findAll(UserRole.RECEPTIONIST).then((res) => res.items),
     ]).then((rows) => rows.flat());
   }
   @Put('staff/:id')
@@ -133,8 +157,9 @@ export class UsersController {
   ) {
     return this.users.updateUser(id, { isActive: false }, actor);
   }
-  @Get('center-managers') @Roles(UserRole.ADMIN) managers() {
-    return this.users.findAll(UserRole.CENTER_MANAGER);
+  @Get('center-managers') @Roles(UserRole.ADMIN) async managers() {
+    const res = await this.users.findAll(UserRole.CENTER_MANAGER);
+    return res.items;
   }
   @Post('center-managers')
   @Roles(UserRole.ADMIN)

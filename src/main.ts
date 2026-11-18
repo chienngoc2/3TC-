@@ -17,6 +17,7 @@ async function bootstrap() {
       .split(',')
       .map((value) => value.trim()),
     credentials: true,
+    exposedHeaders: ['x-total-count', 'x-page', 'x-limit', 'x-total-pages'],
   });
 
   app.enableShutdownHooks();

@@ -16,8 +16,10 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
 import { StaffShiftsService } from './staff-shifts.service';
+import { DateRangeQueryDto } from '../../common/dto/pagination.dto';
 import {
   ShiftDto,
+  ShiftQueryDto,
   BulkCreateShiftsDto,
   UpdateShiftDto,
   CloneWeeklyShiftsDto,
@@ -28,13 +30,13 @@ import {
 @ApiBearerAuth()
 export class StaffShiftsController {
   constructor(private readonly service: StaffShiftsService) {}
-  @Get() list(@Query('staffId') staffId?: string) {
-    return this.service.list(staffId);
+  @Get() list(@Query() query?: ShiftQueryDto) {
+    return this.service.list(query);
   }
   @Roles(UserRole.RECEPTIONIST, UserRole.COACH)
   @Get('mine')
-  mine(@CurrentUser() actor: Actor) {
-    return this.service.list(actor.userId);
+  mine(@Query() query: DateRangeQueryDto, @CurrentUser() actor: Actor) {
+    return this.service.list({ ...query, staffId: actor.userId });
   }
   @Post() create(@Body() dto: ShiftDto, @CurrentUser() actor: Actor) {
     return this.service.create(dto, actor);

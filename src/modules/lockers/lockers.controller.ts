@@ -5,12 +5,12 @@ import {
   Put,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { UserRole } from '@prisma/client';
+import { LockerStatus, UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
-
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
 import { LockersService } from './lockers.service';
@@ -20,8 +20,10 @@ import { LockerDto, LockerStatusDto } from '../operations/dto/operations.dto';
 @ApiBearerAuth()
 export class LockersController {
   constructor(private readonly service: LockersService) {}
-  @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST) @Get() list() {
-    return this.service.list();
+  @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
+  @Get()
+  list(@Query('zone') zone?: string, @Query('status') status?: LockerStatus) {
+    return this.service.list(zone, status);
   }
   @Get('my-assignments') mine(@CurrentUser() actor: Actor) {
     return this.service.mine(actor);
@@ -32,12 +34,19 @@ export class LockersController {
   ) {
     return this.service.create(dto, actor);
   }
-  @Roles(UserRole.CENTER_MANAGER) @Put(':id/status') status(
+  @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
+  @Put(':id/status')
+  status(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: LockerStatusDto,
     @CurrentUser() actor: Actor,
   ) {
     return this.service.status(id, dto.status, actor);
+  }
+  @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
+  @Put(':id/release')
+  release(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: Actor) {
+    return this.service.release(id, actor);
   }
   @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Put('assignments/:id/return')

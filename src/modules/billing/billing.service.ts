@@ -13,6 +13,9 @@ import {
   addDays,
 } from '../../common/utils/domain';
 import { PurchaseDto, RenewDto, AddonDto } from '../commerce/dto/commerce.dto';
+import { InvoiceListQueryDto } from './checkout.dto';
+import { parsePagination } from '../../common/dto/pagination.dto';
+import { getVietnamDateRange } from '../../common/utils/timezone';
 @Injectable()
 export class BillingService {
   constructor(
@@ -410,15 +413,40 @@ export class BillingService {
       return { subscription, invoice };
     });
   }
-  invoices(actor: Actor) {
-    return this.prisma.invoice.findMany({
-      where:
-        actor.role === 'MEMBER'
-          ? { subscription: { userId: actor.userId } }
-          : {},
-      include: { subscription: { select: { userId: true, planId: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
+  async invoices(actor: Actor, query?: InvoiceListQueryDto) {
+    const { page, limit, skip } = parsePagination(query);
+    const { startUtc, endUtc } = getVietnamDateRange(query?.from, query?.to);
+
+    const baseWhere =
+      actor.role === 'MEMBER'
+        ? { subscription: { userId: actor.userId } }
+        : query?.memberId
+          ? { subscription: { userId: query.memberId } }
+          : {};
+
+    const where = {
+      ...baseWhere,
+      ...(startUtc || endUtc
+        ? {
+            createdAt: {
+              ...(startUtc ? { gte: startUtc } : {}),
+              ...(endUtc ? { lte: endUtc } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [total, items] = await Promise.all([
+      this.prisma.invoice.count({ where }),
+      this.prisma.invoice.findMany({
+        where,
+        include: { subscription: { select: { userId: true, planId: true } } },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return { items, total, page, limit };
   }
 }
