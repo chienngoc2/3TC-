@@ -16,13 +16,51 @@ export class LockersService {
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
   ) {}
-  list(zone?: string, status?: LockerStatus) {
-    return this.prisma.locker.findMany({
+  async list(zone?: string, status?: LockerStatus) {
+    const lockers = await this.prisma.locker.findMany({
       where: {
         ...(zone ? { zone } : {}),
         ...(status ? { status } : {}),
       },
+      include: {
+        assignments: {
+          where: { returnedAt: null },
+          take: 1,
+          orderBy: { assignedAt: 'desc' },
+          include: {
+            user: {
+              select: {
+                id: true,
+                fullName: true,
+                phone: true,
+                email: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
       orderBy: { lockerNumber: 'asc' },
+    });
+
+    return lockers.map((locker) => {
+      const active = locker.assignments[0] ?? null;
+      return {
+        id: locker.id,
+        lockerNumber: locker.lockerNumber,
+        zone: locker.zone,
+        status: locker.status,
+        isActive: locker.isActive,
+        currentAssignment: active
+          ? {
+              id: active.id,
+              userId: active.userId,
+              assignedAt: active.assignedAt,
+              notes: active.notes,
+              user: active.user,
+            }
+          : null,
+      };
     });
   }
   mine(actor: Actor) {
@@ -75,6 +113,45 @@ export class LockersService {
       });
       await audit(tx, actor, 'RETURN_LOCKER', 'locker_assignments', id);
       return { id, returnedAt };
+    });
+  }
+  release(id: string, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      const locker = requireRecord(
+        await tx.locker.findUnique({ where: { id } }),
+        'LOCKER_NOT_FOUND',
+      );
+      const activeAssignment = await tx.lockerAssignment.findFirst({
+        where: { lockerId: id, returnedAt: null },
+        orderBy: { assignedAt: 'desc' },
+      });
+      requireCondition(
+        locker.status === LockerStatus.OCCUPIED || Boolean(activeAssignment),
+        'LOCKER_NOT_OCCUPIED',
+      );
+      const returnedAt = new Date();
+      if (activeAssignment) {
+        await tx.lockerAssignment.update({
+          where: { id: activeAssignment.id },
+          data: { returnedAt },
+        });
+      }
+      const updated = await tx.locker.update({
+        where: { id },
+        data: { status: LockerStatus.AVAILABLE },
+      });
+      await audit(tx, actor, 'RELEASE_LOCKER', 'lockers', id, {
+        lockerNumber: updated.lockerNumber,
+        releasedAssignmentId: activeAssignment?.id ?? null,
+        memberId: activeAssignment?.userId ?? null,
+      });
+      return {
+        id: updated.id,
+        lockerNumber: updated.lockerNumber,
+        status: updated.status,
+        releasedAssignmentId: activeAssignment?.id ?? null,
+        returnedAt,
+      };
     });
   }
 }

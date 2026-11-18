@@ -11,7 +11,6 @@ import {
   requireRole,
   timeRange,
   localDate,
-  addDays,
 } from '../../common/utils/domain';
 import {
   getVietnamDateRange,
@@ -276,7 +275,10 @@ export class CoachesService {
     const { startUtc, endUtc } = getVietnamDayBounds(dateInput || new Date());
     return Promise.all([
       this.prisma.schedule.findMany({
-        where: { coachId: actor.userId, startTime: { gte: startUtc, lte: endUtc } },
+        where: {
+          coachId: actor.userId,
+          startTime: { gte: startUtc, lte: endUtc },
+        },
         include: {
           class: true,
           room: true,

@@ -4,7 +4,10 @@ import { IsDateString, IsInt, IsOptional, Max, Min } from 'class-validator';
 import type { Response } from 'express';
 
 export class PaginationQueryDto {
-  @ApiPropertyOptional({ description: 'Page number (starts from 1)', default: 1 })
+  @ApiPropertyOptional({
+    description: 'Page number (starts from 1)',
+    default: 1,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -38,7 +41,8 @@ export function parsePagination(query?: PaginationQueryDto): {
   skip: number;
 } {
   const page = query?.page && query.page > 0 ? Number(query.page) : 1;
-  const limit = query?.limit && query.limit > 0 ? Math.min(Number(query.limit), 100) : 20;
+  const limit =
+    query?.limit && query.limit > 0 ? Math.min(Number(query.limit), 100) : 20;
   const skip = (page - 1) * limit;
   return { page, limit, skip };
 }

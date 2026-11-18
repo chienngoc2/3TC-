@@ -96,7 +96,10 @@ export class BookingsController {
     @Query() query: CancellationRequestQueryDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { items, total, page, limit } = await this.reviewService.list(actor, query);
+    const { items, total, page, limit } = await this.reviewService.list(
+      actor,
+      query,
+    );
     applyPaginationHeaders(res, total, page, limit);
     return items;
   }
@@ -135,7 +138,10 @@ export class BookingsController {
     @Query() query: PaginationQueryDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { items, total, page, limit } = await this.reviewService.penalties(actor, query);
+    const { items, total, page, limit } = await this.reviewService.penalties(
+      actor,
+      query,
+    );
     applyPaginationHeaders(res, total, page, limit);
     return items;
   }

@@ -47,7 +47,8 @@ export function calculateDerivedInbody(input: InbodyCalculationInput) {
   // BFM (kg)
   let bodyFatMassKg: number | null = null;
   if (input.bodyFatPct != null && input.bodyFatPct > 0) {
-    bodyFatMassKg = Math.round((input.weightKg * (input.bodyFatPct / 100)) * 100) / 100;
+    bodyFatMassKg =
+      Math.round(input.weightKg * (input.bodyFatPct / 100) * 100) / 100;
   }
 
   // LBM (kg) = Weight - BFM
@@ -57,7 +58,8 @@ export function calculateDerivedInbody(input: InbodyCalculationInput) {
   }
 
   // SMM (Skeletal Muscle Mass)
-  let skeletalMuscleMassKg: number | null = input.skeletalMuscleMassKg ?? input.muscleMassKg ?? null;
+  let skeletalMuscleMassKg: number | null =
+    input.skeletalMuscleMassKg ?? input.muscleMassKg ?? null;
   if (skeletalMuscleMassKg == null && leanBodyMassKg != null) {
     // Estimator: ~58% of lean body mass is skeletal muscle
     skeletalMuscleMassKg = Math.round(leanBodyMassKg * 0.58 * 100) / 100;
@@ -70,19 +72,38 @@ export function calculateDerivedInbody(input: InbodyCalculationInput) {
   } else {
     const age = input.age || 25;
     if (input.gender === 'FEMALE') {
-      bmrKcal = Math.round(10 * input.weightKg + 6.25 * input.heightCm - 5 * age - 161);
+      bmrKcal = Math.round(
+        10 * input.weightKg + 6.25 * input.heightCm - 5 * age - 161,
+      );
     } else {
-      bmrKcal = Math.round(10 * input.weightKg + 6.25 * input.heightCm - 5 * age + 5);
+      bmrKcal = Math.round(
+        10 * input.weightKg + 6.25 * input.heightCm - 5 * age + 5,
+      );
     }
   }
 
   // Sanitize segmental lean
   const seg: SegmentalLeanInput = {
-    rightArm: input.segmentalLean?.rightArm != null ? Number(input.segmentalLean.rightArm) : null,
-    leftArm: input.segmentalLean?.leftArm != null ? Number(input.segmentalLean.leftArm) : null,
-    trunk: input.segmentalLean?.trunk != null ? Number(input.segmentalLean.trunk) : null,
-    rightLeg: input.segmentalLean?.rightLeg != null ? Number(input.segmentalLean.rightLeg) : null,
-    leftLeg: input.segmentalLean?.leftLeg != null ? Number(input.segmentalLean.leftLeg) : null,
+    rightArm:
+      input.segmentalLean?.rightArm != null
+        ? Number(input.segmentalLean.rightArm)
+        : null,
+    leftArm:
+      input.segmentalLean?.leftArm != null
+        ? Number(input.segmentalLean.leftArm)
+        : null,
+    trunk:
+      input.segmentalLean?.trunk != null
+        ? Number(input.segmentalLean.trunk)
+        : null,
+    rightLeg:
+      input.segmentalLean?.rightLeg != null
+        ? Number(input.segmentalLean.rightLeg)
+        : null,
+    leftLeg:
+      input.segmentalLean?.leftLeg != null
+        ? Number(input.segmentalLean.leftLeg)
+        : null,
   };
 
   return {
@@ -115,7 +136,9 @@ export function analyzeInbody(log: {
   const weight = toNum(log.weightKg) || 60;
   const fatPct = toNum(log.bodyFatPct);
   const smm = toNum(log.skeletalMuscleMassKg) || toNum(log.muscleMassKg);
-  const bfm = toNum(log.bodyFatMassKg) ?? (fatPct != null ? (weight * fatPct) / 100 : null);
+  const bfm =
+    toNum(log.bodyFatMassKg) ??
+    (fatPct != null ? (weight * fatPct) / 100 : null);
 
   // 1. Determine C - D - I shape
   let bodyShape: 'TYPE_C' | 'TYPE_I' | 'TYPE_D' = 'TYPE_I';
@@ -129,10 +152,12 @@ export function analyzeInbody(log: {
     // Fat is usually 15-20% for men, 20-28% for women
     if (smmPctOfWeight < 40 && bfmPctOfWeight > 23) {
       bodyShape = 'TYPE_C';
-      bodyShapeDescription = 'Dáng chữ C: Cơ thấp, mỡ cao (Nguy cơ béo phì / Skinny Fat)';
+      bodyShapeDescription =
+        'Dáng chữ C: Cơ thấp, mỡ cao (Nguy cơ béo phì / Skinny Fat)';
     } else if (smmPctOfWeight >= 45 && bfmPctOfWeight <= 18) {
       bodyShape = 'TYPE_D';
-      bodyShapeDescription = 'Dáng chữ D: Cơ cao, mỡ thấp (Thể hình thể thao săn chắc)';
+      bodyShapeDescription =
+        'Dáng chữ D: Cơ cao, mỡ thấp (Thể hình thể thao săn chắc)';
     }
   }
 
@@ -150,7 +175,8 @@ export function analyzeInbody(log: {
     const avg = (rightArm + leftArm) / 2;
     const diff = Math.abs(rightArm - leftArm);
     const pct = Math.round((diff / avg) * 1000) / 10;
-    const weakerSide = rightArm < leftArm ? 'RIGHT' : leftArm < rightArm ? 'LEFT' : 'BALANCED';
+    const weakerSide =
+      rightArm < leftArm ? 'RIGHT' : leftArm < rightArm ? 'LEFT' : 'BALANCED';
     const severity = pct > 8 ? 'SIGNIFICANT' : pct > 5 ? 'MILD' : 'BALANCED';
 
     imbalances.push({
@@ -168,7 +194,8 @@ export function analyzeInbody(log: {
     const avg = (rightLeg + leftLeg) / 2;
     const diff = Math.abs(rightLeg - leftLeg);
     const pct = Math.round((diff / avg) * 1000) / 10;
-    const weakerSide = rightLeg < leftLeg ? 'RIGHT' : leftLeg < rightLeg ? 'LEFT' : 'BALANCED';
+    const weakerSide =
+      rightLeg < leftLeg ? 'RIGHT' : leftLeg < rightLeg ? 'LEFT' : 'BALANCED';
     const severity = pct > 8 ? 'SIGNIFICANT' : pct > 5 ? 'MILD' : 'BALANCED';
 
     imbalances.push({
@@ -181,7 +208,9 @@ export function analyzeInbody(log: {
     });
   }
 
-  const hasSignificantImbalance = imbalances.some((i) => i.severity === 'SIGNIFICANT');
+  const hasSignificantImbalance = imbalances.some(
+    (i) => i.severity === 'SIGNIFICANT',
+  );
 
   return {
     bodyShape,

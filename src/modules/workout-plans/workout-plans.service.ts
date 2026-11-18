@@ -131,7 +131,12 @@ export class WorkoutPlansService {
         ? {
             OR: [
               { title: { contains: query.q, mode: 'insensitive' as const } },
-              { instructions: { contains: query.q, mode: 'insensitive' as const } },
+              {
+                instructions: {
+                  contains: query.q,
+                  mode: 'insensitive' as const,
+                },
+              },
             ],
           }
         : {}),
@@ -367,35 +372,43 @@ export class WorkoutPlansService {
           memberName: member?.fullName,
           hasInbodyData: false,
           bodyShape: 'UNKNOWN',
-          bodyShapeDescription: 'Chưa có dữ liệu đo InBody. Gợi ý phác đồ rèn luyện nền tảng.',
+          bodyShapeDescription:
+            'Chưa có dữ liệu đo InBody. Gợi ý phác đồ rèn luyện nền tảng.',
           primaryGoal: member?.memberProfile?.fitnessGoals || 'GENERAL_FITNESS',
           primaryGoalTitle: 'Thể lực nền tảng tổng quát',
           hasSignificantImbalance: false,
           imbalances: [],
-          suggestedTemplate: defaultTemplate ? {
-            id: defaultTemplate.id,
-            title: defaultTemplate.title,
-            disciplineCode: defaultTemplate.disciplineCode,
-            description: defaultTemplate.description,
-            exerciseCount: defaultTemplate.exercises?.length || 0,
-          } : null,
-          recommendedExercises: defaultTemplate?.exercises.map((e) => ({
-            exerciseId: e.exerciseId,
-            exerciseName: e.exercise.title,
-            category: e.exercise.category,
-            sets: e.sets || 3,
-            reps: e.reps || 12,
-            unilateral: false,
-            notes: 'Tập trung chuẩn hóa kỹ thuật cơ bản',
-          })) || [],
+          suggestedTemplate: defaultTemplate
+            ? {
+                id: defaultTemplate.id,
+                title: defaultTemplate.title,
+                disciplineCode: defaultTemplate.disciplineCode,
+                description: defaultTemplate.description,
+                exerciseCount: defaultTemplate.exercises?.length || 0,
+              }
+            : null,
+          recommendedExercises:
+            defaultTemplate?.exercises.map((e) => ({
+              exerciseId: e.exerciseId,
+              exerciseName: e.exercise.title,
+              category: e.exercise.category,
+              sets: e.sets || 3,
+              reps: e.reps || 12,
+              unilateral: false,
+              notes: 'Tập trung chuẩn hóa kỹ thuật cơ bản',
+            })) || [],
           cardioPrescription: null,
           nutritionAdvice: null,
         };
       }
 
       const analysis = analyzeInbody(latestInbody);
-      const bfm = latestInbody.bodyFatMassKg ? Number(latestInbody.bodyFatMassKg) : null;
-      const bodyFatPct = latestInbody.bodyFatPct ? Number(latestInbody.bodyFatPct) : null;
+      const bfm = latestInbody.bodyFatMassKg
+        ? Number(latestInbody.bodyFatMassKg)
+        : null;
+      const bodyFatPct = latestInbody.bodyFatPct
+        ? Number(latestInbody.bodyFatPct)
+        : null;
 
       let primaryGoal = 'LEAN_HYPERTROPHY';
       let primaryGoalTitle = 'Tăng cơ nạc thuần (Hypertrophy)';
@@ -413,16 +426,22 @@ export class WorkoutPlansService {
 
       // If significant imbalance, recommend unilateral exercises
       if (analysis.hasSignificantImbalance) {
-        const armImb = analysis.imbalances.find((i) => i.zone === 'ARMS' && i.severity === 'SIGNIFICANT');
-        const legImb = analysis.imbalances.find((i) => i.zone === 'LEGS' && i.severity === 'SIGNIFICANT');
+        const armImb = analysis.imbalances.find(
+          (i) => i.zone === 'ARMS' && i.severity === 'SIGNIFICANT',
+        );
+        const legImb = analysis.imbalances.find(
+          (i) => i.zone === 'LEGS' && i.severity === 'SIGNIFICANT',
+        );
 
         if (armImb) {
           const armExs = allKnowledge.filter(
             (e) =>
               /dumbbell|single|one-arm|cable/i.test(e.title) &&
-              /arm|bicep|tricep|chest|shoulder|back/i.test(e.category + ' ' + e.title),
+              /arm|bicep|tricep|chest|shoulder|back/i.test(
+                e.category + ' ' + e.title,
+              ),
           );
-          (armExs.slice(0, 2)).forEach((e) => {
+          armExs.slice(0, 2).forEach((e) => {
             recommendedExercises.push({
               exerciseId: e.id,
               exerciseName: e.title,
@@ -443,7 +462,7 @@ export class WorkoutPlansService {
               /lunge|split|single|step/i.test(e.title) ||
               (/leg/i.test(e.category) && /dumbbell|squat/i.test(e.title)),
           );
-          (legExs.slice(0, 2)).forEach((e) => {
+          legExs.slice(0, 2).forEach((e) => {
             recommendedExercises.push({
               exerciseId: e.id,
               exerciseName: e.title,
@@ -463,30 +482,34 @@ export class WorkoutPlansService {
       const compoundExs = allKnowledge.filter(
         (e) => !recommendedExercises.some((r) => r.exerciseId === e.id),
       );
-      compoundExs.slice(0, Math.max(0, 5 - recommendedExercises.length)).forEach((e) => {
-        recommendedExercises.push({
-          exerciseId: e.id,
-          exerciseName: e.title,
-          category: e.category,
-          sets: primaryGoal === 'ATHLETIC_STRENGTH' ? 5 : 3,
-          reps: primaryGoal === 'ATHLETIC_STRENGTH' ? 5 : 12,
-          unilateral: false,
-          notes: 'Bài tập đa khớp tăng cường khối lượng cơ nền tảng',
+      compoundExs
+        .slice(0, Math.max(0, 5 - recommendedExercises.length))
+        .forEach((e) => {
+          recommendedExercises.push({
+            exerciseId: e.id,
+            exerciseName: e.title,
+            category: e.category,
+            sets: primaryGoal === 'ATHLETIC_STRENGTH' ? 5 : 3,
+            reps: primaryGoal === 'ATHLETIC_STRENGTH' ? 5 : 12,
+            unilateral: false,
+            notes: 'Bài tập đa khớp tăng cường khối lượng cơ nền tảng',
+          });
         });
-      });
 
       // Find matching template
-      const suggestedTemplate = await tx.workoutTemplate.findFirst({
-        where: {
-          disciplineCode: {
-            contains: primaryGoal === 'FAT_LOSS_RECOMP' ? 'GYM' : 'FITNESS',
-            mode: 'insensitive',
+      const suggestedTemplate =
+        (await tx.workoutTemplate.findFirst({
+          where: {
+            disciplineCode: {
+              contains: primaryGoal === 'FAT_LOSS_RECOMP' ? 'GYM' : 'FITNESS',
+              mode: 'insensitive',
+            },
           },
-        },
-        include: { exercises: { include: { exercise: true } } },
-      }) || await tx.workoutTemplate.findFirst({
-        include: { exercises: { include: { exercise: true } } },
-      });
+          include: { exercises: { include: { exercise: true } } },
+        })) ||
+        (await tx.workoutTemplate.findFirst({
+          include: { exercises: { include: { exercise: true } } },
+        }));
 
       const bmr = latestInbody.bmrKcal || 1500;
       const tdee = Math.round(bmr * 1.35);
@@ -502,34 +525,48 @@ export class WorkoutPlansService {
         weightKg: Number(latestInbody.weightKg),
         bodyFatPct: bodyFatPct,
         bodyFatMassKg: bfm,
-        skeletalMuscleMassKg: latestInbody.skeletalMuscleMassKg ? Number(latestInbody.skeletalMuscleMassKg) : null,
+        skeletalMuscleMassKg: latestInbody.skeletalMuscleMassKg
+          ? Number(latestInbody.skeletalMuscleMassKg)
+          : null,
         visceralFatLevel: latestInbody.visceralFatLevel,
         bmrKcal: bmr,
         primaryGoal,
         primaryGoalTitle,
         hasSignificantImbalance: analysis.hasSignificantImbalance,
         imbalances: analysis.imbalances,
-        suggestedTemplate: suggestedTemplate ? {
-          id: suggestedTemplate.id,
-          title: suggestedTemplate.title,
-          disciplineCode: suggestedTemplate.disciplineCode,
-          description: suggestedTemplate.description,
-          exerciseCount: suggestedTemplate.exercises?.length || 0,
-        } : null,
+        suggestedTemplate: suggestedTemplate
+          ? {
+              id: suggestedTemplate.id,
+              title: suggestedTemplate.title,
+              disciplineCode: suggestedTemplate.disciplineCode,
+              description: suggestedTemplate.description,
+              exerciseCount: suggestedTemplate.exercises?.length || 0,
+            }
+          : null,
         recommendedExercises,
-        cardioPrescription: latestInbody.visceralFatLevel && latestInbody.visceralFatLevel >= 10 ? {
-          targetZone: 'ZONE_2',
-          durationMinutes: 25,
-          frequencyPerWeek: 3,
-          reason: 'Mỡ nội tạng cấp độ cao (>= 10). Cần 25 phút Cardio nhịp tim Zone 2 cuối mỗi buổi để kích hoạt tiêu hao mỡ nội tạng an toàn.',
-        } : null,
+        cardioPrescription:
+          latestInbody.visceralFatLevel && latestInbody.visceralFatLevel >= 10
+            ? {
+                targetZone: 'ZONE_2',
+                durationMinutes: 25,
+                frequencyPerWeek: 3,
+                reason:
+                  'Mỡ nội tạng cấp độ cao (>= 10). Cần 25 phút Cardio nhịp tim Zone 2 cuối mỗi buổi để kích hoạt tiêu hao mỡ nội tạng an toàn.',
+              }
+            : null,
         nutritionAdvice: {
           estimatedTdeeKcal: tdee,
-          targetDailyCalories: primaryGoal === 'FAT_LOSS_RECOMP' ? tdee - 400 : primaryGoal === 'ATHLETIC_STRENGTH' ? tdee + 300 : tdee,
+          targetDailyCalories:
+            primaryGoal === 'FAT_LOSS_RECOMP'
+              ? tdee - 400
+              : primaryGoal === 'ATHLETIC_STRENGTH'
+                ? tdee + 300
+                : tdee,
           proteinTargetGrams: Math.round(Number(latestInbody.weightKg) * 1.8),
-          guideline: primaryGoal === 'FAT_LOSS_RECOMP'
-            ? 'Thâm hụt 400 kcal/ngày, nạp đủ 1.8g protein/kg để duy trì cơ bắp.'
-            : 'Ăn thặng dư nhẹ 300 kcal/ngày với thực phẩm nguyên phần giàu dinh dưỡng.',
+          guideline:
+            primaryGoal === 'FAT_LOSS_RECOMP'
+              ? 'Thâm hụt 400 kcal/ngày, nạp đủ 1.8g protein/kg để duy trì cơ bắp.'
+              : 'Ăn thặng dư nhẹ 300 kcal/ngày với thực phẩm nguyên phần giàu dinh dưỡng.',
         },
       };
     });

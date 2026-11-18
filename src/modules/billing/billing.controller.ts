@@ -79,7 +79,10 @@ export class BillingController {
     @Query() query: InvoiceListQueryDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { items, total, page, limit } = await this.service.invoices(actor, query);
+    const { items, total, page, limit } = await this.service.invoices(
+      actor,
+      query,
+    );
     applyPaginationHeaders(res, total, page, limit);
     return items;
   }

@@ -1,5 +1,13 @@
 import { CheckoutKind, CheckoutStatus } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min, IsDateString } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsUUID,
+  Max,
+  Min,
+  IsDateString,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateCheckoutDto {

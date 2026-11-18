@@ -22,10 +22,7 @@ export class LockersController {
   constructor(private readonly service: LockersService) {}
   @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
   @Get()
-  list(
-    @Query('zone') zone?: string,
-    @Query('status') status?: LockerStatus,
-  ) {
+  list(@Query('zone') zone?: string, @Query('status') status?: LockerStatus) {
     return this.service.list(zone, status);
   }
   @Get('my-assignments') mine(@CurrentUser() actor: Actor) {
@@ -37,12 +34,19 @@ export class LockersController {
   ) {
     return this.service.create(dto, actor);
   }
-  @Roles(UserRole.CENTER_MANAGER) @Put(':id/status') status(
+  @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
+  @Put(':id/status')
+  status(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: LockerStatusDto,
     @CurrentUser() actor: Actor,
   ) {
     return this.service.status(id, dto.status, actor);
+  }
+  @Roles(UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
+  @Put(':id/release')
+  release(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: Actor) {
+    return this.service.release(id, actor);
   }
   @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Put('assignments/:id/return')
