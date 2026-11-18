@@ -130,7 +130,7 @@ export class CheckoutService {
     };
   }
 
-  private async orderFor(id: string, memberId: string) {
+  private async orderFor(id: string, actor: Actor) {
     const order = requireRecord(
       await this.prisma.checkoutOrder.findUnique({
         where: { id },
@@ -141,15 +141,25 @@ export class CheckoutService {
       }),
       'CHECKOUT_NOT_FOUND',
     );
-    if (order.memberId !== memberId)
+    const isStaff =
+      actor.role === UserRole.RECEPTIONIST ||
+      actor.role === UserRole.CENTER_MANAGER ||
+      actor.role === UserRole.ADMIN;
+    if (!isStaff && order.memberId !== actor.userId)
       throw new ForbiddenException('FORBIDDEN_RESOURCE');
     return order;
   }
 
   async create(dto: CreateCheckoutDto, keyValue: string, actor: Actor) {
     const key = this.key(keyValue);
+    const targetMemberId: string =
+      actor.role === UserRole.RECEPTIONIST ||
+      actor.role === UserRole.CENTER_MANAGER
+        ? requireRecord(dto.memberId ?? null, 'MEMBER_ID_REQUIRED')
+        : actor.userId;
     const normalized = {
       kind: dto.kind,
+      memberId: targetMemberId,
       planId: dto.planId ?? null,
       coachId: dto.coachId ?? null,
       subscriptionId: dto.subscriptionId ?? null,
@@ -159,12 +169,12 @@ export class CheckoutService {
       .update(JSON.stringify(normalized))
       .digest('hex');
     const result = await this.transactions.run(async (tx) => {
-      await requireRole(tx, actor.userId, UserRole.MEMBER);
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`checkout:${actor.userId}`}))`;
+      await requireRole(tx, targetMemberId, UserRole.MEMBER);
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`checkout:${targetMemberId}`}))`;
       const existing = await tx.checkoutOrder.findUnique({
         where: {
           memberId_idempotencyKey: {
-            memberId: actor.userId,
+            memberId: targetMemberId,
             idempotencyKey: key,
           },
         },
@@ -209,7 +219,7 @@ export class CheckoutService {
           requireCondition(
             !(await tx.userSubscription.findFirst({
               where: {
-                userId: actor.userId,
+                userId: targetMemberId,
                 disciplineId: plan.disciplineId,
                 packageTier: 'TRIAL',
               },
@@ -245,7 +255,7 @@ export class CheckoutService {
           }),
           'SUBSCRIPTION_NOT_FOUND',
         );
-        requireCondition(sub.userId === actor.userId, 'FORBIDDEN_RESOURCE');
+        requireCondition(sub.userId === targetMemberId, 'FORBIDDEN_RESOURCE');
         targetSubscriptionId = sub.id;
         planId = sub.planId;
         coachId = sub.assignedCoachId;
@@ -312,7 +322,7 @@ export class CheckoutService {
       const amount = baseAmount.add(ptAmount);
       const order = await tx.checkoutOrder.create({
         data: {
-          memberId: actor.userId,
+          memberId: targetMemberId,
           kind: dto.kind,
           planId,
           targetSubscriptionId,
@@ -352,29 +362,42 @@ export class CheckoutService {
   }
 
   async detail(id: string, actor: Actor) {
-    const order = await this.orderFor(id, actor.userId);
+    const order = await this.orderFor(id, actor);
     if (order.status === 'PENDING_PAYMENT' && order.expiresAt < new Date()) {
       await this.prisma.checkoutOrder.updateMany({
         where: { id, status: 'PENDING_PAYMENT' },
         data: { status: 'EXPIRED' },
       });
-      return this.present(await this.orderFor(id, actor.userId));
+      return this.present(await this.orderFor(id, actor));
     }
     return this.present(order);
   }
 
   async list(query: CheckoutListDto, actor: Actor) {
     const limit = query.limit ?? 20;
-    await this.prisma.checkoutOrder.updateMany({
-      where: {
-        memberId: actor.userId,
-        status: 'PENDING_PAYMENT',
-        expiresAt: { lt: new Date() },
-      },
-      data: { status: 'EXPIRED' },
-    });
+    const isStaff =
+      actor.role === UserRole.RECEPTIONIST ||
+      actor.role === UserRole.CENTER_MANAGER ||
+      actor.role === UserRole.ADMIN;
+    const targetMemberId = isStaff
+      ? (query.memberId ?? undefined)
+      : actor.userId;
+
+    if (targetMemberId) {
+      await this.prisma.checkoutOrder.updateMany({
+        where: {
+          memberId: targetMemberId,
+          status: 'PENDING_PAYMENT',
+          expiresAt: { lt: new Date() },
+        },
+        data: { status: 'EXPIRED' },
+      });
+    }
     const rows = await this.prisma.checkoutOrder.findMany({
-      where: { memberId: actor.userId, status: query.status },
+      where: {
+        ...(targetMemberId ? { memberId: targetMemberId } : {}),
+        status: query.status,
+      },
       include: {
         attempts: { orderBy: { createdAt: 'desc' }, take: 1 },
         invoice: { select: { id: true } },
@@ -397,7 +420,11 @@ export class CheckoutService {
         await tx.checkoutOrder.findUnique({ where: { id } }),
         'CHECKOUT_NOT_FOUND',
       );
-      if (order.memberId !== actor.userId)
+      const isStaff =
+        actor.role === UserRole.RECEPTIONIST ||
+        actor.role === UserRole.CENTER_MANAGER ||
+        actor.role === UserRole.ADMIN;
+      if (!isStaff && order.memberId !== actor.userId)
         throw new ForbiddenException('FORBIDDEN_RESOURCE');
       const existing = await tx.paymentAttempt.findUnique({
         where: { checkoutId_retryKey: { checkoutId: id, retryKey: key } },
@@ -416,12 +443,12 @@ export class CheckoutService {
       });
       return attempt;
     });
-    return this.present(await this.orderFor(result.checkoutId, actor.userId));
+    return this.present(await this.orderFor(result.checkoutId, actor));
   }
 
   async reconcile(id: string, actor: Actor) {
     this.throttle(`reconcile:${id}`);
-    const order = await this.orderFor(id, actor.userId);
+    const order = await this.orderFor(id, actor);
     if (order.status !== 'PENDING_PAYMENT') return this.present(order);
     const attempt = await this.prisma.paymentAttempt.findFirst({
       where: { checkoutId: id },
@@ -429,7 +456,7 @@ export class CheckoutService {
     });
     if (attempt?.simulationOutcome && this.mockAvailable())
       await this.dispatch(attempt.paymentId);
-    return this.present(await this.orderFor(id, actor.userId));
+    return this.present(await this.orderFor(id, actor));
   }
 
   private mockAvailable() {

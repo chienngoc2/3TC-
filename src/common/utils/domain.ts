@@ -53,6 +53,22 @@ export async function requireRole(
   return user;
 }
 
+export async function requireAnyRole(
+  tx: Prisma.TransactionClient,
+  id: string,
+  roles: UserRole[],
+) {
+  const user = requireRecord(
+    await tx.user.findUnique({ where: { id } }),
+    'USER_NOT_FOUND',
+  );
+  requireCondition(
+    roles.includes(user.role) && user.isActive,
+    'INVALID_USER_ROLE_OR_INACTIVE',
+  );
+  return user;
+}
+
 export async function audit(
   tx: Prisma.TransactionClient,
   actor: Actor,

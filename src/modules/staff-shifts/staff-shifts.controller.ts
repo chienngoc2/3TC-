@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -15,21 +16,40 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
 import { StaffShiftsService } from './staff-shifts.service';
-import { ShiftDto, UpdateShiftDto } from '../operations/dto/operations.dto';
+import {
+  ShiftDto,
+  BulkCreateShiftsDto,
+  UpdateShiftDto,
+  CloneWeeklyShiftsDto,
+} from '../operations/dto/operations.dto';
 @Controller('staff-shifts')
 @Roles(UserRole.CENTER_MANAGER)
 @ApiTags('Staff shifts')
 @ApiBearerAuth()
 export class StaffShiftsController {
   constructor(private readonly service: StaffShiftsService) {}
-  @Get() list() {
-    return this.service.list();
+  @Get() list(@Query('staffId') staffId?: string) {
+    return this.service.list(staffId);
   }
-  @Roles(UserRole.RECEPTIONIST) @Get('mine') mine(@CurrentUser() actor: Actor) {
+  @Roles(UserRole.RECEPTIONIST, UserRole.COACH)
+  @Get('mine')
+  mine(@CurrentUser() actor: Actor) {
     return this.service.list(actor.userId);
   }
   @Post() create(@Body() dto: ShiftDto, @CurrentUser() actor: Actor) {
     return this.service.create(dto, actor);
+  }
+  @Post('bulk') createBulk(
+    @Body() dto: BulkCreateShiftsDto,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.createBulk(dto, actor);
+  }
+  @Post('clone-weekly') cloneWeekly(
+    @Body() dto: CloneWeeklyShiftsDto,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.cloneWeekly(dto, actor);
   }
   @Put(':id') update(
     @Param('id', ParseUUIDPipe) id: string,

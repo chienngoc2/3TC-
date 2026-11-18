@@ -33,7 +33,7 @@ import {
 export class CheckoutController {
   constructor(private readonly checkout: CheckoutService) {}
 
-  @Roles(UserRole.MEMBER)
+  @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Get('billing/quotations/vip')
   vipQuote(
     @Query('planId', ParseUUIDPipe) planId: string,
@@ -42,7 +42,7 @@ export class CheckoutController {
     return this.checkout.vipQuote(planId, coachId);
   }
 
-  @Roles(UserRole.MEMBER)
+  @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Get('billing/subscriptions/:id/pt-addon-preview')
   addonPreview(
     @Param('id', ParseUUIDPipe) id: string,
@@ -52,7 +52,7 @@ export class CheckoutController {
     return this.checkout.addonPreview(id, query.sessions, actor);
   }
 
-  @Roles(UserRole.MEMBER)
+  @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Post('billing/checkouts')
   create(
     @Body() dto: CreateCheckoutDto,
@@ -62,19 +62,19 @@ export class CheckoutController {
     return this.checkout.create(dto, key, actor);
   }
 
-  @Roles(UserRole.MEMBER)
+  @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Get('billing/checkouts')
   list(@Query() query: CheckoutListDto, @CurrentUser() actor: Actor) {
     return this.checkout.list(query, actor);
   }
 
-  @Roles(UserRole.MEMBER)
+  @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Get('billing/checkouts/:id')
   detail(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: Actor) {
     return this.checkout.detail(id, actor);
   }
 
-  @Roles(UserRole.MEMBER)
+  @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Post('billing/checkouts/:id/retry')
   retry(
     @Param('id', ParseUUIDPipe) id: string,
@@ -84,7 +84,7 @@ export class CheckoutController {
     return this.checkout.retry(id, key, actor);
   }
 
-  @Roles(UserRole.MEMBER)
+  @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Post('billing/checkouts/:id/reconcile')
   reconcile(
     @Param('id', ParseUUIDPipe) id: string,

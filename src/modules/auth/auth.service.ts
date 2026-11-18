@@ -43,6 +43,7 @@ export class AuthService {
           phone: dto.phone,
           avatarUrl: dto.avatarUrl,
           role: UserRole.MEMBER,
+          gender: dto.gender,
           memberProfile: { create: {} },
         },
         select: {
@@ -50,6 +51,7 @@ export class AuthService {
           email: true,
           fullName: true,
           role: true,
+          gender: true,
           tokenVersion: true,
         },
       }),
@@ -73,6 +75,7 @@ export class AuthService {
         email: user.email,
         fullName: user.fullName,
         role: user.role,
+        gender: user.gender,
       },
       ...(await this.newSession(user)),
     };

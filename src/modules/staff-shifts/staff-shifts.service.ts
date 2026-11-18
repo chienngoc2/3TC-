@@ -6,10 +6,17 @@ import type { Actor } from '../../common/types/actor';
 import {
   audit,
   requireRecord,
-  requireRole,
+  requireCondition,
+  requireAnyRole,
   timeRange,
+  addDays,
 } from '../../common/utils/domain';
-import { ShiftDto, UpdateShiftDto } from '../operations/dto/operations.dto';
+import {
+  ShiftDto,
+  BulkCreateShiftsDto,
+  UpdateShiftDto,
+  CloneWeeklyShiftsDto,
+} from '../operations/dto/operations.dto';
 @Injectable()
 export class StaffShiftsService {
   constructor(
@@ -18,14 +25,17 @@ export class StaffShiftsService {
   ) {}
   list(staffId?: string) {
     return this.prisma.staffShift.findMany({
-      where: { staffId },
+      where: staffId ? { staffId } : undefined,
       take: 200,
       orderBy: { startTime: 'desc' },
     });
   }
   create(dto: ShiftDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
-      await requireRole(tx, dto.staffId, UserRole.RECEPTIONIST);
+      await requireAnyRole(tx, dto.staffId, [
+        UserRole.RECEPTIONIST,
+        UserRole.COACH,
+      ]);
       const startTime = new Date(dto.startTime),
         endTime = new Date(dto.endTime);
       timeRange(startTime, endTime);
@@ -42,13 +52,63 @@ export class StaffShiftsService {
       return value;
     });
   }
+  createBulk(dto: BulkCreateShiftsDto, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      requireCondition(
+        dto.shifts && dto.shifts.length > 0,
+        'NO_SHIFTS_TO_CREATE',
+      );
+      const created = [];
+      for (const shiftDto of dto.shifts) {
+        await requireAnyRole(tx, shiftDto.staffId, [
+          UserRole.RECEPTIONIST,
+          UserRole.COACH,
+        ]);
+        const startTime = new Date(shiftDto.startTime),
+          endTime = new Date(shiftDto.endTime);
+        timeRange(startTime, endTime);
+
+        const existing = await tx.staffShift.findFirst({
+          where: {
+            staffId: shiftDto.staffId,
+            startTime,
+            endTime,
+          },
+        });
+        if (!existing) {
+          const value = await tx.staffShift.create({
+            data: {
+              ...shiftDto,
+              startTime,
+              endTime,
+              shiftDate: new Date(shiftDto.shiftDate),
+              assignedById: actor.userId,
+            },
+          });
+          created.push(value);
+        }
+      }
+      await audit(
+        tx,
+        actor,
+        'CREATE_SHIFTS_BULK',
+        'staff_shifts',
+        actor.userId,
+        { count: created.length },
+      );
+      return { count: created.length, shifts: created };
+    });
+  }
   update(id: string, dto: UpdateShiftDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
       const shift = requireRecord(
         await tx.staffShift.findUnique({ where: { id } }),
       );
       if (dto.staffId)
-        await requireRole(tx, dto.staffId, UserRole.RECEPTIONIST);
+        await requireAnyRole(tx, dto.staffId, [
+          UserRole.RECEPTIONIST,
+          UserRole.COACH,
+        ]);
       const startTime = dto.startTime
           ? new Date(dto.startTime)
           : shift.startTime,
@@ -69,10 +129,92 @@ export class StaffShiftsService {
   }
   delete(id: string, actor: Actor) {
     return this.transactions.run(async (tx) => {
-      requireRecord(await tx.staffShift.findUnique({ where: { id } }));
+      const shift = requireRecord(
+        await tx.staffShift.findUnique({ where: { id } }),
+      );
+      const [hasSchedule, hasBookedSlot] = await Promise.all([
+        tx.schedule.count({
+          where: {
+            coachId: shift.staffId,
+            startTime: { gte: shift.startTime },
+            endTime: { lte: shift.endTime },
+            status: { in: ['OPEN', 'FULL'] },
+          },
+        }),
+        tx.coachAvailability.count({
+          where: {
+            coachId: shift.staffId,
+            startTime: { gte: shift.startTime },
+            endTime: { lte: shift.endTime },
+            isBooked: true,
+            isEmergencyCancelled: false,
+          },
+        }),
+      ]);
+      requireCondition(
+        !hasSchedule && !hasBookedSlot,
+        'SHIFT_CONTAINS_ACTIVE_ASSIGNMENTS',
+      );
       await tx.staffShift.delete({ where: { id } });
       await audit(tx, actor, 'DELETE_SHIFT', 'staff_shifts', id);
       return { id };
+    });
+  }
+  cloneWeekly(dto: CloneWeeklyShiftsDto, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      const sourceStart = new Date(dto.sourceWeekStart);
+      const sourceEnd = addDays(sourceStart, 7);
+      const targetStart = new Date(dto.targetWeekStart);
+      const dayOffsetMs = targetStart.getTime() - sourceStart.getTime();
+
+      const sourceShifts = await tx.staffShift.findMany({
+        where: {
+          startTime: { gte: sourceStart, lt: sourceEnd },
+        },
+      });
+
+      requireCondition(sourceShifts.length > 0, 'NO_SHIFTS_TO_CLONE');
+
+      const created = [];
+      for (const shift of sourceShifts) {
+        const newStartTime = new Date(shift.startTime.getTime() + dayOffsetMs);
+        const newEndTime = new Date(shift.endTime.getTime() + dayOffsetMs);
+        const newShiftDate = new Date(shift.shiftDate.getTime() + dayOffsetMs);
+
+        const existing = await tx.staffShift.findFirst({
+          where: {
+            staffId: shift.staffId,
+            startTime: newStartTime,
+            endTime: newEndTime,
+          },
+        });
+        if (!existing) {
+          const val = await tx.staffShift.create({
+            data: {
+              staffId: shift.staffId,
+              startTime: newStartTime,
+              endTime: newEndTime,
+              shiftDate: newShiftDate,
+              notes: shift.notes,
+              assignedById: actor.userId,
+            },
+          });
+          created.push(val);
+        }
+      }
+      await audit(
+        tx,
+        actor,
+        'CLONE_WEEKLY_SHIFTS',
+        'staff_shifts',
+        actor.userId,
+        {
+          clonedCount: created.length,
+          sourceWeekStart: dto.sourceWeekStart,
+          targetWeekStart: dto.targetWeekStart,
+        },
+      );
+      return { clonedCount: created.length, shifts: created };
     });
   }
 }

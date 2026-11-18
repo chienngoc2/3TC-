@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 
 export class CreateCheckoutDto {
   @IsEnum(CheckoutKind) kind: CheckoutKind;
+  @IsOptional() @IsUUID() memberId?: string;
   @IsOptional() @IsUUID() planId?: string;
   @IsOptional() @IsUUID() coachId?: string;
   @IsOptional() @IsUUID() subscriptionId?: string;
@@ -11,6 +12,7 @@ export class CreateCheckoutDto {
 }
 
 export class CheckoutListDto {
+  @IsOptional() @IsUUID() memberId?: string;
   @IsOptional() @IsEnum(CheckoutStatus) status?: CheckoutStatus;
   @IsOptional() @IsUUID() cursor?: string;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
