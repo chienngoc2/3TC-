@@ -10,23 +10,47 @@ import {
   requireRole,
   timeRange,
 } from '../../common/utils/domain';
-import { ScheduleDto, UpdateScheduleDto } from '../commerce/dto/commerce.dto';
+import {
+  ScheduleDto,
+  ScheduleQueryDto,
+  UpdateScheduleDto,
+} from '../commerce/dto/commerce.dto';
+import {
+  getVietnamDateRange,
+  getVietnamDayBounds,
+} from '../../common/utils/timezone';
 @Injectable()
 export class SchedulesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
   ) {}
-  list() {
+  list(query?: ScheduleQueryDto) {
+    const { startUtc, endUtc } = getVietnamDateRange(query?.from, query?.to);
     return this.prisma.schedule.findMany({
-      where: { status: { in: ['OPEN', 'FULL'] }, endTime: { gt: new Date() } },
+      where: {
+        status: { in: ['OPEN', 'FULL'] },
+        ...(startUtc || endUtc
+          ? {
+              startTime: {
+                ...(startUtc ? { gte: startUtc } : {}),
+                ...(endUtc ? { lte: endUtc } : {}),
+              },
+            }
+          : { endTime: { gt: new Date() } }),
+        ...(query?.coachId ? { coachId: query.coachId } : {}),
+        ...(query?.classId ? { classId: query.classId } : {}),
+        ...(query?.disciplineId
+          ? { class: { disciplineId: query.disciplineId } }
+          : {}),
+      },
       include: {
         class: { include: { discipline: true } },
         room: true,
         coach: { select: { id: true, fullName: true } },
       },
       orderBy: { startTime: 'asc' },
-      take: 200,
+      take: startUtc || endUtc ? undefined : 200,
     });
   }
   async validate(
@@ -69,10 +93,7 @@ export class SchedulesService {
       },
     });
     requireCondition(shift, 'COACH_NOT_ON_DUTY_SHIFT');
-    const dayStart = new Date(start);
-    dayStart.setUTCHours(0, 0, 0, 0);
-    const dayEnd = new Date(start);
-    dayEnd.setUTCHours(23, 59, 59, 999);
+    const { startUtc: dayStart, endUtc: dayEnd } = getVietnamDayBounds(start);
     const existingClassCount = await tx.schedule.count({
       where: {
         coachId: dto.coachId,

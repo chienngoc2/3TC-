@@ -17,7 +17,10 @@ import {
   GateEntryDto,
   ClassAttendanceDto,
   UpdateAttendanceDto,
+  AttendanceHistoryQueryDto,
 } from './dto/attendance.dto';
+import { parsePagination } from '../../common/dto/pagination.dto';
+import { getVietnamDateRange } from '../../common/utils/timezone';
 @Injectable()
 export class AttendancesService {
   constructor(
@@ -234,14 +237,32 @@ export class AttendancesService {
     });
     return result.attendance;
   }
-  history(memberId: string, actor: Actor) {
+  history(memberId: string, actor: Actor, query?: AttendanceHistoryQueryDto) {
+    const { page, limit, skip } = parsePagination(query);
+    const { startUtc, endUtc } = getVietnamDateRange(query?.from, query?.to);
     return this.transactions.run(async (tx) => {
       await memberAccess(tx, actor, memberId);
-      return tx.attendance.findMany({
-        where: { memberId },
-        orderBy: { checkInTime: 'desc' },
-        take: 200,
-      });
+      const where = {
+        memberId,
+        ...(startUtc || endUtc
+          ? {
+              checkInTime: {
+                ...(startUtc ? { gte: startUtc } : {}),
+                ...(endUtc ? { lte: endUtc } : {}),
+              },
+            }
+          : {}),
+      };
+      const [total, items] = await Promise.all([
+        tx.attendance.count({ where }),
+        tx.attendance.findMany({
+          where,
+          orderBy: { checkInTime: 'desc' },
+          skip,
+          take: limit,
+        }),
+      ]);
+      return { items, total, page, limit };
     });
   }
   async correct(id: string, dto: UpdateAttendanceDto, actor: Actor) {

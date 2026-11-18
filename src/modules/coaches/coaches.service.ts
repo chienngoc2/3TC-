@@ -11,8 +11,11 @@ import {
   requireRole,
   timeRange,
   localDate,
-  addDays,
 } from '../../common/utils/domain';
+import {
+  getVietnamDateRange,
+  getVietnamDayBounds,
+} from '../../common/utils/timezone';
 import {
   SlotDto,
   BulkCreateSlotsDto,
@@ -39,17 +42,22 @@ export class CoachesService {
       },
     });
   }
-  slots(coachId?: string) {
+  slots(coachId?: string, from?: string, to?: string) {
+    const { startUtc, endUtc } = getVietnamDateRange(from, to);
     return this.prisma.coachAvailability.findMany({
       where: {
         coachId,
         isBooked: false,
         isEmergencyCancelled: false,
-        startTime: { gt: new Date() },
+        startTime: {
+          gt: new Date(),
+          ...(startUtc ? { gte: startUtc } : {}),
+          ...(endUtc ? { lte: endUtc } : {}),
+        },
         coach: { isActive: true },
       },
       orderBy: { startTime: 'asc' },
-      take: 200,
+      take: startUtc || endUtc ? undefined : 200,
     });
   }
   rates(coachId: string) {
@@ -106,11 +114,23 @@ export class CoachesService {
       return { id };
     });
   }
-  ownSlots(actor: Actor) {
+  ownSlots(actor: Actor, from?: string, to?: string) {
+    const { startUtc, endUtc } = getVietnamDateRange(from, to);
     return this.prisma.coachAvailability.findMany({
-      where: { coachId: actor.userId, endTime: { gt: new Date() } },
+      where: {
+        coachId: actor.userId,
+        endTime: { gt: new Date() },
+        ...(startUtc || endUtc
+          ? {
+              startTime: {
+                ...(startUtc ? { gte: startUtc } : {}),
+                ...(endUtc ? { lte: endUtc } : {}),
+              },
+            }
+          : {}),
+      },
       orderBy: { startTime: 'asc' },
-      take: 200,
+      take: startUtc || endUtc ? undefined : 200,
     });
   }
   createRate(coachId: string, dto: RateDto, actor: Actor) {
@@ -251,12 +271,14 @@ export class CoachesService {
       return { id };
     });
   }
-  schedule(actor: Actor) {
-    const start = new Date(localDate().getTime() - 7 * 3600000),
-      end = addDays(start, 1);
+  schedule(actor: Actor, dateInput?: string) {
+    const { startUtc, endUtc } = getVietnamDayBounds(dateInput || new Date());
     return Promise.all([
       this.prisma.schedule.findMany({
-        where: { coachId: actor.userId, startTime: { gte: start, lt: end } },
+        where: {
+          coachId: actor.userId,
+          startTime: { gte: startUtc, lte: endUtc },
+        },
         include: {
           class: true,
           room: true,
@@ -281,7 +303,7 @@ export class CoachesService {
       this.prisma.coachAvailability.findMany({
         where: {
           coachId: actor.userId,
-          startTime: { gte: start, lt: end },
+          startTime: { gte: startUtc, lte: endUtc },
           isBooked: true,
         },
         include: {

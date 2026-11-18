@@ -7,7 +7,23 @@ import {
   MaxLength,
 } from 'class-validator';
 import { AttendanceStatus } from '@prisma/client';
-import { OmitType } from '@nestjs/swagger';
+import { OmitType, ApiPropertyOptional } from '@nestjs/swagger';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+
+export class AttendanceHistoryQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by member ID' })
+  @IsOptional()
+  @IsUUID()
+  memberId?: string;
+
+  @ApiPropertyOptional({ description: 'Start date (YYYY-MM-DD or ISO)' })
+  @IsOptional()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'End date (YYYY-MM-DD or ISO)' })
+  @IsOptional()
+  to?: string;
+}
 export class GateEntryDto {
   @IsUUID() memberId: string;
   @IsOptional()

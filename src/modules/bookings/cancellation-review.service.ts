@@ -12,9 +12,14 @@ import {
 } from '../../common/utils/domain';
 import {
   CancellationRequestDto,
+  CancellationRequestQueryDto,
   ReviewDto,
   PenaltyReviewDto,
 } from '../commerce/dto/commerce.dto';
+import {
+  parsePagination,
+  PaginationQueryDto,
+} from '../../common/dto/pagination.dto';
 import { BookingsService } from './bookings.service';
 @Injectable()
 export class CancellationReviewService {
@@ -123,12 +128,22 @@ export class CancellationReviewService {
     });
     return value;
   }
-  list(actor: Actor) {
-    return this.prisma.cancellationRequest.findMany({
-      where: actor.role === 'COACH' ? { coachId: actor.userId } : {},
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
+  async list(actor: Actor, query?: CancellationRequestQueryDto) {
+    const { page, limit, skip } = parsePagination(query);
+    const where = {
+      ...(actor.role === 'COACH' ? { coachId: actor.userId } : {}),
+      ...(query?.status ? { status: query.status } : {}),
+    };
+    const [total, items] = await Promise.all([
+      this.prisma.cancellationRequest.count({ where }),
+      this.prisma.cancellationRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+    return { items, total, page, limit };
   }
   async cancel(id: string, actor: Actor) {
     const value = await this.transactions.run(async (tx) => {
@@ -323,12 +338,19 @@ export class CancellationReviewService {
       refundedCount: result.affected.length,
     };
   }
-  penalties(actor: Actor) {
-    return this.prisma.coachPenalty.findMany({
-      where: actor.role === 'COACH' ? { coachId: actor.userId } : {},
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
+  async penalties(actor: Actor, query?: PaginationQueryDto) {
+    const { page, limit, skip } = parsePagination(query);
+    const where = actor.role === 'COACH' ? { coachId: actor.userId } : {};
+    const [total, items] = await Promise.all([
+      this.prisma.coachPenalty.count({ where }),
+      this.prisma.coachPenalty.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+    return { items, total, page, limit };
   }
   penalty(id: string, dto: PenaltyReviewDto, actor: Actor) {
     return this.transactions.run(async (tx) => {

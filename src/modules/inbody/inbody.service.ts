@@ -68,7 +68,10 @@ export class InbodyService {
   update(id: string, dto: UpdateInbodyDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
       const log = requireRecord(
-        await tx.memberInbodyLog.findUnique({ where: { id }, include: { user: true } }),
+        await tx.memberInbodyLog.findUnique({
+          where: { id },
+          include: { user: true },
+        }),
       );
       if (
         log.measuredById !== actor.userId &&
@@ -87,10 +90,28 @@ export class InbodyService {
       const mergedInput = {
         heightCm: dto.heightCm ?? Number(log.heightCm),
         weightKg: dto.weightKg ?? Number(log.weightKg),
-        bodyFatPct: dto.bodyFatPct !== undefined ? dto.bodyFatPct : log.bodyFatPct != null ? Number(log.bodyFatPct) : null,
-        skeletalMuscleMassKg: dto.skeletalMuscleMassKg !== undefined ? dto.skeletalMuscleMassKg : log.skeletalMuscleMassKg != null ? Number(log.skeletalMuscleMassKg) : null,
-        muscleMassKg: dto.muscleMassKg !== undefined ? dto.muscleMassKg : log.muscleMassKg != null ? Number(log.muscleMassKg) : null,
-        segmentalLean: dto.segmentalLean !== undefined ? dto.segmentalLean : log.segmentalLean,
+        bodyFatPct:
+          dto.bodyFatPct !== undefined
+            ? dto.bodyFatPct
+            : log.bodyFatPct != null
+              ? Number(log.bodyFatPct)
+              : null,
+        skeletalMuscleMassKg:
+          dto.skeletalMuscleMassKg !== undefined
+            ? dto.skeletalMuscleMassKg
+            : log.skeletalMuscleMassKg != null
+              ? Number(log.skeletalMuscleMassKg)
+              : null,
+        muscleMassKg:
+          dto.muscleMassKg !== undefined
+            ? dto.muscleMassKg
+            : log.muscleMassKg != null
+              ? Number(log.muscleMassKg)
+              : null,
+        segmentalLean:
+          dto.segmentalLean !== undefined
+            ? dto.segmentalLean
+            : log.segmentalLean,
         gender: log.user?.gender,
       };
 

@@ -7,19 +7,24 @@ import {
   Param,
   Body,
   Query,
+  Res,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
+import { applyPaginationHeaders } from '../../common/dto/pagination.dto';
 import { WorkoutPlansService } from './workout-plans.service';
 import {
   WorkoutDto,
   UpdateWorkoutDto,
   KnowledgeDto,
   AssignTemplateDto,
+  WorkoutPlanListQueryDto,
+  ExerciseKnowledgeQueryDto,
 } from './dto/workout.dto';
 @Controller()
 @ApiTags('Manual workout plans')
@@ -28,8 +33,14 @@ export class WorkoutPlansController {
   constructor(private readonly service: WorkoutPlansService) {}
   @Roles(UserRole.MEMBER, UserRole.COACH, UserRole.CENTER_MANAGER)
   @Get('workout-plans')
-  list(@CurrentUser() actor: Actor) {
-    return this.service.list(actor);
+  async list(
+    @CurrentUser() actor: Actor,
+    @Query() query: WorkoutPlanListQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, total, page, limit } = await this.service.list(actor, query);
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
   @Roles(UserRole.COACH) @Post('workout-plans') create(
     @Body() dto: WorkoutDto,
@@ -52,8 +63,13 @@ export class WorkoutPlansController {
   }
   @Roles(UserRole.MEMBER, UserRole.COACH, UserRole.CENTER_MANAGER)
   @Get('exercise-knowledge')
-  knowledge() {
-    return this.service.knowledge();
+  async knowledge(
+    @Query() query: ExerciseKnowledgeQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, total, page, limit } = await this.service.knowledge(query);
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
   @Roles(UserRole.CENTER_MANAGER) @Post('exercise-knowledge') createKnowledge(
     @Body() dto: KnowledgeDto,
