@@ -5,21 +5,25 @@ import {
   Put,
   Body,
   Query,
+  Res,
   Param,
   ParseUUIDPipe,
   HttpCode,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
+import { applyPaginationHeaders } from '../../common/dto/pagination.dto';
 import { AttendancesService } from './attendances.service';
 import {
   GateEntryDto,
   ClassAttendanceDto,
   GateCheckinDto,
   UpdateAttendanceDto,
+  AttendanceHistoryQueryDto,
 } from './dto/attendance.dto';
 @Controller('attendances')
 @ApiTags('Attendances')
@@ -80,10 +84,18 @@ export class AttendancesController {
     UserRole.CENTER_MANAGER,
   )
   @Get()
-  history(
+  async history(
     @CurrentUser() actor: Actor,
-    @Query('memberId', new ParseUUIDPipe({ optional: true })) memberId?: string,
+    @Query() query: AttendanceHistoryQueryDto,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return this.service.history(memberId ?? actor.userId, actor);
+    const targetMemberId = query?.memberId ?? actor.userId;
+    const { items, total, page, limit } = await this.service.history(
+      targetMemberId,
+      actor,
+      query,
+    );
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
 }

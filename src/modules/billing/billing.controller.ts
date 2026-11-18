@@ -4,15 +4,19 @@ import {
   Post,
   Body,
   Param,
+  Query,
+  Res,
   ParseUUIDPipe,
   HttpCode,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
-
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
+import { applyPaginationHeaders } from '../../common/dto/pagination.dto';
+import { InvoiceListQueryDto } from './checkout.dto';
 import { BillingService } from './billing.service';
 import {
   PurchaseDto,
@@ -70,7 +74,13 @@ export class BillingController {
   }
   @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Get('billing/invoices')
-  invoices(@CurrentUser() actor: Actor) {
-    return this.service.invoices(actor);
+  async invoices(
+    @CurrentUser() actor: Actor,
+    @Query() query: InvoiceListQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, total, page, limit } = await this.service.invoices(actor, query);
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
 }

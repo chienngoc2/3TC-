@@ -14,7 +14,10 @@ import {
   UpdateWorkoutDto,
   KnowledgeDto,
   AssignTemplateDto,
+  WorkoutPlanListQueryDto,
+  ExerciseKnowledgeQueryDto,
 } from './dto/workout.dto';
+import { parsePagination } from '../../common/dto/pagination.dto';
 import { UserRole } from '@prisma/client';
 import { analyzeInbody } from '../inbody/inbody-calc.util';
 @Injectable()
@@ -23,23 +26,38 @@ export class WorkoutPlansService {
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
   ) {}
-  list(actor: Actor) {
-    return this.prisma.workoutPlan.findMany({
-      where:
-        actor.role === 'MEMBER'
-          ? { memberId: actor.userId }
-          : actor.role === 'COACH'
-            ? { coachId: actor.userId }
-            : {},
-      include: {
-        exercises: {
-          include: { exercise: true },
-          orderBy: { orderIndex: 'asc' },
+  async list(actor: Actor, query?: WorkoutPlanListQueryDto) {
+    const { page, limit, skip } = parsePagination(query);
+    const where =
+      actor.role === 'MEMBER'
+        ? { memberId: actor.userId }
+        : actor.role === 'COACH'
+          ? {
+              coachId: actor.userId,
+              ...(query?.memberId ? { memberId: query.memberId } : {}),
+            }
+          : {
+              ...(query?.memberId ? { memberId: query.memberId } : {}),
+              ...(query?.coachId ? { coachId: query.coachId } : {}),
+            };
+
+    const [total, items] = await Promise.all([
+      this.prisma.workoutPlan.count({ where }),
+      this.prisma.workoutPlan.findMany({
+        where,
+        include: {
+          exercises: {
+            include: { exercise: true },
+            orderBy: { orderIndex: 'asc' },
+          },
         },
-      },
-      take: 100,
-      orderBy: { createdAt: 'desc' },
-    });
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    return { items, total, page, limit };
   }
   create(dto: WorkoutDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
@@ -105,11 +123,29 @@ export class WorkoutPlansService {
       return { id };
     });
   }
-  knowledge() {
-    return this.prisma.exerciseKnowledge.findMany({
-      take: 200,
-      orderBy: { title: 'asc' },
-    });
+  async knowledge(query?: ExerciseKnowledgeQueryDto) {
+    const { page, limit, skip } = parsePagination(query);
+    const where = {
+      ...(query?.category ? { category: query.category } : {}),
+      ...(query?.q
+        ? {
+            OR: [
+              { title: { contains: query.q, mode: 'insensitive' as const } },
+              { instructions: { contains: query.q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    };
+    const [total, items] = await Promise.all([
+      this.prisma.exerciseKnowledge.count({ where }),
+      this.prisma.exerciseKnowledge.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { title: 'asc' },
+      }),
+    ]);
+    return { items, total, page, limit };
   }
   createKnowledge(dto: KnowledgeDto, actor: Actor) {
     return this.transactions.run(async (tx) => {

@@ -13,7 +13,32 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { PartialType, OmitType } from '@nestjs/swagger';
+import { PartialType, OmitType, ApiPropertyOptional } from '@nestjs/swagger';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+
+export class WorkoutPlanListQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by member ID' })
+  @IsOptional()
+  @IsUUID()
+  memberId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by coach ID' })
+  @IsOptional()
+  @IsUUID()
+  coachId?: string;
+}
+
+export class ExerciseKnowledgeQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ description: 'Search title or instructions' })
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by muscle category' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+}
 export class ExerciseDto {
   @IsUUID() exerciseId: string;
   @IsOptional() @IsInt() @Min(1) @Max(100) sets?: number;

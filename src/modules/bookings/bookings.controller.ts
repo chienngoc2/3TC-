@@ -6,14 +6,20 @@ import {
   Delete,
   Body,
   Param,
+  Query,
+  Res,
   ParseUUIDPipe,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
-
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
+import {
+  PaginationQueryDto,
+  applyPaginationHeaders,
+} from '../../common/dto/pagination.dto';
 import { BookingsService } from './bookings.service';
 import {
   GroupBookingDto,
@@ -22,6 +28,8 @@ import {
   CancellationRequestDto,
   ReviewDto,
   PenaltyReviewDto,
+  BookingListQueryDto,
+  CancellationRequestQueryDto,
 } from '../commerce/dto/commerce.dto';
 import { CancellationReviewService } from './cancellation-review.service';
 @Controller()
@@ -40,8 +48,14 @@ export class BookingsController {
     UserRole.CENTER_MANAGER,
   )
   @Get('bookings')
-  list(@CurrentUser() actor: Actor) {
-    return this.service.list(actor);
+  async list(
+    @CurrentUser() actor: Actor,
+    @Query() query: BookingListQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, total, page, limit } = await this.service.list(actor, query);
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
   @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Post(['bookings/group-class', 'bookings/group'])
@@ -77,8 +91,14 @@ export class BookingsController {
   }
   @Roles(UserRole.COACH, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Get('cancellation-requests')
-  requests(@CurrentUser() actor: Actor) {
-    return this.reviewService.list(actor);
+  async requests(
+    @CurrentUser() actor: Actor,
+    @Query() query: CancellationRequestQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, total, page, limit } = await this.reviewService.list(actor, query);
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
   @Roles(UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Put('cancellation-requests/:id/review')
@@ -110,8 +130,14 @@ export class BookingsController {
   }
   @Roles(UserRole.COACH, UserRole.CENTER_MANAGER)
   @Get('coach-penalties')
-  penalties(@CurrentUser() actor: Actor) {
-    return this.reviewService.penalties(actor);
+  async penalties(
+    @CurrentUser() actor: Actor,
+    @Query() query: PaginationQueryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { items, total, page, limit } = await this.reviewService.penalties(actor, query);
+    applyPaginationHeaders(res, total, page, limit);
+    return items;
   }
   @Roles(UserRole.CENTER_MANAGER) @Put('coach-penalties/:id/review') penalty(
     @Param('id', ParseUUIDPipe) id: string,

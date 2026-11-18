@@ -12,7 +12,12 @@ import {
   addDays,
 } from '../../common/utils/domain';
 import {
+  getVietnamDateRange,
+  getVietnamDayBounds,
+} from '../../common/utils/timezone';
+import {
   ShiftDto,
+  ShiftQueryDto,
   BulkCreateShiftsDto,
   UpdateShiftDto,
   CloneWeeklyShiftsDto,
@@ -23,11 +28,27 @@ export class StaffShiftsService {
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
   ) {}
-  list(staffId?: string) {
+  list(query?: ShiftQueryDto | string) {
+    const staffId = typeof query === 'string' ? query : query?.staffId;
+    const from = typeof query === 'object' ? query?.from : undefined;
+    const to = typeof query === 'object' ? query?.to : undefined;
+
+    const { startUtc, endUtc } = getVietnamDateRange(from, to);
+
     return this.prisma.staffShift.findMany({
-      where: staffId ? { staffId } : undefined,
-      take: 200,
-      orderBy: { startTime: 'desc' },
+      where: {
+        ...(staffId ? { staffId } : {}),
+        ...(startUtc || endUtc
+          ? {
+              startTime: {
+                ...(startUtc ? { gte: startUtc } : {}),
+                ...(endUtc ? { lte: endUtc } : {}),
+              },
+            }
+          : {}),
+      },
+      take: startUtc || endUtc ? undefined : 200,
+      orderBy: { startTime: 'asc' },
     });
   }
   create(dto: ShiftDto, actor: Actor) {
@@ -162,9 +183,11 @@ export class StaffShiftsService {
   }
   cloneWeekly(dto: CloneWeeklyShiftsDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
-      const sourceStart = new Date(dto.sourceWeekStart);
-      const sourceEnd = addDays(sourceStart, 7);
-      const targetStart = new Date(dto.targetWeekStart);
+      const sourceBounds = getVietnamDayBounds(dto.sourceWeekStart);
+      const targetBounds = getVietnamDayBounds(dto.targetWeekStart);
+      const sourceStart = sourceBounds.startUtc;
+      const sourceEnd = new Date(sourceStart.getTime() + 7 * 86400000);
+      const targetStart = targetBounds.startUtc;
       const dayOffsetMs = targetStart.getTime() - sourceStart.getTime();
 
       const sourceShifts = await tx.staffShift.findMany({

@@ -13,10 +13,13 @@ import {
   localDate,
 } from '../../common/utils/domain';
 import { ptDayBlockReason } from '../../common/utils/pt-day-policy';
+import { parsePagination } from '../../common/dto/pagination.dto';
+import { getVietnamDateRange } from '../../common/utils/timezone';
 import {
   GroupBookingDto,
   PtBookingDto,
   CancelDto,
+  BookingListQueryDto,
 } from '../commerce/dto/commerce.dto';
 @Injectable()
 export class BookingsService {
@@ -368,27 +371,53 @@ export class BookingsService {
         roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
       });
   }
-  list(actor: Actor) {
-    return this.prisma.booking.findMany({
-      where:
-        actor.role === 'MEMBER'
-          ? { memberId: actor.userId }
-          : actor.role === 'COACH'
-            ? {
-                OR: [
-                  { schedule: { coachId: actor.userId } },
-                  { coachAvailability: { coachId: actor.userId } },
-                ],
-              }
-            : {},
-      include: {
-        schedule: { include: { class: true } },
-        coachAvailability: true,
-        attendance: true,
-      },
-      orderBy: { bookedAt: 'desc' },
-      take: 200,
-    });
+  async list(actor: Actor, query?: BookingListQueryDto) {
+    const { page, limit, skip } = parsePagination(query);
+    const { startUtc, endUtc } = getVietnamDateRange(query?.from, query?.to);
+
+    const baseWhere =
+      actor.role === 'MEMBER'
+        ? { memberId: actor.userId }
+        : actor.role === 'COACH'
+          ? {
+              OR: [
+                { schedule: { coachId: actor.userId } },
+                { coachAvailability: { coachId: actor.userId } },
+              ],
+            }
+          : query?.memberId
+            ? { memberId: query.memberId }
+            : {};
+
+    const where = {
+      ...baseWhere,
+      ...(query?.status ? { status: query.status } : {}),
+      ...(startUtc || endUtc
+        ? {
+            bookedAt: {
+              ...(startUtc ? { gte: startUtc } : {}),
+              ...(endUtc ? { lte: endUtc } : {}),
+            },
+          }
+        : {}),
+    };
+
+    const [total, items] = await Promise.all([
+      this.prisma.booking.count({ where }),
+      this.prisma.booking.findMany({
+        where,
+        include: {
+          schedule: { include: { class: true } },
+          coachAvailability: true,
+          attendance: true,
+        },
+        orderBy: { bookedAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ]);
+
+    return { items, total, page, limit };
   }
   async cancel(id: string, dto: CancelDto, actor: Actor) {
     const result = await this.transactions.run(async (tx) => {

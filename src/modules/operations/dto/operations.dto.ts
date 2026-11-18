@@ -15,7 +15,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { LockerStatus } from '@prisma/client';
-import { PartialType } from '@nestjs/swagger';
+import { PartialType, ApiPropertyOptional } from '@nestjs/swagger';
+import { DateRangeQueryDto } from '../../../common/dto/pagination.dto';
 export class DisciplineDto {
   @IsString() @MaxLength(50) code: string;
   @IsString() @MaxLength(100) name: string;
@@ -79,6 +80,21 @@ export class RateDto {
 export class UpdateRateDto extends PartialType(RateDto, {
   skipNullProperties: false,
 }) {}
+
+export class ShiftQueryDto extends DateRangeQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by staff ID' })
+  @IsOptional()
+  @IsUUID()
+  staffId?: string;
+}
+
+export class SlotQueryDto extends DateRangeQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by coach ID' })
+  @IsOptional()
+  @IsUUID()
+  coachId?: string;
+}
+
 export class ShiftDto extends SlotDto {
   @IsUUID() staffId: string;
   @IsDateString() shiftDate: string;

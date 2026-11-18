@@ -16,8 +16,14 @@ export class LockersService {
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
   ) {}
-  list() {
-    return this.prisma.locker.findMany({ orderBy: { lockerNumber: 'asc' } });
+  list(zone?: string, status?: LockerStatus) {
+    return this.prisma.locker.findMany({
+      where: {
+        ...(zone ? { zone } : {}),
+        ...(status ? { status } : {}),
+      },
+      orderBy: { lockerNumber: 'asc' },
+    });
   }
   mine(actor: Actor) {
     return this.prisma.lockerAssignment.findMany({

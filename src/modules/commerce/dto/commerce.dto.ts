@@ -12,7 +12,7 @@ import {
   IsDateString,
   MinLength,
 } from 'class-validator';
-import { PartialType, OmitType } from '@nestjs/swagger';
+import { PartialType, OmitType, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   PackageTier,
   TrainingMode,
@@ -20,7 +20,42 @@ import {
   PaymentMethod,
   SubscriptionStatus,
   CancellationTargetType,
+  CancellationRequestStatus,
+  BookingStatus,
 } from '@prisma/client';
+import {
+  PaginationQueryDto,
+  DateRangeQueryDto,
+} from '../../../common/dto/pagination.dto';
+
+export class BookingListQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: BookingStatus })
+  @IsOptional()
+  @IsEnum(BookingStatus)
+  status?: BookingStatus;
+
+  @ApiPropertyOptional({ description: 'Filter by member ID' })
+  @IsOptional()
+  @IsUUID()
+  memberId?: string;
+
+  @ApiPropertyOptional({ description: 'Start date (YYYY-MM-DD or ISO)' })
+  @IsOptional()
+  @IsDateString()
+  from?: string;
+
+  @ApiPropertyOptional({ description: 'End date (YYYY-MM-DD or ISO)' })
+  @IsOptional()
+  @IsDateString()
+  to?: string;
+}
+
+export class CancellationRequestQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ enum: CancellationRequestStatus })
+  @IsOptional()
+  @IsEnum(CancellationRequestStatus)
+  status?: CancellationRequestStatus;
+}
 export class PlanDto {
   @IsUUID() disciplineId: string;
   @IsString() @MinLength(2) @MaxLength(100) name: string;
@@ -62,6 +97,24 @@ export class AddonDto extends RenewDto {
 export class SubscriptionStatusDto {
   @IsEnum(SubscriptionStatus) status: SubscriptionStatus;
 }
+
+export class ScheduleQueryDto extends DateRangeQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by coach ID' })
+  @IsOptional()
+  @IsUUID()
+  coachId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by discipline ID' })
+  @IsOptional()
+  @IsUUID()
+  disciplineId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by class ID' })
+  @IsOptional()
+  @IsUUID()
+  classId?: string;
+}
+
 export class ScheduleDto {
   @IsUUID() classId: string;
   @IsUUID() roomId: string;

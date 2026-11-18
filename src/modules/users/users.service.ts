@@ -4,7 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -64,24 +64,33 @@ export class UsersService {
       return user;
     });
   }
-  findAll(role?: UserRole, q?: string) {
-    return this.prisma.user.findMany({
-      where: {
-        role,
-        ...(q
-          ? {
-              OR: [
-                { fullName: { contains: q, mode: 'insensitive' } },
-                { phone: { contains: q } },
-                { email: { contains: q, mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
-      select: selection,
-      take: 100,
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(role?: UserRole, q?: string, page?: number, limit?: number) {
+    const p = page && page > 0 ? Number(page) : 1;
+    const l = limit && limit > 0 ? Math.min(Number(limit), 100) : 50;
+    const skip = (p - 1) * l;
+    const where: Prisma.UserWhereInput = {
+      role,
+      ...(q
+        ? {
+            OR: [
+              { fullName: { contains: q, mode: 'insensitive' as const } },
+              { phone: { contains: q } },
+              { email: { contains: q, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
+    };
+    const [total, items] = await Promise.all([
+      this.prisma.user.count({ where }),
+      this.prisma.user.findMany({
+        where,
+        select: selection,
+        skip,
+        take: l,
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+    return { items, total, page: p, limit: l };
   }
   async findById(id: string, actor?: Actor) {
     return this.transactions.run(async (tx) => {

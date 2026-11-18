@@ -16,8 +16,10 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
 import { CoachesService } from './coaches.service';
+import { DateRangeQueryDto } from '../../common/dto/pagination.dto';
 import {
   SlotDto,
+  SlotQueryDto,
   BulkCreateSlotsDto,
   RateDto,
   UpdateRateDto,
@@ -30,15 +32,14 @@ export class CoachesController {
   @Get() list() {
     return this.service.list();
   }
-  @Get('availability') slots(
-    @Query('coachId', new ParseUUIDPipe({ optional: true })) coachId?: string,
-  ) {
-    return this.service.slots(coachId);
+  @Get('availability') slots(@Query() query?: SlotQueryDto) {
+    return this.service.slots(query?.coachId, query?.from, query?.to);
   }
   @Roles(UserRole.COACH) @Get('availability/mine') mine(
+    @Query() query: DateRangeQueryDto,
     @CurrentUser() actor: Actor,
   ) {
-    return this.service.ownSlots(actor);
+    return this.service.ownSlots(actor, query?.from, query?.to);
   }
   @Roles(UserRole.COACH) @Post('availability') createSlot(
     @Body() dto: SlotDto,
@@ -60,8 +61,9 @@ export class CoachesController {
   }
   @Roles(UserRole.COACH) @Get('today-schedule') schedule(
     @CurrentUser() actor: Actor,
+    @Query('date') date?: string,
   ) {
-    return this.service.schedule(actor);
+    return this.service.schedule(actor, date);
   }
   @Roles(UserRole.COACH) @Get('members') members(
     @CurrentUser() actor: Actor,
