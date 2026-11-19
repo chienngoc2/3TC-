@@ -9,12 +9,14 @@ import {
   requireCondition,
   requireOwner,
 } from '../../common/utils/domain';
+import { DomainEvents } from '../../common/events/domain-events';
 import { LockerDto } from '../operations/dto/operations.dto';
 @Injectable()
 export class LockersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
+    private readonly events?: DomainEvents,
   ) {}
   async list(zone?: string, status?: LockerStatus) {
     const lockers = await this.prisma.locker.findMany({
@@ -90,6 +92,11 @@ export class LockersService {
       );
       const value = await tx.locker.update({ where: { id }, data: { status } });
       await audit(tx, actor, 'UPDATE_LOCKER_STATUS', 'lockers', id);
+      this.events?.publish({
+        name: 'locker.changed',
+        data: { lockerId: id, status },
+        roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+      });
       return value;
     });
   }
@@ -112,6 +119,16 @@ export class LockersService {
         data: { status: LockerStatus.AVAILABLE },
       });
       await audit(tx, actor, 'RETURN_LOCKER', 'locker_assignments', id);
+      this.events?.publish({
+        name: 'locker.changed',
+        data: {
+          lockerId: assignment.lockerId,
+          assignmentId: id,
+          status: LockerStatus.AVAILABLE,
+        },
+        roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+        userIds: [assignment.userId],
+      });
       return { id, returnedAt };
     });
   }
@@ -144,6 +161,17 @@ export class LockersService {
         lockerNumber: updated.lockerNumber,
         releasedAssignmentId: activeAssignment?.id ?? null,
         memberId: activeAssignment?.userId ?? null,
+      });
+      this.events?.publish({
+        name: 'locker.changed',
+        data: {
+          lockerId: updated.id,
+          lockerNumber: updated.lockerNumber,
+          status: updated.status,
+          releasedAssignmentId: activeAssignment?.id ?? null,
+        },
+        roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+        userIds: activeAssignment?.userId ? [activeAssignment.userId] : [],
       });
       return {
         id: updated.id,
