@@ -58,15 +58,14 @@ async function bootstrap() {
     },
     credentials: true,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Origin',
-      'X-Requested-With',
-      'Content-Type',
-      'Accept',
-      'Authorization',
-      'Range',
+    exposedHeaders: [
+      'x-total-count',
+      'x-page',
+      'x-limit',
+      'x-total-pages',
+      'idempotency-key',
+      'Idempotency-Key',
     ],
-    exposedHeaders: ['x-total-count', 'x-page', 'x-limit', 'x-total-pages'],
   });
 
   app.enableShutdownHooks();
