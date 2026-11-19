@@ -160,7 +160,7 @@ export class AttendancesService {
       await audit(tx, actor, 'GATE_CHECK_IN', 'attendances', attendance.id);
       return { attendance, lockerAssignment, repeated: false };
     });
-    if (!result.repeated)
+    if (!result.repeated) {
       this.events.publish({
         name: 'gate.checked-in',
         data: {
@@ -171,6 +171,21 @@ export class AttendancesService {
         userIds: [dto.memberId],
         roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
       });
+      if (result.lockerAssignment) {
+        this.events.publish({
+          name: 'locker.changed',
+          data: {
+            lockerId: result.lockerAssignment.lockerId,
+            lockerNumber: result.lockerAssignment.locker.lockerNumber,
+            status: 'OCCUPIED',
+            assignmentId: result.lockerAssignment.id,
+            memberId: dto.memberId,
+          },
+          userIds: [dto.memberId],
+          roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+        });
+      }
+    }
     return result;
   }
   async session(dto: ClassAttendanceDto, actor: Actor, allowUpdate = true) {
