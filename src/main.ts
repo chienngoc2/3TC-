@@ -12,11 +12,60 @@ async function bootstrap() {
 
   configureApp(app);
 
+  const envOrigins = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  const defaultOrigins = [
+    'https://3tcfitness.ddns.net',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:3001',
+  ];
+
+  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
+
   app.enableCors({
-    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:3001')
-      .split(',')
-      .map((value) => value.trim()),
+    origin: (
+      requestOrigin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
+      // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+      if (!requestOrigin) {
+        return callback(null, true);
+      }
+      // Direct match
+      if (allowedOrigins.includes(requestOrigin) || allowedOrigins.includes('*')) {
+        return callback(null, true);
+      }
+      // Dynamic match for production subdomains and localhost
+      try {
+        const url = new URL(requestOrigin);
+        if (
+          url.hostname === '3tcfitness.ddns.net' ||
+          url.hostname.endsWith('.3tcfitness.ddns.net') ||
+          url.hostname === 'localhost' ||
+          url.hostname === '127.0.0.1'
+        ) {
+          return callback(null, true);
+        }
+      } catch {
+        // invalid url, reject
+      }
+
+      callback(null, false);
+    },
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'Range',
+    ],
     exposedHeaders: ['x-total-count', 'x-page', 'x-limit', 'x-total-pages'],
   });
 
