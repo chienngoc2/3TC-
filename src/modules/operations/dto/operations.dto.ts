@@ -14,7 +14,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { LockerStatus } from '@prisma/client';
+import { LockerStatus, UserRole } from '@prisma/client';
 import { PartialType, ApiPropertyOptional } from '@nestjs/swagger';
 import { DateRangeQueryDto } from '../../../common/dto/pagination.dto';
 export class DisciplineDto {
@@ -86,6 +86,11 @@ export class ShiftQueryDto extends DateRangeQueryDto {
   @IsOptional()
   @IsUUID()
   staffId?: string;
+
+  @ApiPropertyOptional({ enum: UserRole, description: 'Filter by staff role' })
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }
 
 export class SlotQueryDto extends DateRangeQueryDto {
@@ -112,6 +117,10 @@ export class BulkCreateShiftsDto {
 export class CloneWeeklyShiftsDto {
   @IsDateString() sourceWeekStart: string;
   @IsDateString() targetWeekStart: string;
+}
+export class SwapShiftsDto {
+  @IsUUID() shiftIdA: string;
+  @IsUUID() shiftIdB: string;
 }
 export class LockerDto {
   @IsString() @MaxLength(20) lockerNumber: string;
