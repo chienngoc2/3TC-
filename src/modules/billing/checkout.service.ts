@@ -7,7 +7,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { CheckoutOrder, Prisma, UserRole } from '@prisma/client';
+import { CheckoutOrder, CheckoutStatus, Prisma, UserRole } from '@prisma/client';
 import {
   createHash,
   createHmac,
@@ -755,6 +755,7 @@ export class CheckoutService {
     this.events.publish({
       name: 'checkout.updated',
       userIds: [order.memberId],
+      roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
       data: {
         checkoutId: order.id,
         status: order.status,
@@ -762,5 +763,18 @@ export class CheckoutService {
         invoiceId: invoice?.id ?? null,
       },
     });
+    if (order.status === CheckoutStatus.FULFILLED) {
+      this.events.publish({
+        name: 'checkout.paid',
+        userIds: [order.memberId],
+        roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+        data: {
+          checkoutId: order.id,
+          status: order.status,
+          subscriptionId: order.fulfilledSubscriptionId,
+          invoiceId: invoice?.id ?? null,
+        },
+      });
+    }
   }
 }
