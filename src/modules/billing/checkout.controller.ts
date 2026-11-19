@@ -94,6 +94,12 @@ export class CheckoutController {
   }
 
   @Public()
+  @Post('billing/webhooks/payos')
+  payosWebhook(@Body() body: any) {
+    return this.checkout.payosWebhook(body);
+  }
+
+  @Public()
   @Post('dev/mock-payments/lookup')
   lookup(@Body() dto: MockPaymentLookupDto, @Req() request: Request) {
     return this.checkout.mockLookup(dto.paymentId, request.ip);

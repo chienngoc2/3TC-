@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -18,6 +19,7 @@ import {
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
 import { DomainEvents } from '../../common/events/domain-events';
+import { PayosService } from '../../infrastructure/payos/payos.service';
 import type { Actor } from '../../common/types/actor';
 import {
   localDate,
@@ -43,6 +45,7 @@ class FulfillmentEligibilityError extends Error {}
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
   private readonly lookups = new Map<
     string,
     { count: number; until: number }
@@ -53,6 +56,7 @@ export class CheckoutService {
     private readonly transactions: TransactionService,
     private readonly billing: BillingService,
     private readonly events: DomainEvents,
+    private readonly payos: PayosService,
   ) {}
 
   vipQuote(planId: string, coachId: string) {
@@ -71,6 +75,13 @@ export class CheckoutService {
 
   private paymentId() {
     return randomBytes(8).toString('hex').toUpperCase();
+  }
+
+  private generateOrderCode(): number {
+    return Number(
+      String(Math.floor(Date.now() / 1000)).slice(-6) +
+        String(Math.floor(1000 + Math.random() * 9000)),
+    );
   }
 
   private enabled() {
@@ -111,6 +122,18 @@ export class CheckoutService {
       invoice?: { id: string } | null;
     },
   ) {
+    const snapshot = (order.priceSnapshot ?? {}) as Record<string, any>;
+    const payos = snapshot.payos as
+      | {
+          orderCode?: number;
+          checkoutUrl?: string;
+          qrCode?: string;
+          accountNumber?: string;
+          accountName?: string;
+          bin?: string;
+        }
+      | undefined;
+
     return {
       checkoutId: order.id,
       kind: order.kind,
@@ -121,7 +144,15 @@ export class CheckoutService {
       currency: order.currency,
       priceSnapshot: order.priceSnapshot,
       paymentId: order.attempts?.[0]?.paymentId ?? null,
-      paymentUrl: order.amount.isZero() ? null : '/mock-payment',
+      paymentUrl:
+        order.amount.isZero()
+          ? null
+          : (payos?.checkoutUrl ?? (this.mockAvailable() ? '/mock-payment' : null)),
+      qrCode: payos?.qrCode ?? null,
+      orderCode: payos?.orderCode ?? null,
+      accountNumber: payos?.accountNumber ?? null,
+      accountName: payos?.accountName ?? null,
+      bin: payos?.bin ?? null,
       expiresAt: order.expiresAt,
       subscriptionId: order.fulfilledSubscriptionId,
       invoiceId: order.invoice?.id ?? null,
@@ -331,7 +362,7 @@ export class CheckoutService {
           baseAmount,
           ptAmount,
           amount,
-          priceSnapshot: snapshot,
+          priceSnapshot: snapshot as Prisma.InputJsonValue,
           idempotencyKey: key,
           requestHash,
           expiresAt: new Date(Date.now() + 15 * 60000),
@@ -352,10 +383,52 @@ export class CheckoutService {
         });
         return { ...fulfilled, attempts: [], invoice: { id: sold.invoice.id } };
       }
+
+      let paymentId = this.paymentId();
+      let payosData: any = null;
+
+      if (this.payos.isConfigured()) {
+        const orderCode = this.generateOrderCode();
+        paymentId = String(orderCode);
+        const description = `3TC ${String(orderCode).slice(-8)}`;
+        try {
+          payosData = await this.payos.createPaymentLink({
+            orderCode,
+            amount: Number(amount),
+            description,
+            checkoutId: order.id,
+            items: [
+              {
+                name: String(
+                  (snapshot as Record<string, any>).planName ?? 'Goi tap',
+                ).slice(0, 50),
+                quantity: 1,
+                price: Number(amount),
+              },
+            ],
+          });
+        } catch (error) {
+          this.logger.error(`Failed to create PayOS link for checkout ${order.id}:`, error);
+        }
+      }
+
+      let updatedOrder = order;
+      if (payosData) {
+        updatedOrder = await tx.checkoutOrder.update({
+          where: { id: order.id },
+          data: {
+            priceSnapshot: {
+              ...(snapshot as Record<string, any>),
+              payos: payosData,
+            },
+          },
+        });
+      }
+
       const attempt = await tx.paymentAttempt.create({
-        data: { checkoutId: order.id, paymentId: this.paymentId() },
+        data: { checkoutId: order.id, paymentId },
       });
-      return { ...order, attempts: [attempt], invoice: null };
+      return { ...updatedOrder, attempts: [attempt], invoice: null };
     });
     if (result.status === 'FULFILLED') await this.changed(result);
     return this.present(result);
@@ -434,12 +507,44 @@ export class CheckoutService {
         order.status === 'PAYMENT_FAILED' && order.expiresAt > new Date(),
         'CHECKOUT_NOT_RETRYABLE',
       );
+
+      let paymentId = this.paymentId();
+      let payosData: any = null;
+
+      if (this.payos.isConfigured()) {
+        const orderCode = this.generateOrderCode();
+        paymentId = String(orderCode);
+        const description = `3TC ${String(orderCode).slice(-8)}`;
+        try {
+          payosData = await this.payos.createPaymentLink({
+            orderCode,
+            amount: Number(order.amount),
+            description,
+            checkoutId: order.id,
+          });
+        } catch (error) {
+          this.logger.error(
+            `Failed to create PayOS link on retry for checkout ${order.id}:`,
+            error,
+          );
+        }
+      }
+
+      const snapshot = (order.priceSnapshot ?? {}) as Record<string, any>;
+      if (payosData) {
+        snapshot.payos = payosData;
+      }
+
       const attempt = await tx.paymentAttempt.create({
-        data: { checkoutId: id, paymentId: this.paymentId(), retryKey: key },
+        data: { checkoutId: id, paymentId, retryKey: key },
       });
       await tx.checkoutOrder.update({
         where: { id },
-        data: { status: 'PENDING_PAYMENT', failureReason: null },
+        data: {
+          status: 'PENDING_PAYMENT',
+          failureReason: null,
+          priceSnapshot: snapshot as Prisma.InputJsonValue,
+        },
       });
       return attempt;
     });
@@ -454,6 +559,46 @@ export class CheckoutService {
       where: { checkoutId: id },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (attempt?.paymentId && this.payos.isConfigured()) {
+      const orderCode = Number(attempt.paymentId);
+      if (!Number.isNaN(orderCode)) {
+        try {
+          const linkInfo = await this.payos.getPaymentLink(orderCode);
+          if (linkInfo?.status === 'PAID') {
+            await this.fulfillOrderFromPayment({
+              checkoutId: id,
+              paymentId: attempt.paymentId,
+              provider: 'PAYOS',
+              eventId: `RECONCILE-${orderCode}-${Date.now()}`,
+            });
+            return this.present(await this.orderFor(id, actor));
+          } else if (
+            linkInfo?.status === 'CANCELLED' ||
+            linkInfo?.status === 'EXPIRED'
+          ) {
+            await this.prisma.checkoutOrder.update({
+              where: { id },
+              data: {
+                status: 'PAYMENT_FAILED',
+                failureReason: `PAYOS_${linkInfo.status}`,
+              },
+            });
+            await this.prisma.paymentAttempt.updateMany({
+              where: { paymentId: attempt.paymentId },
+              data: { status: 'FAILED' },
+            });
+            return this.present(await this.orderFor(id, actor));
+          }
+        } catch (error) {
+          this.logger.error(
+            `Error querying PayOS for orderCode ${orderCode}:`,
+            error,
+          );
+        }
+      }
+    }
+
     if (attempt?.simulationOutcome && this.mockAvailable())
       await this.dispatch(attempt.paymentId);
     return this.present(await this.orderFor(id, actor));
@@ -745,6 +890,140 @@ export class CheckoutService {
     }
     if (changed) await this.changed(order);
     return { checkoutId: order.id, status: order.status };
+  }
+
+  async payosWebhook(body: any) {
+    if (!body) {
+      throw new BadRequestException('PAYOS_WEBHOOK_BODY_REQUIRED');
+    }
+
+    const verified = await this.payos.verifyWebhook(body);
+    if (!verified) {
+      this.logger.warn('PayOS webhook verification failed: invalid signature');
+      throw new UnauthorizedException('PAYOS_WEBHOOK_SIGNATURE_INVALID');
+    }
+
+    const { orderCode, reference, code } = verified;
+    this.logger.log(
+      `Received PayOS webhook for orderCode ${orderCode}, code: ${code}`,
+    );
+
+    const paymentId = String(orderCode);
+    const attempt = await this.prisma.paymentAttempt.findUnique({
+      where: { paymentId },
+    });
+
+    if (!attempt) {
+      this.logger.warn(
+        `PayOS webhook orderCode ${orderCode} not matched with any local payment attempt (likely a test ping)`,
+      );
+      return { success: true, message: 'Webhook test received' };
+    }
+
+    if (code === '00') {
+      const eventId = `${orderCode}-${reference || Date.now()}`;
+      await this.fulfillOrderFromPayment({
+        checkoutId: attempt.checkoutId,
+        paymentId,
+        provider: 'PAYOS',
+        eventId,
+      });
+      return { success: true, message: 'Order fulfilled successfully' };
+    } else {
+      this.logger.warn(
+        `PayOS payment not successful for orderCode ${orderCode}, code: ${code}`,
+      );
+      return { success: true, message: 'Payment incomplete' };
+    }
+  }
+
+  private async fulfillOrderFromPayment(params: {
+    checkoutId: string;
+    paymentId: string;
+    provider: string;
+    eventId: string;
+    payloadHash?: string;
+  }) {
+    const { checkoutId, paymentId, provider, eventId } = params;
+    const payloadHash =
+      params.payloadHash ??
+      createHash('sha256').update(`${provider}:${eventId}`).digest('hex');
+
+    let changed = false;
+    const order = await this.transactions.run(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`checkout:${checkoutId}`}))`;
+      const current = requireRecord(
+        await tx.checkoutOrder.findUnique({
+          where: { id: checkoutId },
+        }),
+        'CHECKOUT_NOT_FOUND',
+      );
+      const attempt = requireRecord(
+        await tx.paymentAttempt.findUnique({
+          where: { paymentId },
+        }),
+        'PAYMENT_ID_NOT_FOUND',
+      );
+
+      const previous = await tx.paymentWebhookEvent.findUnique({
+        where: {
+          provider_eventId: { provider, eventId },
+        },
+      });
+      if (previous) {
+        return current;
+      }
+
+      await tx.paymentWebhookEvent.create({
+        data: {
+          checkoutId: current.id,
+          provider,
+          eventId,
+          payloadHash,
+          outcome: 'SUCCESS',
+        },
+      });
+
+      if (current.status !== 'PENDING_PAYMENT') {
+        return current;
+      }
+
+      changed = true;
+      if (current.expiresAt < new Date()) {
+        return tx.checkoutOrder.update({
+          where: { id: current.id },
+          data: {
+            status: 'PAYMENT_REVIEW',
+            failureReason: 'PAYMENT_AFTER_EXPIRY',
+          },
+        });
+      }
+
+      const sold = await this.billing.fulfillCheckout(
+        tx,
+        current,
+        paymentId,
+      );
+
+      await tx.paymentAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'SUCCEEDED' },
+      });
+
+      return tx.checkoutOrder.update({
+        where: { id: current.id },
+        data: {
+          status: 'FULFILLED',
+          fulfilledSubscriptionId: sold.subscription.id,
+        },
+      });
+    });
+
+    if (changed) {
+      await this.changed(order);
+    }
+
+    return order;
   }
 
   private async changed(order: CheckoutOrder) {
