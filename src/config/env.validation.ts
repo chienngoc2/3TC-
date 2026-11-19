@@ -58,6 +58,26 @@ export class EnvironmentVariables {
   @IsString()
   @IsOptional()
   MOCK_WEBHOOK_SECRET?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYOS_CLIENT_ID?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYOS_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYOS_CHECKSUM_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYOS_RETURN_URL?: string;
+
+  @IsString()
+  @IsOptional()
+  PAYOS_CANCEL_URL?: string;
 }
 
 export function validate(config: Record<string, unknown>) {
