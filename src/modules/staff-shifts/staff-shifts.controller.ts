@@ -23,6 +23,7 @@ import {
   BulkCreateShiftsDto,
   UpdateShiftDto,
   CloneWeeklyShiftsDto,
+  SwapShiftsDto,
 } from '../operations/dto/operations.dto';
 @Controller('staff-shifts')
 @Roles(UserRole.CENTER_MANAGER)
@@ -52,6 +53,12 @@ export class StaffShiftsController {
     @CurrentUser() actor: Actor,
   ) {
     return this.service.cloneWeekly(dto, actor);
+  }
+  @Post('swap') swap(
+    @Body() dto: SwapShiftsDto,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.swap(dto, actor);
   }
   @Put(':id') update(
     @Param('id', ParseUUIDPipe) id: string,

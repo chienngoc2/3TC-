@@ -20,6 +20,7 @@ import {
   BulkCreateShiftsDto,
   UpdateShiftDto,
   CloneWeeklyShiftsDto,
+  SwapShiftsDto,
 } from '../operations/dto/operations.dto';
 @Injectable()
 export class StaffShiftsService {
@@ -29,6 +30,7 @@ export class StaffShiftsService {
   ) {}
   list(query?: ShiftQueryDto | string) {
     const staffId = typeof query === 'string' ? query : query?.staffId;
+    const role = typeof query === 'object' ? query?.role : undefined;
     const from = typeof query === 'object' ? query?.from : undefined;
     const to = typeof query === 'object' ? query?.to : undefined;
 
@@ -37,6 +39,7 @@ export class StaffShiftsService {
     return this.prisma.staffShift.findMany({
       where: {
         ...(staffId ? { staffId } : {}),
+        ...(role ? { staff: { role } } : {}),
         ...(startUtc || endUtc
           ? {
               startTime: {
@@ -59,6 +62,16 @@ export class StaffShiftsService {
       const startTime = new Date(dto.startTime),
         endTime = new Date(dto.endTime);
       timeRange(startTime, endTime);
+
+      const overlap = await tx.staffShift.findFirst({
+        where: {
+          staffId: dto.staffId,
+          startTime: { lt: endTime },
+          endTime: { gt: startTime },
+        },
+      });
+      requireCondition(!overlap, 'STAFF_SHIFT_OVERLAP');
+
       const value = await tx.staffShift.create({
         data: {
           ...dto,
@@ -88,14 +101,14 @@ export class StaffShiftsService {
           endTime = new Date(shiftDto.endTime);
         timeRange(startTime, endTime);
 
-        const existing = await tx.staffShift.findFirst({
+        const overlap = await tx.staffShift.findFirst({
           where: {
             staffId: shiftDto.staffId,
-            startTime,
-            endTime,
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
           },
         });
-        if (!existing) {
+        if (!overlap) {
           const value = await tx.staffShift.create({
             data: {
               ...shiftDto,
@@ -124,6 +137,7 @@ export class StaffShiftsService {
       const shift = requireRecord(
         await tx.staffShift.findUnique({ where: { id } }),
       );
+      const targetStaffId = dto.staffId ?? shift.staffId;
       if (dto.staffId)
         await requireAnyRole(tx, dto.staffId, [
           UserRole.RECEPTIONIST,
@@ -134,6 +148,17 @@ export class StaffShiftsService {
           : shift.startTime,
         endTime = dto.endTime ? new Date(dto.endTime) : shift.endTime;
       timeRange(startTime, endTime);
+
+      const overlap = await tx.staffShift.findFirst({
+        where: {
+          id: { not: id },
+          staffId: targetStaffId,
+          startTime: { lt: endTime },
+          endTime: { gt: startTime },
+        },
+      });
+      requireCondition(!overlap, 'STAFF_SHIFT_OVERLAP');
+
       const value = await tx.staffShift.update({
         where: { id },
         data: {
@@ -203,14 +228,14 @@ export class StaffShiftsService {
         const newEndTime = new Date(shift.endTime.getTime() + dayOffsetMs);
         const newShiftDate = new Date(shift.shiftDate.getTime() + dayOffsetMs);
 
-        const existing = await tx.staffShift.findFirst({
+        const overlap = await tx.staffShift.findFirst({
           where: {
             staffId: shift.staffId,
-            startTime: newStartTime,
-            endTime: newEndTime,
+            startTime: { lt: newEndTime },
+            endTime: { gt: newStartTime },
           },
         });
-        if (!existing) {
+        if (!overlap) {
           const val = await tx.staffShift.create({
             data: {
               staffId: shift.staffId,
@@ -237,6 +262,58 @@ export class StaffShiftsService {
         },
       );
       return { clonedCount: created.length, shifts: created };
+    });
+  }
+  swap(dto: SwapShiftsDto, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      requireCondition(dto.shiftIdA !== dto.shiftIdB, 'CANNOT_SWAP_SAME_SHIFT');
+      const shiftA = requireRecord(
+        await tx.staffShift.findUnique({ where: { id: dto.shiftIdA } }),
+      );
+      const shiftB = requireRecord(
+        await tx.staffShift.findUnique({ where: { id: dto.shiftIdB } }),
+      );
+      requireCondition(shiftA.staffId !== shiftB.staffId, 'CANNOT_SWAP_SAME_STAFF');
+
+      // Check overlap for staffA taking shiftB timeslot
+      const overlapA = await tx.staffShift.findFirst({
+        where: {
+          id: { notIn: [shiftA.id, shiftB.id] },
+          staffId: shiftA.staffId,
+          startTime: { lt: shiftB.endTime },
+          endTime: { gt: shiftB.startTime },
+        },
+      });
+      requireCondition(!overlapA, 'STAFF_SHIFT_OVERLAP');
+
+      // Check overlap for staffB taking shiftA timeslot
+      const overlapB = await tx.staffShift.findFirst({
+        where: {
+          id: { notIn: [shiftA.id, shiftB.id] },
+          staffId: shiftB.staffId,
+          startTime: { lt: shiftA.endTime },
+          endTime: { gt: shiftA.startTime },
+        },
+      });
+      requireCondition(!overlapB, 'STAFF_SHIFT_OVERLAP');
+
+      const updatedA = await tx.staffShift.update({
+        where: { id: shiftA.id },
+        data: { staffId: shiftB.staffId },
+      });
+      const updatedB = await tx.staffShift.update({
+        where: { id: shiftB.id },
+        data: { staffId: shiftA.staffId },
+      });
+
+      await audit(tx, actor, 'SWAP_SHIFTS', 'staff_shifts', shiftA.id, {
+        shiftIdA: shiftA.id,
+        shiftIdB: shiftB.id,
+        oldStaffA: shiftA.staffId,
+        oldStaffB: shiftB.staffId,
+      });
+
+      return { shiftA: updatedA, shiftB: updatedB };
     });
   }
 }
