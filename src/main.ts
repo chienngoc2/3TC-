@@ -112,5 +112,24 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   logger.log(`API is running on port ${port} (/api/v1); Swagger: /docs`);
+
+  const keepAliveBaseUrl =
+    process.env.KEEP_ALIVE_URL || process.env.RENDER_EXTERNAL_URL;
+  if (keepAliveBaseUrl) {
+    const pingUrl = `${keepAliveBaseUrl.replace(/\/$/, '')}/api/v1/disciplines`;
+    const fiveMinutesMs = 5 * 60 * 1000;
+    const keepAliveTimer = setInterval(async () => {
+      try {
+        const res = await fetch(pingUrl);
+        logger.debug(`Keep-alive ping ${pingUrl} -> ${res.status}`);
+      } catch (err) {
+        logger.warn(
+          `Keep-alive ping failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }, fiveMinutesMs);
+    keepAliveTimer.unref?.();
+    logger.log(`Keep-alive enabled every 5m -> ${pingUrl}`);
+  }
 }
 void bootstrap();
