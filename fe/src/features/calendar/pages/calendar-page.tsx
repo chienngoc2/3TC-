@@ -340,58 +340,37 @@ export const CalendarPage: React.FC = () => {
     })
   }, [calendarData?.schedules, activeGroupSubs, filterMyPackagesOnly])
 
-  // Filter PT slots: strictly show slots belonging to member's assigned coach or matching active disciplines & stars
+  // Filter PT & Group coach slots: match ANY active subscription with remaining quota
+  // (assigned coach for PT 1-1 OR discipline + star tier for unassigned Group/PT packages)
   const filteredPtSlots = useMemo(() => {
     if (!calendarData?.ptSlots) return []
 
-    const activeSubs = (calendarData?.subscriptions || []).filter(
-      (s) => s.status === 'ACTIVE',
+    const activeSubsWithQuota = (calendarData?.subscriptions || []).filter(
+      (s) =>
+        s.status === 'ACTIVE' &&
+        ((s.remainingGroupSessions ?? 0) > 0 || (s.remainingPtSessions ?? 0) > 0),
     )
-    const assignedCoachIds = new Set(
-      activeSubs.map((s) => s.assignedCoach?.id).filter(Boolean),
-    )
-    const activeDisciplineIds = new Set(
-      activeSubs.map((s) => s.disciplineId).filter(Boolean),
-    )
-    const starSet = new Set(
-      activeSubs.map((s) => s.coachRatingStars).filter(Boolean) as number[],
-    )
+    if (activeSubsWithQuota.length === 0) return []
 
     return calendarData.ptSlots.filter((slot) => {
-      // 1. If member has assigned coach(es), slot must belong to an assigned coach
-      if (assignedCoachIds.size > 0) {
-        return assignedCoachIds.has((slot as any).coachId || slot.coach?.id)
-      }
+      const slotCoachId = (slot as any).coachId || slot.coach?.id
+      const eligible = slot.eligibleDisciplines || []
+      const coachStars =
+        slot.coach?.coachProfile?.ratingStars || slot.coach?.ratingStars || 2
 
-      // 2. If slot has eligible disciplines, at least one must match member's active disciplines
-      if (activeDisciplineIds.size > 0) {
-        const hasMatchingDiscipline = (slot.eligibleDisciplines || []).some((dId) =>
-          activeDisciplineIds.has(dId),
-        )
-        if (!hasMatchingDiscipline) return false
-      }
-
-      // 3. Check star tier match
-      if (starSet.size > 0) {
-        const coachStars =
-          slot.coach?.coachProfile?.ratingStars || slot.coach?.ratingStars || 2
-        if (!starSet.has(coachStars)) return false
-      }
-
-      // 4. Discipline safety: If member only has Yoga packages, do not show Gym-only coaches
-      const coachName = (slot.coach?.fullName || '').toLowerCase()
-      const activeDiscNames = activeSubs
-        .map((s) => (s.discipline?.name || s.planName || '').toLowerCase())
-        .join(' ')
-      if (
-        activeDiscNames.includes('yoga') &&
-        !activeDiscNames.includes('gym') &&
-        coachName.includes('hoàng nam')
-      ) {
-        return false
-      }
-
-      return true
+      return activeSubsWithQuota.some((sub) => {
+        if (sub.assignedCoach?.id) {
+          if (sub.assignedCoach.id !== slotCoachId) return false
+          return eligible.length === 0 || !sub.disciplineId || eligible.includes(sub.disciplineId)
+        }
+        if (sub.disciplineId && eligible.length > 0 && !eligible.includes(sub.disciplineId)) {
+          return false
+        }
+        if (sub.coachRatingStars && sub.coachRatingStars !== coachStars) {
+          return false
+        }
+        return true
+      })
     })
   }, [calendarData?.ptSlots, calendarData?.subscriptions])
 
