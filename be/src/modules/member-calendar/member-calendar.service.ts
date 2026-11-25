@@ -495,12 +495,6 @@ export class MemberCalendarService {
         };
       }),
       ptSlots: slots
-        .filter((slot) => {
-          if (assignedCoachIds.length > 0) {
-            return assignedCoachIds.includes(slot.coachId);
-          }
-          return true;
-        })
         .map((slot) => {
           const allCoachSpecs = ((slot.coach as any)?.coachProfile?.coachSpecialties || [])
             .map((cs: any) => cs.specialty)
