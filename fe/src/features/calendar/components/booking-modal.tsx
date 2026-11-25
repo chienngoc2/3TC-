@@ -95,10 +95,10 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   if (code) {
     for (const [key, translated] of Object.entries(BACKEND_ERROR_MESSAGES)) {
       if (code.includes(key)) {
-        return `[Mã lỗi: ${key}] ${translated}`
+        return translated
       }
     }
-    return `[Mã lỗi: ${code}]`
+    return fallback
   }
 
   return fallback
@@ -619,11 +619,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         'Không thể đặt ca tập. Vui lòng thử lại hoặc kiểm tra gói tập.',
       )
       setErrorMsg(msg)
+      const rawErrStr = JSON.stringify(err ?? '')
       if (
-        msg.includes('COACH_AVAILABILITY_ALREADY_BOOKED') ||
-        msg.includes('PT_SLOT_ALREADY_BOOKED') ||
+        rawErrStr.includes('COACH_AVAILABILITY_ALREADY_BOOKED') ||
+        rawErrStr.includes('PT_SLOT_ALREADY_BOOKED') ||
         msg.includes('đã có học viên đăng ký') ||
-        msg.includes('PT_SLOT_UNAVAILABLE')
+        rawErrStr.includes('PT_SLOT_UNAVAILABLE')
       ) {
         ptData.isBooked = true
       }

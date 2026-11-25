@@ -45,36 +45,44 @@ export class MemberCalendarService {
     const assignedCoachIds = [
       ...new Set(
         activeSubs
-          .filter((sub) => sub.assignedCoachId)
+          .filter(
+            (sub) =>
+              sub.assignedCoachId &&
+              ((sub.remainingPtSessions ?? 0) > 0 ||
+                (sub.remainingGroupSessions ?? 0) > 0),
+          )
           .map((sub) => sub.assignedCoachId!),
       ),
     ];
-    const memberCoachStars = [
-      ...new Set(
-        activeSubs
-          .filter((sub) => (sub as any).coachRatingStars)
-          .map((sub) => (sub as any).coachRatingStars as number),
-      ),
-    ];
+    const unassignedSubsWithQuota = activeSubs.filter(
+      (sub) =>
+        !sub.assignedCoachId &&
+        Boolean((sub as any).coachRatingStars) &&
+        Boolean(sub.disciplineId) &&
+        ((sub.remainingGroupSessions ?? 0) > 0 ||
+          (sub.remainingPtSessions ?? 0) > 0),
+    );
 
-    // Determine coach availability where condition strictly matching member's active packages
-    let availabilityWhere: any = null;
+    // Determine coach availability where condition matching ALL active packages (assigned PT + unassigned Group/PT)
+    const availabilityOrClauses: any[] = [];
     if (assignedCoachIds.length > 0) {
-      // Member is assigned to specific coach(es), show ONLY those coaches
-      availabilityWhere = {
+      availabilityOrClauses.push({
         coachId: { in: assignedCoachIds },
-        startTime: { gte: start, lt: end },
-        isBooked: false,
-        isEmergencyCancelled: false,
         coach: { isActive: true },
-      };
-    } else if (memberCoachStars.length > 0 && activeDisciplineIds.length > 0) {
-      // Member has active packages, show coaches matching stars AND discipline
-      availabilityWhere = {
+      });
+    }
+    const seenDiscStars = new Set<string>();
+    for (const sub of unassignedSubsWithQuota) {
+      const stars = (sub as any).coachRatingStars as number;
+      const discId = sub.disciplineId!;
+      const key = `${discId}:${stars}`;
+      if (seenDiscStars.has(key)) continue;
+      seenDiscStars.add(key);
+      availabilityOrClauses.push({
         coach: {
           isActive: true,
           coachProfile: {
-            ratingStars: { in: memberCoachStars },
+            ratingStars: stars,
           },
           OR: [
             {
@@ -82,7 +90,7 @@ export class MemberCalendarService {
                 coachSpecialties: {
                   some: {
                     specialty: {
-                      disciplineId: { in: activeDisciplineIds },
+                      disciplineId: discId,
                     },
                   },
                 },
@@ -91,17 +99,26 @@ export class MemberCalendarService {
             {
               coachRates: {
                 some: {
-                  disciplineId: { in: activeDisciplineIds },
+                  disciplineId: discId,
                 },
               },
             },
           ],
         },
-        startTime: { gte: start, lt: end },
-        isBooked: false,
-        isEmergencyCancelled: false,
-      };
+      });
     }
+
+    const availabilityWhere: any =
+      availabilityOrClauses.length > 0
+        ? {
+            startTime: { gte: start, lt: end },
+            isBooked: false,
+            isEmergencyCancelled: false,
+            ...(availabilityOrClauses.length === 1
+              ? availabilityOrClauses[0]
+              : { OR: availabilityOrClauses }),
+          }
+        : null;
 
     const [
       schedules,
@@ -502,12 +519,15 @@ export class MemberCalendarService {
           const matchedMemberSubs = subscriptions.filter(
             (sub) =>
               sub.status === 'ACTIVE' &&
+              ((sub.remainingGroupSessions ?? 0) > 0 ||
+                (sub.remainingPtSessions ?? 0) > 0) &&
               (sub.assignedCoachId === slot.coachId ||
-                ((sub as any).coachRatingStars &&
+                (!sub.assignedCoachId &&
+                  Boolean((sub as any).coachRatingStars) &&
                   (sub as any).coachRatingStars === coachRatingStars &&
-                  (!coachTaughtDiscIds.size || coachTaughtDiscIds.has(sub.disciplineId)) &&
-                  (!activeDisciplineIds.length ||
-                    (sub.disciplineId && activeDisciplineIds.includes(sub.disciplineId))))),
+                  Boolean(sub.disciplineId) &&
+                  (!coachTaughtDiscIds.size ||
+                    coachTaughtDiscIds.has(sub.disciplineId!)))),
           );
 
           const noteLower = String((slot as any).notes || '').toLowerCase();
