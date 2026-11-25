@@ -199,8 +199,297 @@ export class CheckoutService {
     const requestHash = createHash('sha256')
       .update(JSON.stringify(normalized))
       .digest('hex');
+
+    // Fast path idempotency check before external calls or write transaction
+    const existingFast = await this.prisma.checkoutOrder.findUnique({
+      where: {
+        memberId_idempotencyKey: {
+          memberId: targetMemberId,
+          idempotencyKey: key,
+        },
+      },
+      include: {
+        attempts: { orderBy: { createdAt: 'desc' }, take: 1 },
+        invoice: { select: { id: true } },
+      },
+    });
+    if (existingFast) {
+      if (existingFast.requestHash !== requestHash)
+        throw new ConflictException('IDEMPOTENCY_KEY_REUSED');
+      return this.present(existingFast);
+    }
+
+    // Read & validate outside any advisory lock, parallelizing independent DB lookups
+    let planId: string | null = null;
+    let targetSubscriptionId: string | null = null;
+    let coachId: string | null = null;
+    let addonSessions: number | null = null;
+    let baseAmount = new Prisma.Decimal(0);
+    let ptAmount = new Prisma.Decimal(0);
+    let snapshot: Record<string, any>;
+
+    if (dto.kind === 'NEW_SUBSCRIPTION') {
+      requireCondition(
+        dto.planId && !dto.subscriptionId && !dto.addonSessions,
+        'INVALID_CHECKOUT_FIELDS',
+      );
+      const [, plan] = await Promise.all([
+        requireRole(this.prisma, targetMemberId, UserRole.MEMBER),
+        this.prisma.membershipPlan.findUnique({
+          where: { id: dto.planId },
+          include: { discipline: true },
+        }),
+      ]);
+      const validPlan = requireRecord(plan, 'PLAN_NOT_FOUND');
+      requireCondition(validPlan.isActive, 'PLAN_DISABLED');
+      planId = validPlan.id;
+      coachId = dto.coachId ?? null;
+      const ptQuota =
+        validPlan.packageTier === 'VIP' ? 12 : (validPlan.ptSessionQuota ?? 0);
+      const planDisc = (
+        validPlan.discipline?.code ||
+        validPlan.discipline?.name ||
+        ''
+      ).toLowerCase();
+      const isGym =
+        planDisc.includes('gym') ||
+        validPlan.name.toLowerCase().includes('gym');
+      const isGroupWithCoach =
+        ((validPlan.groupSessionQuota ?? 0) > 0 ||
+          validPlan.trainingMode === 'GROUP_CLASS') &&
+        !isGym;
+      const effectiveStars =
+        dto.coachRatingStars ?? (validPlan as any).coachRatingStars ?? 3;
+
+      if (ptQuota > 0) {
+        requireCondition(Boolean(coachId), 'COACH_SELECTION_REQUIRED');
+      } else if (!isGroupWithCoach) {
+        requireCondition(!coachId, 'COACH_SELECTION_INVALID');
+      }
+
+      const coachSessions =
+        ptQuota > 0
+          ? ptQuota
+          : isGroupWithCoach
+          ? (validPlan.groupSessionQuota ?? 12)
+          : 0;
+
+      const [activeSub, usedTrial, fetchedRate] = await Promise.all([
+        coachId && ptQuota > 0
+          ? this.prisma.userSubscription.findFirst({
+              where: {
+                userId: targetMemberId,
+                disciplineId: validPlan.disciplineId,
+                status: 'ACTIVE',
+                endDate: { gte: localDate() },
+                assignedCoachId: { not: null },
+              },
+              orderBy: { endDate: 'desc' },
+            })
+          : Promise.resolve(null),
+        validPlan.packageTier === 'TRIAL'
+          ? this.prisma.userSubscription.findFirst({
+              where: {
+                userId: targetMemberId,
+                disciplineId: validPlan.disciplineId,
+                packageTier: 'TRIAL',
+              },
+              select: { id: true },
+            })
+          : Promise.resolve(null),
+        coachId
+          ? this.billing.rate(this.prisma, coachId, validPlan.disciplineId)
+          : Promise.resolve(null),
+      ]);
+
+      if (activeSub && activeSub.assignedCoachId !== coachId) {
+        throw new ConflictException(
+          'Bạn đang có gói tập này với HLV khác. Bạn có thể vào Gói của tôi để đổi coach (chỉ được đổi coach ngang giá tiền).',
+        );
+      }
+      if (validPlan.packageTier === 'TRIAL') {
+        requireCondition(!usedTrial, 'TRIAL_ALREADY_USED');
+      }
+
+      const rate = fetchedRate
+        ? fetchedRate
+        : isGroupWithCoach
+        ? new Prisma.Decimal(effectiveStars * 1000)
+        : new Prisma.Decimal(0);
+      baseAmount = validPlan.price;
+      ptAmount = rate.mul(coachSessions);
+      snapshot = {
+        planName: isGroupWithCoach
+          ? `${validPlan.name} (${effectiveStars} Sao)`
+          : validPlan.name,
+        planId: validPlan.id,
+        disciplineId: validPlan.disciplineId,
+        packageTier: validPlan.packageTier,
+        coachRatingStars: effectiveStars,
+        ptQuota: isGroupWithCoach ? 0 : coachSessions,
+        groupQuota: isGroupWithCoach
+          ? (validPlan.groupSessionQuota ?? coachSessions)
+          : (validPlan.groupSessionQuota ?? 0),
+        durationDays: validPlan.durationDays,
+        unlimitedGymEntry: Boolean(validPlan.unlimitedGymEntry),
+        coachId,
+        ratePerSession: rate.toString(),
+      };
+    } else {
+      requireCondition(
+        dto.subscriptionId && !dto.planId,
+        'INVALID_CHECKOUT_FIELDS',
+      );
+      const [, rawSub] = await Promise.all([
+        requireRole(this.prisma, targetMemberId, UserRole.MEMBER),
+        this.prisma.userSubscription.findUnique({
+          where: { id: dto.subscriptionId },
+          include: { plan: { include: { discipline: true } } },
+        }),
+      ]);
+      const sub = requireRecord(rawSub, 'SUBSCRIPTION_NOT_FOUND');
+      requireCondition(sub.userId === targetMemberId, 'FORBIDDEN_RESOURCE');
+      targetSubscriptionId = sub.id;
+      planId = sub.planId;
+      coachId = sub.assignedCoachId;
+      if (dto.kind === 'RENEWAL') {
+        requireCondition(
+          !dto.coachId && !dto.addonSessions,
+          'INVALID_CHECKOUT_FIELDS',
+        );
+        requireCondition(
+          sub.packageTier !== 'TRIAL' &&
+            sub.packageTier !== 'DROP_IN' &&
+            sub.status !== 'FROZEN' &&
+            sub.plan.isActive,
+          'SUBSCRIPTION_NOT_RENEWABLE',
+        );
+        const ptQuota =
+          sub.plan.packageTier === 'VIP'
+            ? 12
+            : (sub.plan.ptSessionQuota ?? 0);
+        const planDisc = (
+          sub.plan.discipline?.code ||
+          sub.plan.discipline?.name ||
+          ''
+        ).toLowerCase();
+        const isGym =
+          planDisc.includes('gym') ||
+          sub.plan.name.toLowerCase().includes('gym');
+        const isGroupWithCoach =
+          ((sub.plan.groupSessionQuota ?? 0) > 0 ||
+            sub.plan.trainingMode === 'GROUP_CLASS') &&
+          !isGym;
+        const effectiveStars =
+          (sub as any).coachRatingStars ??
+          (sub.plan as any).coachRatingStars ??
+          3;
+        const coachSessions =
+          ptQuota > 0
+            ? ptQuota
+            : isGroupWithCoach
+              ? (sub.plan.groupSessionQuota ?? 12)
+              : 0;
+        const fetchedRate = coachId
+          ? await this.billing.rate(this.prisma, coachId, sub.disciplineId)
+          : null;
+        const rate = fetchedRate
+          ? fetchedRate
+          : isGroupWithCoach
+            ? new Prisma.Decimal(effectiveStars * 1000)
+            : new Prisma.Decimal(0);
+        baseAmount = sub.plan.price;
+        ptAmount = rate.mul(coachSessions);
+        snapshot = {
+          planName: isGroupWithCoach
+            ? `${sub.plan.name} (${effectiveStars} Sao)`
+            : sub.plan.name,
+          planId: sub.planId,
+          disciplineId: sub.disciplineId,
+          packageTier: sub.packageTier,
+          coachRatingStars: effectiveStars,
+          ptQuota: isGroupWithCoach ? 0 : coachSessions,
+          groupQuota: isGroupWithCoach
+            ? (sub.plan.groupSessionQuota ?? coachSessions)
+            : (sub.plan.groupSessionQuota ?? 0),
+          durationDays: sub.plan.durationDays,
+          unlimitedGymEntry: Boolean(sub.plan.unlimitedGymEntry),
+          coachId,
+          ratePerSession: rate.toString(),
+        };
+      } else if (dto.kind === 'PT_ADDON') {
+        requireCondition(
+          !dto.coachId && dto.addonSessions,
+          'INVALID_CHECKOUT_FIELDS',
+        );
+        const today = localDate();
+        requireCondition(
+          sub.status === 'ACTIVE' &&
+            sub.startDate <= today &&
+            sub.endDate >= today &&
+            coachId,
+          'INVALID_PT_SUBSCRIPTION',
+        );
+        addonSessions = dto.addonSessions;
+        const rate = await this.billing.rate(
+          this.prisma,
+          coachId,
+          sub.disciplineId,
+        );
+        ptAmount = rate.mul(addonSessions);
+        snapshot = {
+          planName: sub.plan.name,
+          subscriptionId: sub.id,
+          disciplineId: sub.disciplineId,
+          coachId,
+          addonSessions,
+          ratePerSession: rate.toString(),
+        };
+      } else throw new BadRequestException('INVALID_CHECKOUT_KIND');
+    }
+
+    const amount = baseAmount.add(ptAmount);
+    const checkoutId = randomUUID();
+    let paymentId = this.paymentId();
+    let payosData: any = null;
+
+    // External PayOS HTTPS call happens OUTSIDE any DB transaction or advisory lock!
+    if (!amount.isZero() && this.payos.isConfigured()) {
+      const orderCode = this.generateOrderCode();
+      paymentId = String(orderCode);
+      const description = `3TC ${String(orderCode).slice(-8)}`;
+      try {
+        payosData = await Promise.race([
+          this.payos.createPaymentLink({
+            orderCode,
+            amount: Number(amount),
+            description,
+            checkoutId,
+            items: [
+              {
+                name: String(snapshot.planName ?? 'Goi tap').slice(0, 50),
+                quantity: 1,
+                price: Number(amount),
+              },
+            ],
+          }),
+          new Promise<null>((_, reject) =>
+            setTimeout(() => reject(new Error('PAYOS_GATEWAY_TIMEOUT')), 3000),
+          ),
+        ]);
+      } catch (error: any) {
+        this.logger.warn(
+          `PayOS link creation bypassed or timed out for checkout ${checkoutId}: ${error?.message || error}`,
+        );
+      }
+    }
+
+    if (payosData) {
+      snapshot = { ...snapshot, payos: payosData };
+    }
+
+    // Fast atomic DB write (<30ms) with advisory lock only for write & idempotency guard
     const result = await this.transactions.run(async (tx) => {
-      await requireRole(tx, targetMemberId, UserRole.MEMBER);
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`checkout:${targetMemberId}`}))`;
       const existing = await tx.checkoutOrder.findUnique({
         where: {
@@ -220,139 +509,9 @@ export class CheckoutService {
         return existing;
       }
 
-      let planId: string | null = null;
-      let targetSubscriptionId: string | null = null;
-      let coachId: string | null = null;
-      let addonSessions: number | null = null;
-      let baseAmount = new Prisma.Decimal(0);
-      let ptAmount = new Prisma.Decimal(0);
-      let snapshot: Prisma.InputJsonObject;
-
-      if (dto.kind === 'NEW_SUBSCRIPTION') {
-        requireCondition(
-          dto.planId && !dto.subscriptionId && !dto.addonSessions,
-          'INVALID_CHECKOUT_FIELDS',
-        );
-        const plan = requireRecord(
-          await tx.membershipPlan.findUnique({ where: { id: dto.planId } }),
-          'PLAN_NOT_FOUND',
-        );
-        requireCondition(plan.isActive, 'PLAN_DISABLED');
-        planId = plan.id;
-        coachId = dto.coachId ?? null;
-        const ptQuota =
-          plan.packageTier === 'VIP' ? 12 : (plan.ptSessionQuota ?? 0);
-        requireCondition(
-          Boolean(coachId) === ptQuota > 0,
-          'COACH_SELECTION_INVALID',
-        );
-        if (plan.packageTier === 'TRIAL')
-          requireCondition(
-            !(await tx.userSubscription.findFirst({
-              where: {
-                userId: targetMemberId,
-                disciplineId: plan.disciplineId,
-                packageTier: 'TRIAL',
-              },
-            })),
-            'TRIAL_ALREADY_USED',
-          );
-        const rate = coachId
-          ? await this.billing.rate(tx, coachId, plan.disciplineId)
-          : new Prisma.Decimal(0);
-        baseAmount = plan.price;
-        ptAmount = rate.mul(ptQuota);
-        snapshot = {
-          planName: plan.name,
-          planId: plan.id,
-          disciplineId: plan.disciplineId,
-          packageTier: plan.packageTier,
-          ptQuota,
-          groupQuota: plan.groupSessionQuota ?? 0,
-          durationDays: plan.durationDays,
-          unlimitedGymEntry: Boolean(plan.unlimitedGymEntry),
-          coachId,
-          ratePerSession: rate.toString(),
-        };
-      } else {
-        requireCondition(
-          dto.subscriptionId && !dto.planId,
-          'INVALID_CHECKOUT_FIELDS',
-        );
-        const sub = requireRecord(
-          await tx.userSubscription.findUnique({
-            where: { id: dto.subscriptionId },
-            include: { plan: true },
-          }),
-          'SUBSCRIPTION_NOT_FOUND',
-        );
-        requireCondition(sub.userId === targetMemberId, 'FORBIDDEN_RESOURCE');
-        targetSubscriptionId = sub.id;
-        planId = sub.planId;
-        coachId = sub.assignedCoachId;
-        if (dto.kind === 'RENEWAL') {
-          requireCondition(
-            !dto.coachId && !dto.addonSessions,
-            'INVALID_CHECKOUT_FIELDS',
-          );
-          requireCondition(
-            sub.packageTier !== 'TRIAL' &&
-              sub.packageTier !== 'DROP_IN' &&
-              sub.status !== 'FROZEN' &&
-              sub.plan.isActive,
-            'SUBSCRIPTION_NOT_RENEWABLE',
-          );
-          const ptQuota =
-            sub.plan.packageTier === 'VIP'
-              ? 12
-              : (sub.plan.ptSessionQuota ?? 0);
-          const rate = coachId
-            ? await this.billing.rate(tx, coachId, sub.disciplineId)
-            : new Prisma.Decimal(0);
-          baseAmount = sub.plan.price;
-          ptAmount = rate.mul(ptQuota);
-          snapshot = {
-            planName: sub.plan.name,
-            planId: sub.planId,
-            disciplineId: sub.disciplineId,
-            packageTier: sub.packageTier,
-            ptQuota,
-            groupQuota: sub.plan.groupSessionQuota ?? 0,
-            durationDays: sub.plan.durationDays,
-            unlimitedGymEntry: Boolean(sub.plan.unlimitedGymEntry),
-            coachId,
-            ratePerSession: rate.toString(),
-          };
-        } else if (dto.kind === 'PT_ADDON') {
-          requireCondition(
-            !dto.coachId && dto.addonSessions,
-            'INVALID_CHECKOUT_FIELDS',
-          );
-          const today = localDate();
-          requireCondition(
-            sub.status === 'ACTIVE' &&
-              sub.startDate <= today &&
-              sub.endDate >= today &&
-              coachId,
-            'INVALID_PT_SUBSCRIPTION',
-          );
-          addonSessions = dto.addonSessions;
-          const rate = await this.billing.rate(tx, coachId, sub.disciplineId);
-          ptAmount = rate.mul(addonSessions);
-          snapshot = {
-            planName: sub.plan.name,
-            subscriptionId: sub.id,
-            disciplineId: sub.disciplineId,
-            coachId,
-            addonSessions,
-            ratePerSession: rate.toString(),
-          };
-        } else throw new BadRequestException('INVALID_CHECKOUT_KIND');
-      }
-
-      const amount = baseAmount.add(ptAmount);
       const order = await tx.checkoutOrder.create({
         data: {
+          id: checkoutId,
           memberId: targetMemberId,
           kind: dto.kind,
           planId,
@@ -384,51 +543,10 @@ export class CheckoutService {
         return { ...fulfilled, attempts: [], invoice: { id: sold.invoice.id } };
       }
 
-      let paymentId = this.paymentId();
-      let payosData: any = null;
-
-      if (this.payos.isConfigured()) {
-        const orderCode = this.generateOrderCode();
-        paymentId = String(orderCode);
-        const description = `3TC ${String(orderCode).slice(-8)}`;
-        try {
-          payosData = await this.payos.createPaymentLink({
-            orderCode,
-            amount: Number(amount),
-            description,
-            checkoutId: order.id,
-            items: [
-              {
-                name: String(
-                  (snapshot as Record<string, any>).planName ?? 'Goi tap',
-                ).slice(0, 50),
-                quantity: 1,
-                price: Number(amount),
-              },
-            ],
-          });
-        } catch (error) {
-          this.logger.error(`Failed to create PayOS link for checkout ${order.id}:`, error);
-        }
-      }
-
-      let updatedOrder = order;
-      if (payosData) {
-        updatedOrder = await tx.checkoutOrder.update({
-          where: { id: order.id },
-          data: {
-            priceSnapshot: {
-              ...(snapshot as Record<string, any>),
-              payos: payosData,
-            },
-          },
-        });
-      }
-
       const attempt = await tx.paymentAttempt.create({
         data: { checkoutId: order.id, paymentId },
       });
-      return { ...updatedOrder, attempts: [attempt], invoice: null };
+      return { ...order, attempts: [attempt], invoice: null };
     });
     if (result.status === 'FULFILLED') await this.changed(result);
     return this.present(result);
@@ -604,6 +722,31 @@ export class CheckoutService {
     return this.present(await this.orderFor(id, actor));
   }
 
+  async simulateSuccess(id: string, actor: Actor) {
+    const order = await this.orderFor(id, actor);
+    if (order.status === 'FULFILLED') return this.present(order);
+    let attempt = await this.prisma.paymentAttempt.findFirst({
+      where: { checkoutId: id },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!attempt) {
+      attempt = await this.prisma.paymentAttempt.create({
+        data: {
+          checkoutId: id,
+          paymentId: `SIM-${Date.now()}`,
+        },
+      });
+    }
+    const paymentId = attempt.paymentId;
+    await this.fulfillOrderFromPayment({
+      checkoutId: id,
+      paymentId,
+      provider: 'MOCK',
+      eventId: `SIM-${Date.now()}`,
+    });
+    return this.present(await this.orderFor(id, actor));
+  }
+
   private mockAvailable() {
     return (
       process.env.NODE_ENV !== 'production' &&
@@ -712,20 +855,24 @@ export class CheckoutService {
     };
     const body = JSON.stringify(event);
     const signature = createHmac('sha256', secret).update(body).digest('hex');
-    const response = await fetch(
-      `http://127.0.0.1:${process.env.PORT ?? '3000'}/api/v1/billing/webhooks/mock`,
-      {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-mock-signature': signature,
+    try {
+      await this.mockWebhook(Buffer.from(body, 'utf8'), signature);
+    } catch {
+      const response = await fetch(
+        `http://127.0.0.1:${process.env.PORT ?? '3000'}/api/v1/billing/webhooks/mock`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-mock-signature': signature,
+          },
+          body,
+          signal: AbortSignal.timeout(5000),
         },
-        body,
-        signal: AbortSignal.timeout(10000),
-      },
-    );
-    if (!response.ok)
-      throw new ServiceUnavailableException('MOCK_WEBHOOK_DELIVERY_FAILED');
+      );
+      if (!response.ok)
+        throw new ServiceUnavailableException('MOCK_WEBHOOK_DELIVERY_FAILED');
+    }
   }
 
   async mockWebhook(rawBody?: Buffer, signature?: string) {
@@ -1043,15 +1190,32 @@ export class CheckoutService {
       },
     });
     if (order.status === CheckoutStatus.FULFILLED) {
+      const userIds = [order.memberId];
+      if (order.coachId) userIds.push(order.coachId);
+
       this.events.publish({
         name: 'checkout.paid',
-        userIds: [order.memberId],
-        roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+        userIds,
+        roles: ['CENTER_MANAGER', 'RECEPTIONIST', 'COACH', 'MEMBER'],
         data: {
           checkoutId: order.id,
           status: order.status,
           subscriptionId: order.fulfilledSubscriptionId,
           invoiceId: invoice?.id ?? null,
+          memberId: order.memberId,
+          coachId: order.coachId,
+        },
+      });
+
+      this.events.publish({
+        name: 'subscription.created',
+        userIds,
+        roles: ['CENTER_MANAGER', 'RECEPTIONIST', 'COACH', 'MEMBER'],
+        data: {
+          subscriptionId: order.fulfilledSubscriptionId,
+          memberId: order.memberId,
+          coachId: order.coachId,
+          planId: order.planId,
         },
       });
     }

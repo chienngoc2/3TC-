@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { CheckoutOrder, Prisma, UserRole } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../database/prisma.service';
@@ -29,13 +29,44 @@ export class BillingService {
   ) {
     await requireRole(tx, coachId, UserRole.COACH);
     requireCondition(disciplineId, 'PLAN_DISCIPLINE_REQUIRED');
-    const expertise = await tx.coachSpecialty.findFirst({
+    let expertise = await tx.coachSpecialty.findFirst({
       where: {
         coachProfile: { userId: coachId },
         specialty: { disciplineId },
       },
     });
+    if (!expertise) {
+      expertise = (await tx.coachRate.findFirst({
+        where: {
+          coachId,
+          disciplineId,
+        },
+      })) as any;
+    }
+    if (!expertise) {
+      const disc = await tx.discipline.findUnique({ where: { id: disciplineId } });
+      if (disc) {
+        const profile = await tx.coachProfile.findUnique({ where: { userId: coachId } });
+        if (profile?.specialties && disc.code && profile.specialties.toUpperCase().includes(disc.code.toUpperCase())) {
+          expertise = profile as any;
+        }
+      }
+    }
     requireCondition(expertise, 'COACH_DISCIPLINE_MISMATCH');
+
+    // 1 sao = 1.000 đ/buổi; Check coach profile rating stars / ratePerSession first
+    const profile = await tx.coachProfile.findUnique({
+      where: { userId: coachId },
+    });
+    if (profile) {
+      if (profile.ratePerSession && Number(profile.ratePerSession) > 0) {
+        return profile.ratePerSession;
+      }
+      if (profile.ratingStars) {
+        return new Prisma.Decimal(profile.ratingStars * 1000);
+      }
+    }
+
     const today = localDate();
     const activeRate = {
       coachId,
@@ -52,8 +83,9 @@ export class BillingService {
           where: { ...activeRate, disciplineId: null },
           orderBy: { effectiveFrom: 'desc' },
         });
-    return requireRecord(scoped ?? legacy, 'COACH_RATE_NOT_CONFIGURED')
-      .ratePerSession;
+    const found = scoped ?? legacy;
+    if (found) return found.ratePerSession;
+    return new Prisma.Decimal(300000);
   }
   purchase(dto: PurchaseDto, actor: Actor) {
     return this.transactions.run((tx) => this.sell(tx, dto, actor));
@@ -155,10 +187,11 @@ export class BillingService {
     );
     requireCondition(plan.isActive, 'PLAN_DISABLED');
     const ptQuota =
-      snapshot?.ptQuota ??
-      (plan.packageTier === 'VIP' ? 12 : (plan.ptSessionQuota ?? 0));
-    const groupQuota = snapshot?.groupQuota ?? plan.groupSessionQuota ?? 0;
-    requireCondition(!ptQuota || dto.coachId, 'COACH_REQUIRED');
+      snapshot?.ptQuota !== undefined
+        ? snapshot.ptQuota
+        : (plan.packageTier === 'VIP' ? 12 : (plan.ptSessionQuota ?? 0));
+    const groupQuota = snapshot?.groupQuota !== undefined ? snapshot.groupQuota : (plan.groupSessionQuota ?? 0);
+    requireCondition(!ptQuota || Boolean(dto.coachId), 'COACH_REQUIRED');
     requireCondition(ptQuota > 0 || !dto.coachId, 'COACH_NOT_APPLICABLE');
     if (plan.packageTier === 'TRIAL')
       requireCondition(
@@ -177,18 +210,186 @@ export class BillingService {
         : new Prisma.Decimal(0);
     const ptAmount = snapshot?.ptAmount ?? rate.mul(ptQuota),
       baseAmount = snapshot?.baseAmount ?? plan.price;
+
+    let coachRatingStars = (snapshot as any)?.coachRatingStars ?? (dto as any).coachRatingStars ?? (plan as any).coachRatingStars ?? 3;
+    let coachName: string | null = null;
+    if (dto.coachId) {
+      const coach = await tx.user.findUnique({
+        where: { id: dto.coachId },
+        include: { coachProfile: true },
+      });
+      if (coach) {
+        coachName = coach.fullName;
+        if (coach.coachProfile?.ratingStars) {
+          coachRatingStars = coach.coachProfile.ratingStars;
+        }
+      }
+    }
+
+    const givesGymAccess =
+      plan.discipline?.code?.toUpperCase() === 'GYM' ||
+      Boolean(snapshot?.unlimitedGymEntry ?? plan.unlimitedGymEntry) ||
+      plan.packageTier === 'VIP';
+
+    // Check existing active subscription with coach (PT/VIP)
+    if (dto.coachId) {
+      const activeSub = await tx.userSubscription.findFirst({
+        where: {
+          userId: dto.memberId,
+          disciplineId: plan.disciplineId,
+          status: 'ACTIVE',
+          endDate: { gte: localDate() },
+          assignedCoachId: { not: null },
+        },
+        orderBy: { endDate: 'desc' },
+      });
+
+      if (activeSub) {
+        if (activeSub.assignedCoachId !== dto.coachId) {
+          throw new ConflictException(
+            'Bạn đang có gói tập này với HLV khác. Bạn có thể vào Gói của tôi để đổi coach (chỉ được đổi coach ngang giá tiền).',
+          );
+        }
+
+        // CÙNG PT: CỘNG DỒN SỐ BUỔI VÀ GIA HẠN NGÀY HẾT HẠN!
+        const additionalDays = snapshot?.durationDays ?? plan.durationDays;
+        const stackedSub = await tx.userSubscription.update({
+          where: { id: activeSub.id },
+          data: {
+            remainingSessions: { increment: groupQuota + ptQuota },
+            remainingPtSessions: { increment: ptQuota },
+            remainingGroupSessions: { increment: groupQuota },
+            endDate: addDays(activeSub.endDate, additionalDays),
+            ...(givesGymAccess ? { hasUnlimitedGymAccess: true } : {}),
+          },
+        });
+        const invoice = await tx.invoice.create({
+          data: {
+            invoiceCode: `INV-${randomUUID()}`,
+            subscriptionId: stackedSub.id,
+            issuerId: actor.userId,
+            amount: baseAmount.add(ptAmount),
+            baseAmount,
+            ptAmount,
+            paymentMethod: dto.paymentMethod,
+            transactionRef: dto.transactionRef,
+            checkoutId,
+            type: 'SUBSCRIPTION_NEW',
+          },
+        });
+        await audit(
+          tx,
+          actor,
+          'PURCHASE_SUBSCRIPTION',
+          'user_subscriptions',
+          stackedSub.id,
+          { invoiceId: invoice.id, amount: invoice.amount, stacked: true },
+        );
+        return { subscription: stackedSub, invoice };
+      }
+    } else if (plan.packageTier !== 'TRIAL' && plan.packageTier !== 'DROP_IN') {
+      // CÙNG GÓI NHÓM / GÓI THÀNH VIÊN (không gán PT): CỘNG DỒN SỐ BUỔI VÀ GIA HẠN NGÀY HẾT HẠN + NGÀY VÀO GYM!
+      const activeSamePlanSub = await tx.userSubscription.findFirst({
+        where: {
+          userId: dto.memberId,
+          planId: plan.id,
+          status: 'ACTIVE',
+          endDate: { gte: localDate() },
+          assignedCoachId: null,
+          coachRatingStars,
+        },
+        orderBy: { endDate: 'desc' },
+      });
+
+      if (activeSamePlanSub) {
+        const additionalDays = snapshot?.durationDays ?? plan.durationDays;
+        const stackedSub = await tx.userSubscription.update({
+          where: { id: activeSamePlanSub.id },
+          data: {
+            remainingSessions: { increment: groupQuota + ptQuota },
+            remainingPtSessions: { increment: ptQuota },
+            remainingGroupSessions: { increment: groupQuota },
+            endDate: addDays(activeSamePlanSub.endDate, additionalDays),
+            ...(givesGymAccess ? { hasUnlimitedGymAccess: true } : {}),
+          },
+        });
+        const invoice = await tx.invoice.create({
+          data: {
+            invoiceCode: `INV-${randomUUID()}`,
+            subscriptionId: stackedSub.id,
+            issuerId: actor.userId,
+            amount: baseAmount.add(ptAmount),
+            baseAmount,
+            ptAmount,
+            paymentMethod: dto.paymentMethod,
+            transactionRef: dto.transactionRef,
+            checkoutId,
+            type: 'SUBSCRIPTION_NEW',
+          },
+        });
+        await audit(
+          tx,
+          actor,
+          'PURCHASE_SUBSCRIPTION',
+          'user_subscriptions',
+          stackedSub.id,
+          { invoiceId: invoice.id, amount: invoice.amount, stacked: true },
+        );
+        return { subscription: stackedSub, invoice };
+      }
+    }
+
+    const member = await tx.user.findUnique({
+      where: { id: dto.memberId },
+      select: { fullName: true },
+    });
+
+    const planDuration = snapshot?.durationDays ?? plan.durationDays;
+    let finalEndDate = addDays(startDate, planDuration - 1);
+
+    // Nếu gói mới có quyền vào phòng gym (ví dụ Gym Plus, Gym VIP, các gói VIP kèm 30 ngày tập gym),
+    // và hội viên ĐÃ có gói tập gym đang active, thì cộng dồn số ngày vào phòng gym (tăng hạn hết hạn)
+    if (givesGymAccess) {
+      const activeGymSub = await tx.userSubscription.findFirst({
+        where: {
+          userId: dto.memberId,
+          status: 'ACTIVE',
+          endDate: { gte: localDate() },
+          OR: [
+            { hasUnlimitedGymAccess: true },
+            { discipline: { code: 'GYM' } },
+            { packageTier: 'VIP' },
+          ],
+        },
+        orderBy: { endDate: 'desc' },
+      });
+
+      if (activeGymSub) {
+        // Cộng dồn ngày từ hạn của gói gym đang có
+        finalEndDate = addDays(activeGymSub.endDate, planDuration);
+        // Đồng thời gia hạn gói gym cũ để ngày vào gym của cả 2 gói đều được kéo dài tương ứng
+        await tx.userSubscription.update({
+          where: { id: activeGymSub.id },
+          data: {
+            endDate: finalEndDate,
+            hasUnlimitedGymAccess: true,
+          },
+        });
+      }
+    }
+
     const subscription = await tx.userSubscription.create({
       data: {
         userId: dto.memberId,
         planId: plan.id,
         disciplineId: plan.disciplineId,
         packageTier: plan.packageTier,
+        coachRatingStars,
         assignedCoachId: dto.coachId,
+        assigned_coach_name: coachName,
+        member_name: member?.fullName || null,
         startDate,
-        endDate: addDays(
-          startDate,
-          (snapshot?.durationDays ?? plan.durationDays) - 1,
-        ),
+        endDate: finalEndDate,
         remainingSessions:
           plan.discipline?.code.toUpperCase() === 'GYM' &&
           plan.packageTier === 'DROP_IN'
@@ -196,9 +397,7 @@ export class BillingService {
             : groupQuota + ptQuota,
         remainingGroupSessions: groupQuota,
         remainingPtSessions: ptQuota,
-        hasUnlimitedGymAccess:
-          plan.discipline?.code.toUpperCase() === 'GYM' &&
-          Boolean(snapshot?.unlimitedGymEntry ?? plan.unlimitedGymEntry),
+        hasUnlimitedGymAccess: givesGymAccess,
       },
     });
     const invoice = await tx.invoice.create({
@@ -280,7 +479,10 @@ export class BillingService {
     const planId = requireRecord(order.planId, 'PLAN_NOT_FOUND');
     const price = order.priceSnapshot as Record<string, unknown>;
     const currentPlan = requireRecord(
-      await tx.membershipPlan.findUnique({ where: { id: planId } }),
+      await tx.membershipPlan.findUnique({
+        where: { id: planId },
+        include: { discipline: true },
+      }),
       'PLAN_NOT_FOUND',
     );
     requireCondition(
@@ -288,15 +490,27 @@ export class BillingService {
         currentPlan.packageTier === price.packageTier,
       'PLAN_CHANGED_AFTER_CHECKOUT',
     );
+    const isGroupPlan =
+      currentPlan.trainingMode === 'GROUP_CLASS' ||
+      (currentPlan.groupSessionQuota !== null && currentPlan.groupSessionQuota !== undefined && currentPlan.groupSessionQuota > 0) ||
+      Number(price.groupQuota) > 0;
+    const resolvedPtQuota = isGroupPlan
+      ? 0
+      : Number(price.ptQuota || (currentPlan.packageTier === 'VIP' ? 12 : currentPlan.ptSessionQuota || 0));
+    const resolvedGroupQuota = isGroupPlan
+      ? Number(price.groupQuota || currentPlan.groupSessionQuota || 12)
+      : Number(price.groupQuota || 0);
+
     const snapshot = {
       baseAmount: order.baseAmount,
       ptAmount: order.ptAmount,
-      ptQuota: Number(price.ptQuota),
-      groupQuota: Number(price.groupQuota),
-      durationDays: Number(price.durationDays),
-      unlimitedGymEntry: Boolean(price.unlimitedGymEntry),
+      ptQuota: resolvedPtQuota,
+      groupQuota: resolvedGroupQuota,
+      durationDays: Number(price.durationDays || currentPlan.durationDays),
+      unlimitedGymEntry: Boolean(price.unlimitedGymEntry ?? currentPlan.unlimitedGymEntry),
+      coachRatingStars: Number(price.coachRatingStars || 3),
     };
-    let start = localDate();
+    const today = localDate();
     if (order.kind === 'RENEWAL') {
       const original = requireRecord(
         order.targetSubscriptionId,
@@ -315,11 +529,51 @@ export class BillingService {
         'SUBSCRIPTION_NOT_RENEWABLE',
       );
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${order.memberId}:${planId}`}))`;
-      const last = await tx.userSubscription.findFirst({
-        where: { userId: order.memberId, planId, status: { not: 'FROZEN' } },
-        orderBy: { endDate: 'desc' },
+      const givesGymAccess =
+        currentPlan.discipline?.code?.toUpperCase() === 'GYM' ||
+        snapshot.unlimitedGymEntry ||
+        currentPlan.packageTier === 'VIP';
+      const isStillValid = sub.endDate >= today;
+      const newStartDate = isStillValid ? sub.startDate : today;
+      const newEndDate = isStillValid
+        ? addDays(sub.endDate, snapshot.durationDays)
+        : addDays(today, snapshot.durationDays - 1);
+
+      const subscription = await tx.userSubscription.update({
+        where: { id: sub.id },
+        data: {
+          status: 'ACTIVE',
+          startDate: newStartDate,
+          endDate: newEndDate,
+          remainingSessions: { increment: resolvedGroupQuota + resolvedPtQuota },
+          remainingGroupSessions: { increment: resolvedGroupQuota },
+          remainingPtSessions: { increment: resolvedPtQuota },
+          ...(givesGymAccess ? { hasUnlimitedGymAccess: true } : {}),
+        },
       });
-      if (last && last.endDate >= start) start = addDays(last.endDate, 1);
+      const invoice = await tx.invoice.create({
+        data: {
+          invoiceCode: `INV-${randomUUID()}`,
+          subscriptionId: subscription.id,
+          issuerId: order.memberId,
+          amount: order.amount,
+          baseAmount: order.baseAmount,
+          ptAmount: order.ptAmount,
+          paymentMethod: order.amount.isZero() ? 'FREE' : 'MOCK',
+          transactionRef: paymentId,
+          type: 'SUBSCRIPTION_NEW',
+          checkoutId: order.id,
+        },
+      });
+      await audit(
+        tx,
+        actor,
+        'RENEW_SUBSCRIPTION',
+        'user_subscriptions',
+        subscription.id,
+        { invoiceId: invoice.id, checkoutId: order.id, amount: invoice.amount },
+      );
+      return { subscription, invoice };
     }
     return this.sell(
       tx,
@@ -331,7 +585,7 @@ export class BillingService {
         transactionRef: paymentId,
       },
       actor,
-      start,
+      today,
       snapshot,
       order.id,
     );

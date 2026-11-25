@@ -1,17 +1,773 @@
-datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
-}
-
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
 }
 
-// -------------------------------------------------------------
-// ENUMS (15 Enums - Aligned 100% with SQL_v5.md)
-// -------------------------------------------------------------
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [uuid_ossp(map: "uuid-ossp", schema: "extensions")]
+}
+
+model User {
+  id                                                                     String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                                                                  String                @unique(map: "uq_users_email") @db.VarChar(255)
+  passwordHash                                                           String                @map("password_hash") @db.VarChar(255)
+  fullName                                                               String                @map("full_name") @db.VarChar(150)
+  phone                                                                  String                @unique(map: "uq_users_phone") @db.VarChar(20)
+  role                                                                   UserRole              @default(MEMBER)
+  gender                                                                 UserGender            @default(OTHER) @map("gender")
+  avatarUrl                                                              String?               @map("avatar_url")
+  checkinCode                                                            String?               @default("1234") @map("checkin_code") @db.VarChar(10)
+  isActive                                                               Boolean               @default(true) @map("is_active")
+  tokenVersion                                                           Int                   @default(1) @map("token_version")
+  createdById                                                            String?               @map("created_by_id") @db.Uuid
+  createdAt                                                              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                                                              DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  created_by_name                                                        String?               @db.VarChar(150)
+  attendances                                                            Attendance[]          @relation("MemberAttendances")
+  verifiedAttendances                                                    Attendance[]          @relation("VerifiedByStaff")
+  auditLogs                                                              AuditLog[]
+  bookings                                                               Booking[]             @relation("MemberBookings")
+  coachCancellationRequests                                              CancellationRequest[] @relation("CoachCancellationRequests")
+  reviewedCancellationRequests                                           CancellationRequest[] @relation("ReviewedCancellationRequests")
+  substituteCancellationRequests                                         CancellationRequest[] @relation("SubstituteCoachRequests")
+  checkoutOrders                                                         CheckoutOrder[]
+  coachAvailabilities                                                    CoachAvailability[]
+  coachPenalties                                                         CoachPenalty[]        @relation("CoachPenalties")
+  coachProfile                                                           CoachProfile?
+  coachRates                                                             CoachRate[]
+  issuedInvoices                                                         Invoice[]             @relation("InvoiceIssuer")
+  assignedLockers                                                        LockerAssignment[]    @relation("StaffLockerAssignments")
+  lockerAssignments                                                      LockerAssignment[]    @relation("MemberLockerAssignments")
+  measuredInbodyLogs                                                     MemberInbodyLog[]     @relation("MeasuredByStaff")
+  memberInbodyLogs                                                       MemberInbodyLog[]     @relation("MemberInbodyLogs")
+  memberProfile                                                          MemberProfile?
+  coachedSchedules                                                       Schedule[]            @relation("CoachSchedules")
+  assignedStaffShifts                                                    StaffShift[]          @relation("AssignedShifts")
+  staffShifts                                                            StaffShift[]          @relation("StaffShifts")
+  sessions                                                               UserSession[]
+  assignedVipSubs                                                        UserSubscription[]    @relation("AssignedCoachSubs")
+  subscriptions                                                          UserSubscription[]    @relation("UserSubscriptions")
+  createdBy                                                              User?                 @relation("UserCreator", fields: [createdById], references: [id], map: "fk_users_created_by")
+  createdUsers                                                           User[]                @relation("UserCreator")
+  coachWorkoutPlans                                                      WorkoutPlan[]         @relation("CoachWorkoutPlans")
+  memberWorkoutPlans                                                     WorkoutPlan[]         @relation("MemberWorkoutPlans")
+  approvedCoachSlots                                                     CoachAvailability[]   @relation("ApprovedCoachSlots")
+  coachPayouts                                                           CoachPayout[]         @relation("CoachPayouts")
+  paidPayouts                                                            CoachPayout[]         @relation("PaidPayouts")
+  coachTopicRequests                                                     CoachTopicRequest[]   @relation("CoachTopicRequests")
+  reviewedTopicRequests                                                  CoachTopicRequest[]   @relation("ReviewedTopicRequests")
+
+  @@index([createdById], map: "idx_users_created_by_id")
+  @@map("users")
+}
+
+model UserSession {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  refreshTokenHash String   @map("refresh_token_hash") @db.VarChar(255)
+  deviceInfo       String?  @map("device_info") @db.VarChar(255)
+  expiresAt        DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user_name        String?  @db.VarChar(150)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_user_sessions_user")
+
+  @@index([userId], map: "idx_user_sessions_user_id")
+  @@map("user_sessions")
+}
+
+model MemberProfile {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @unique(map: "uq_member_profiles_user_id") @map("user_id") @db.Uuid
+  heightCm       Decimal? @map("height_cm") @db.Decimal(5, 2)
+  weightKg       Decimal? @map("weight_kg") @db.Decimal(5, 2)
+  bmi            Decimal? @map("bmi") @db.Decimal(4, 2)
+  bodyFatPct     Decimal? @map("body_fat_pct") @db.Decimal(4, 2)
+  fitnessGoals   String?  @map("fitness_goals")
+  medicalHistory String?  @map("medical_history")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user_name      String?  @db.VarChar(150)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_member_profiles_user")
+
+  @@map("member_profiles")
+}
+
+model CoachProfile {
+  id                            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                        String           @unique(map: "uq_coach_profiles_user_id") @map("user_id") @db.Uuid
+  specialties                   String?
+  bio                           String?
+  certificateUrls               String[]         @default([]) @map("certificate_urls")
+  yearsExperience               Int?             @default(0) @map("years_experience")
+  emergencyCancellationCount    Int              @default(0) @map("emergency_cancellation_count")
+  monthlyEmergencyCancellations Int              @default(0) @map("monthly_emergency_cancellations")
+  lastCancellationResetDate     DateTime?        @map("last_cancellation_reset_date") @db.Date
+  bankName                      String?          @map("bank_name") @db.VarChar(100)
+  bankAccountNumber             String?          @map("bank_account_number") @db.VarChar(50)
+  bankAccountName               String?          @map("bank_account_name") @db.VarChar(150)
+  workingDays                   Json?            @default("[]") @map("working_days")
+  workingHours                  Json?            @default("[]") @map("working_hours")
+  ratingStars                   Int              @default(3) @map("rating_stars")
+  ratePerSession                Decimal          @default(300000) @map("rate_per_session") @db.Decimal(12, 2)
+  updatedAt                     DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user_name                     String?          @db.VarChar(150)
+  user                          User             @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_coach_profiles_user")
+  coachSpecialties              CoachSpecialty[]
+
+  @@index([ratingStars], map: "idx_coach_profiles_rating_stars")
+  @@map("coach_profiles")
+}
+
+model CoachRate {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId        String                    @map("coach_id") @db.Uuid
+  disciplineId   String?                   @map("discipline_id") @db.Uuid
+  ratePerSession Decimal                   @map("rate_per_session") @db.Decimal(12, 2)
+  effectiveFrom  DateTime                  @default(now()) @map("effective_from") @db.Date
+  effectiveTo    DateTime?                 @map("effective_to") @db.Date
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  rate_range     Unsupported("daterange")? @default(dbgenerated("daterange(effective_from, effective_to, '[]'::text)"))
+  coach_name     String?                   @db.VarChar(150)
+  coach          User                      @relation(fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_rates_coach")
+  discipline     Discipline?               @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_coach_rates_discipline")
+
+  @@index([coachId], map: "idx_coach_rates_coach_id")
+  @@index([coachId, disciplineId], map: "idx_coach_rates_coach_discipline")
+  @@map("coach_rates")
+}
+
+model StaffShift {
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId          String                    @map("staff_id") @db.Uuid
+  shiftDate        DateTime                  @map("shift_date") @db.Date
+  startTime        DateTime                  @map("start_time") @db.Timestamptz(6)
+  endTime          DateTime                  @map("end_time") @db.Timestamptz(6)
+  assignedById     String?                   @map("assigned_by_id") @db.Uuid
+  notes            String?
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  shift_range      Unsupported("tstzrange")? @default(dbgenerated("tstzrange(start_time, end_time, '[)'::text)"))
+  staff_name       String?                   @db.VarChar(150)
+  assigned_by_name String?                   @db.VarChar(150)
+  assignedBy       User?                     @relation("AssignedShifts", fields: [assignedById], references: [id], map: "fk_staff_shifts_assigned_by")
+  staff            User                      @relation("StaffShifts", fields: [staffId], references: [id], onDelete: Cascade, map: "fk_staff_shifts_staff")
+
+  @@index([staffId], map: "idx_staff_shifts_staff_id")
+  @@index([shiftDate], map: "idx_staff_shifts_shift_date")
+  @@map("staff_shifts")
+}
+
+model Discipline {
+  id                     String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                   String                      @unique(map: "uq_disciplines_code") @db.VarChar(50)
+  name                   String                      @unique(map: "uq_disciplines_name") @db.VarChar(100)
+  description            String?
+  bookings               Booking[]
+  classes                Class[]
+  coachRates             CoachRate[]
+  plans                  MembershipPlan[]
+  curriculumRequirements PlanCurriculumRequirement[]
+  specialties            Specialty[]
+  userSubscriptions      UserSubscription[]
+  rooms                  Room[]
+
+  @@map("disciplines")
+}
+
+model Specialty {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disciplineId     String           @map("discipline_id") @db.Uuid
+  code             String           @unique(map: "uq_specialties_code") @db.VarChar(50)
+  name             String           @db.VarChar(150)
+  description      String?
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  coachSpecialties   CoachSpecialty[]
+  coachTopicRequests CoachTopicRequest[]
+  discipline         Discipline       @relation(fields: [disciplineId], references: [id], map: "fk_specialties_discipline")
+
+  @@index([disciplineId], map: "idx_specialties_discipline_id")
+  @@map("specialties")
+}
+
+model CoachSpecialty {
+  coachProfileId String       @map("coach_profile_id") @db.Uuid
+  specialtyId    String       @map("specialty_id") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  coachProfile   CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade, map: "fk_coach_spec_profile")
+  specialty      Specialty    @relation(fields: [specialtyId], references: [id], map: "fk_coach_spec_specialty")
+
+  @@id([coachProfileId, specialtyId])
+  @@index([specialtyId], map: "idx_coach_specialties_spec_id")
+  @@map("coach_specialties")
+}
+
+model MembershipPlan {
+  id                      String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disciplineId            String?                     @map("discipline_id") @db.Uuid
+  name                    String                      @db.VarChar(100)
+  description             String?
+  price                   Decimal                     @db.Decimal(12, 2)
+  durationDays            Int                         @map("duration_days")
+  sessionQuota            Int?                        @map("session_quota")
+  planType                PlanType                    @default(GENERAL) @map("plan_type")
+  isActive                Boolean                     @default(true) @map("is_active")
+  createdAt               DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+  packageTier             PackageTier                 @default(PLUS) @map("package_tier")
+  packageCategory         String?                     @map("package_category") @db.VarChar(50)
+  trainingMode            TrainingMode                @default(GROUP_CLASS) @map("training_mode")
+  groupSessionQuota       Int?                        @default(0) @map("group_session_quota")
+  ptSessionQuota          Int?                        @default(0) @map("pt_session_quota")
+  unlimitedGymEntry       Boolean?                    @default(false) @map("unlimited_gym_entry")
+  curriculumTopics        Json?                       @map("curriculum_topics")
+  weeklySchedulePreview   Json?                       @map("weekly_schedule_preview")
+  recommendedRoadmap      Json?                       @map("recommended_roadmap")
+  twoSportRule            String?                     @map("two_sport_rule")
+  coachRatingStars        Int?                        @default(3) @map("coach_rating_stars")
+  roomId                  String?                     @map("room_id") @db.Uuid
+  discipline              Discipline?                 @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_plans_discipline")
+  room                    Room?                       @relation(fields: [roomId], references: [id], onDelete: SetNull, map: "fk_plans_room")
+  curriculumRequirements  PlanCurriculumRequirement[]
+  subscriptions           UserSubscription[]
+
+  @@index([roomId], map: "idx_plans_room_id")
+  @@map("membership_plans")
+}
+
+model PlanCurriculumRequirement {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planId          String         @map("plan_id") @db.Uuid
+  disciplineId    String         @map("discipline_id") @db.Uuid
+  sessionsPerWeek Int            @map("sessions_per_week")
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  discipline      Discipline     @relation(fields: [disciplineId], references: [id], map: "fk_curriculum_discipline")
+  plan            MembershipPlan @relation(fields: [planId], references: [id], onDelete: Cascade, map: "fk_curriculum_plan")
+
+  @@unique([planId, disciplineId], map: "uq_curriculum_plan_discipline")
+  @@index([planId], map: "idx_curriculum_plan_id")
+  @@map("plan_curriculum_requirements")
+}
+
+model UserSubscription {
+  id                     String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                 String             @map("user_id") @db.Uuid
+  planId                 String             @map("plan_id") @db.Uuid
+  disciplineId           String?            @map("discipline_id") @db.Uuid
+  packageTier            PackageTier        @default(PLUS) @map("package_tier")
+  packageCategory        String?            @map("package_category") @db.VarChar(50)
+  coachRatingStars       Int?               @default(3) @map("coach_rating_stars")
+  assignedCoachId        String?            @map("assigned_coach_id") @db.Uuid
+  startDate              DateTime           @map("start_date") @db.Date
+  endDate                DateTime           @map("end_date") @db.Date
+  remainingSessions      Int?               @map("remaining_sessions")
+  remainingGroupSessions Int?               @default(0) @map("remaining_group_sessions")
+  remainingPtSessions    Int?               @default(0) @map("remaining_pt_sessions")
+  hasUnlimitedGymAccess  Boolean?           @default(false) @map("has_unlimited_gym_access")
+  status                 SubscriptionStatus @default(ACTIVE)
+  frozenAt               DateTime?          @map("frozen_at") @db.Timestamptz(6)
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  member_name            String?            @db.VarChar(150)
+  assigned_coach_name    String?            @db.VarChar(150)
+  bookings               Booking[]
+  invoices               Invoice[]
+  assignedCoach          User?              @relation("AssignedCoachSubs", fields: [assignedCoachId], references: [id], map: "fk_user_subscriptions_coach")
+  discipline             Discipline?        @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_user_subscriptions_discipline")
+  plan                   MembershipPlan     @relation(fields: [planId], references: [id], map: "fk_user_subscriptions_plan")
+  user                   User               @relation("UserSubscriptions", fields: [userId], references: [id], map: "fk_user_subscriptions_user")
+
+  @@index([userId], map: "idx_user_subscriptions_user_id")
+  @@index([planId], map: "idx_user_subscriptions_plan_id")
+  @@index([assignedCoachId], map: "idx_user_subscriptions_coach_id")
+  @@map("user_subscriptions")
+}
+
+model Invoice {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceCode    String           @unique(map: "uq_invoices_invoice_code") @map("invoice_code") @db.VarChar(50)
+  subscriptionId String           @map("subscription_id") @db.Uuid
+  issuerId       String           @map("issuer_id") @db.Uuid
+  amount         Decimal          @db.Decimal(12, 2)
+  baseAmount     Decimal?         @default(0) @map("base_amount") @db.Decimal(12, 2)
+  ptAmount       Decimal?         @default(0) @map("pt_amount") @db.Decimal(12, 2)
+  paymentMethod  PaymentMethod    @map("payment_method")
+  status         InvoiceStatus    @default(PAID)
+  type           InvoiceType      @default(SUBSCRIPTION_NEW)
+  transactionRef String?          @map("transaction_ref") @db.VarChar(100)
+  checkoutId     String?          @unique(map: "uq_invoices_checkout_id") @map("checkout_id") @db.Uuid
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  issuer_name    String?          @db.VarChar(150)
+  issuer         User             @relation("InvoiceIssuer", fields: [issuerId], references: [id], map: "fk_invoices_issuer")
+  subscription   UserSubscription @relation(fields: [subscriptionId], references: [id], map: "fk_invoices_subscription")
+  checkout       CheckoutOrder?   @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
+
+  @@index([subscriptionId], map: "idx_invoices_subscription_id")
+  @@index([issuerId], map: "idx_invoices_issuer_id")
+  @@index([createdAt], map: "idx_invoices_created_at")
+  @@map("invoices")
+}
+
+model CheckoutOrder {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId                String                @map("member_id") @db.Uuid
+  kind                    CheckoutKind
+  status                  CheckoutStatus        @default(PENDING_PAYMENT)
+  planId                  String?               @map("plan_id") @db.Uuid
+  targetSubscriptionId    String?               @map("target_subscription_id") @db.Uuid
+  coachId                 String?               @map("coach_id") @db.Uuid
+  addonSessions           Int?                  @map("addon_sessions")
+  baseAmount              Decimal               @map("base_amount") @db.Decimal(12, 2)
+  ptAmount                Decimal               @map("pt_amount") @db.Decimal(12, 2)
+  amount                  Decimal               @db.Decimal(12, 2)
+  currency                String                @default("VND") @db.VarChar(3)
+  priceSnapshot           Json                  @map("price_snapshot")
+  idempotencyKey          String                @map("idempotency_key") @db.VarChar(100)
+  requestHash             String                @map("request_hash") @db.VarChar(64)
+  expiresAt               DateTime              @map("expires_at") @db.Timestamptz(6)
+  failureReason           String?               @map("failure_reason") @db.VarChar(200)
+  fulfilledSubscriptionId String?               @map("fulfilled_subscription_id") @db.Uuid
+  createdAt               DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+  member_name             String?               @db.VarChar(150)
+  member                  User                  @relation(fields: [memberId], references: [id])
+  invoice                 Invoice?
+  attempts                PaymentAttempt[]
+  webhookEvents           PaymentWebhookEvent[]
+
+  @@unique([memberId, idempotencyKey], map: "uq_checkout_member_idempotency")
+  @@index([memberId, createdAt], map: "idx_checkout_member_created")
+  @@index([status, expiresAt], map: "idx_checkout_status_expiry")
+  @@map("checkout_orders")
+}
+
+model PaymentAttempt {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  checkoutId        String               @map("checkout_id") @db.Uuid
+  paymentId         String               @unique(map: "uq_payment_attempt_payment_id") @map("payment_id") @db.VarChar(32)
+  retryKey          String?              @map("retry_key") @db.VarChar(100)
+  status            PaymentAttemptStatus @default(PENDING)
+  simulationOutcome String?              @map("simulation_outcome") @db.VarChar(16)
+  simulationEventId String?              @unique(map: "uq_payment_attempt_simulation_event") @map("simulation_event_id") @db.Uuid
+  createdAt         DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  checkout          CheckoutOrder        @relation(fields: [checkoutId], references: [id])
+
+  @@unique([checkoutId, retryKey], map: "uq_payment_attempt_retry_key")
+  @@index([checkoutId, createdAt], map: "idx_payment_attempt_checkout_created")
+  @@map("payment_attempts")
+}
+
+model PaymentWebhookEvent {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  checkoutId  String        @map("checkout_id") @db.Uuid
+  provider    String        @db.VarChar(40)
+  eventId     String        @map("event_id") @db.VarChar(100)
+  payloadHash String        @map("payload_hash") @db.VarChar(64)
+  outcome     String        @db.VarChar(16)
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  checkout    CheckoutOrder @relation(fields: [checkoutId], references: [id])
+
+  @@unique([provider, eventId], map: "uq_payment_webhook_event")
+  @@index([checkoutId], map: "idx_payment_webhook_checkout")
+  @@map("payment_webhook_events")
+}
+
+model Room {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disciplineId String?          @map("discipline_id") @db.Uuid
+  name         String           @db.VarChar(100)
+  capacity     Int
+  locationNote String?          @map("location_note")
+  isActive     Boolean          @default(true) @map("is_active")
+  discipline   Discipline?      @relation(fields: [disciplineId], references: [id], onDelete: SetNull, map: "fk_rooms_discipline")
+  equipment    Equipment[]
+  schedules    Schedule[]
+  plans        MembershipPlan[]
+
+  @@index([disciplineId], map: "idx_rooms_discipline_id")
+  @@map("rooms")
+}
+
+model Equipment {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId        String                 @map("room_id") @db.Uuid
+  name          String                 @db.VarChar(150)
+  equipmentType String                 @map("equipment_type") @db.VarChar(50)
+  isActive      Boolean                @default(true) @map("is_active")
+  createdAt     DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  room          Room                   @relation(fields: [roomId], references: [id], map: "fk_equipment_room")
+  reservations  EquipmentReservation[]
+
+  @@index([roomId], map: "idx_equipment_room_id")
+  @@map("equipment")
+}
+
+model Class {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  disciplineId String     @map("discipline_id") @db.Uuid
+  name         String     @db.VarChar(150)
+  description  String?
+  discipline   Discipline @relation(fields: [disciplineId], references: [id], map: "fk_classes_discipline")
+  schedules    Schedule[]
+
+  @@index([disciplineId], map: "idx_classes_discipline_id")
+  @@map("classes")
+}
+
+model Schedule {
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  classId              String                    @map("class_id") @db.Uuid
+  roomId               String                    @map("room_id") @db.Uuid
+  coachId              String                    @map("coach_id") @db.Uuid
+  startTime            DateTime                  @map("start_time") @db.Timestamptz(6)
+  endTime              DateTime                  @map("end_time") @db.Timestamptz(6)
+  capacity             Int
+  currentEnrolled      Int                       @default(0) @map("current_enrolled")
+  status               ScheduleStatus            @default(OPEN)
+  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  time_range           Unsupported("tstzrange")? @default(dbgenerated("tstzrange(start_time, end_time, '[)'::text)"))
+  coach_name           String?                   @db.VarChar(150)
+  bookings             Booking[]
+  cancellationRequests CancellationRequest[]
+  class                Class                     @relation(fields: [classId], references: [id], onDelete: Cascade, map: "fk_schedules_class")
+  coach                User                      @relation("CoachSchedules", fields: [coachId], references: [id], map: "fk_schedules_coach")
+  room                 Room                      @relation(fields: [roomId], references: [id], map: "fk_schedules_room")
+
+  @@index([classId], map: "idx_schedules_class_id")
+  @@index([roomId], map: "idx_schedules_room_id")
+  @@index([coachId], map: "idx_schedules_coach_id")
+  @@index([startTime], map: "idx_schedules_start_time")
+  @@map("schedules")
+}
+
+model CoachAvailability {
+  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId              String                    @map("coach_id") @db.Uuid
+  startTime            DateTime                  @map("start_time") @db.Timestamptz(6)
+  endTime              DateTime                  @map("end_time") @db.Timestamptz(6)
+  isBooked             Boolean                   @default(false) @map("is_booked")
+  isEmergencyCancelled Boolean                   @default(false) @map("is_emergency_cancelled")
+  approvalStatus       String?                   @default("APPROVED") @map("approval_status") @db.VarChar(20)
+  isException          Boolean                   @default(false) @map("is_exception")
+  exceptionReason      String?                   @map("exception_reason") @db.VarChar(500)
+  approvedById         String?                   @map("approved_by_id") @db.Uuid
+  approvedByName       String?                   @map("approved_by_name") @db.VarChar(150)
+  rejectionReason      String?                   @map("rejection_reason") @db.VarChar(500)
+  reviewedAt           DateTime?                 @map("reviewed_at") @db.Timestamptz(6)
+  notes                String?                   @db.Text
+  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  time_range           Unsupported("tstzrange")? @default(dbgenerated("tstzrange(start_time, end_time, '[)'::text)"))
+  coach_name           String?                   @db.VarChar(150)
+  bookings             Booking[]
+  coach                User                      @relation(fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_availability_coach")
+  approvedBy           User?                     @relation("ApprovedCoachSlots", fields: [approvedById], references: [id], onUpdate: NoAction, map: "fk_coach_availability_approver")
+
+  @@index([approvalStatus], map: "idx_coach_availability_approval")
+
+  @@index([coachId], map: "idx_coach_availability_coach_id")
+  @@index([startTime], map: "idx_coach_availability_start_time")
+  @@map("coach_availability")
+}
+
+model Booking {
+  id                      String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId          String                @map("subscription_id") @db.Uuid
+  bookingType             BookingType           @default(GROUP_CLASS) @map("booking_type")
+  disciplineId            String?               @map("discipline_id") @db.Uuid
+  scheduleId              String?               @map("schedule_id") @db.Uuid
+  coachAvailabilityId     String?               @map("coach_availability_id") @db.Uuid
+  memberId                String                @map("member_id") @db.Uuid
+  status                  BookingStatus         @default(CONFIRMED)
+  bookedAt                DateTime              @default(now()) @map("booked_at") @db.Timestamptz(6)
+  cancelledAt             DateTime?             @map("cancelled_at") @db.Timestamptz(6)
+  isLateCancellation      Boolean?              @default(false) @map("is_late_cancellation")
+  cancellationReason      String?               @map("cancellation_reason")
+  cancelledBy             String?               @default("MEMBER") @map("cancelled_by") @db.VarChar(20)
+  isEmergencyCancellation Boolean               @default(false) @map("is_emergency_cancellation")
+  member_name             String?               @db.VarChar(150)
+  attendance              Attendance?
+  coachAvailability       CoachAvailability?    @relation(fields: [coachAvailabilityId], references: [id], onDelete: Cascade, map: "fk_bookings_coach_availability")
+  discipline              Discipline?           @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_bookings_discipline")
+  member                  User                  @relation("MemberBookings", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_bookings_member")
+  schedule                Schedule?             @relation(fields: [scheduleId], references: [id], onDelete: Cascade, map: "fk_bookings_schedule")
+  subscription            UserSubscription      @relation(fields: [subscriptionId], references: [id], map: "fk_bookings_subscription")
+  cancellationRequests    CancellationRequest[]
+  coachPenalties          CoachPenalty[]
+  equipmentReservation    EquipmentReservation?
+  workoutPlans            WorkoutPlan[]
+
+  @@index([subscriptionId], map: "idx_bookings_subscription_id")
+  @@index([disciplineId], map: "idx_bookings_discipline_id")
+  @@index([scheduleId], map: "idx_bookings_schedule_id")
+  @@index([coachAvailabilityId], map: "idx_bookings_coach_availability_id")
+  @@index([memberId], map: "idx_bookings_member_id")
+  @@map("bookings")
+}
+
+model EquipmentReservation {
+  id          String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  equipmentId String                    @map("equipment_id") @db.Uuid
+  bookingId   String                    @unique(map: "uq_equipment_reservation_booking") @map("booking_id") @db.Uuid
+  startTime   DateTime                  @map("start_time") @db.Timestamptz(6)
+  endTime     DateTime                  @map("end_time") @db.Timestamptz(6)
+  reservedAt  DateTime                  @default(now()) @map("reserved_at") @db.Timestamptz(6)
+  time_range  Unsupported("tstzrange")? @default(dbgenerated("tstzrange(start_time, end_time, '[)'::text)"))
+  booking     Booking                   @relation(fields: [bookingId], references: [id], onDelete: Cascade, map: "fk_equipment_reservations_booking")
+  equipment   Equipment                 @relation(fields: [equipmentId], references: [id], onDelete: Cascade, map: "fk_equipment_reservations_equipment")
+
+  @@index([equipmentId], map: "idx_equipment_reservations_equipment_id")
+  @@index([startTime, endTime], map: "idx_equipment_reservations_time")
+  @@map("equipment_reservations")
+}
+
+model Attendance {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId        String?          @unique(map: "uq_attendances_booking_id") @map("booking_id") @db.Uuid
+  memberId         String           @map("member_id") @db.Uuid
+  verifiedById     String?          @map("verified_by_id") @db.Uuid
+  checkInTime      DateTime         @default(now()) @map("check_in_time") @db.Timestamptz(6)
+  status           AttendanceStatus @default(PRESENT)
+  checkinType      String           @default("CLASS_SESSION") @map("checkin_type") @db.VarChar(20)
+  towelIssued      Boolean?         @default(false) @map("towel_issued")
+  notes            String?
+  member_name      String?          @db.VarChar(150)
+  verified_by_name String?          @db.VarChar(150)
+  booking          Booking?         @relation(fields: [bookingId], references: [id], map: "fk_attendances_booking")
+  member           User             @relation("MemberAttendances", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_attendances_member")
+  verifiedBy       User?            @relation("VerifiedByStaff", fields: [verifiedById], references: [id], map: "fk_attendances_verifier")
+
+  @@index([memberId], map: "idx_attendances_member_id")
+  @@index([verifiedById], map: "idx_attendances_verified_by_id")
+  @@index([checkInTime], map: "idx_attendances_check_in_time")
+  @@map("attendances")
+}
+
+model MemberInbodyLog {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId               String   @map("user_id") @db.Uuid
+  measuredById         String?  @map("measured_by_id") @db.Uuid
+  heightCm             Decimal  @map("height_cm") @db.Decimal(5, 2)
+  weightKg             Decimal  @map("weight_kg") @db.Decimal(5, 2)
+  muscleMassKg         Decimal? @map("muscle_mass_kg") @db.Decimal(5, 2)
+  bodyFatPct           Decimal? @map("body_fat_pct") @db.Decimal(4, 2)
+  bmi                  Decimal? @map("bmi") @db.Decimal(4, 2)
+  bodyFatMassKg        Decimal? @map("body_fat_mass_kg") @db.Decimal(5, 2)
+  leanBodyMassKg       Decimal? @map("lean_body_mass_kg") @db.Decimal(5, 2)
+  skeletalMuscleMassKg Decimal? @map("skeletal_muscle_mass_kg") @db.Decimal(5, 2)
+  tbwLiters            Decimal? @map("tbw_liters") @db.Decimal(5, 2)
+  proteinKg            Decimal? @map("protein_kg") @db.Decimal(5, 2)
+  mineralKg            Decimal? @map("mineral_kg") @db.Decimal(5, 2)
+  visceralFatLevel     Int?     @map("visceral_fat_level")
+  bmrKcal              Int?     @map("bmr_kcal")
+  waistHipRatio        Decimal? @map("waist_hip_ratio") @db.Decimal(4, 2)
+  inbodyScore          Int?     @map("inbody_score")
+  segmentalLean        Json?    @default("{\"trunk\": null, \"leftArm\": null, \"leftLeg\": null, \"rightArm\": null, \"rightLeg\": null}") @map("segmental_lean")
+  notes                String?
+  measuredAt           DateTime @default(now()) @map("measured_at") @db.Timestamptz(6)
+  user_name            String?  @db.VarChar(150)
+  measured_by_name     String?  @db.VarChar(150)
+  measuredBy           User?    @relation("MeasuredByStaff", fields: [measuredById], references: [id], map: "fk_inbody_measurer")
+  user                 User     @relation("MemberInbodyLogs", fields: [userId], references: [id], onDelete: Cascade, map: "fk_inbody_user")
+
+  @@index([userId, measuredAt], map: "idx_member_inbody_user_id")
+  @@map("member_inbody_logs")
+}
+
+model Locker {
+  id           String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lockerNumber String             @unique(map: "uq_lockers_number") @map("locker_number") @db.VarChar(20)
+  zone         String             @db.VarChar(50)
+  status       LockerStatus       @default(AVAILABLE)
+  isActive     Boolean            @default(true) @map("is_active")
+  assignments  LockerAssignment[]
+
+  @@map("lockers")
+}
+
+model LockerAssignment {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  lockerId         String    @map("locker_id") @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  assignedById     String?   @map("assigned_by_id") @db.Uuid
+  assignedAt       DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  returnedAt       DateTime? @map("returned_at") @db.Timestamptz(6)
+  notes            String?
+  user_name        String?   @db.VarChar(150)
+  assigned_by_name String?   @db.VarChar(150)
+  locker           Locker    @relation(fields: [lockerId], references: [id], map: "fk_locker_assign_locker")
+  assignedBy       User?     @relation("StaffLockerAssignments", fields: [assignedById], references: [id], map: "fk_locker_assign_staff")
+  user             User      @relation("MemberLockerAssignments", fields: [userId], references: [id], onDelete: Cascade, map: "fk_locker_assign_user")
+
+  @@index([userId], map: "idx_locker_assign_user")
+  @@map("locker_assignments")
+}
+
+model CancellationRequest {
+  id                                                     String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId                                                String                    @map("coach_id") @db.Uuid
+  targetType                                             CancellationTargetType    @map("target_type")
+  bookingId                                              String?                   @map("booking_id") @db.Uuid
+  scheduleId                                             String?                   @map("schedule_id") @db.Uuid
+  reasonMessage                                          String                    @map("reason_message")
+  internalNote                                           String?                   @map("internal_note")
+  status                                                 CancellationRequestStatus @default(PENDING)
+  reviewedById                                           String?                   @map("reviewed_by_id") @db.Uuid
+  reviewedAt                                             DateTime?                 @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason                                        String?                   @map("rejection_reason")
+  isFrontdeskOverride                                    Boolean                   @default(false) @map("is_frontdesk_override")
+  createdAt                                              DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  coach_name                                             String?                   @db.VarChar(150)
+  reviewed_by_name                                       String?                   @db.VarChar(150)
+  substituteCoachId                                      String?                   @map("substitute_coach_id") @db.Uuid
+  substitutionStatus                                     String?                   @default("NONE") @map("substitution_status") @db.VarChar(50)
+  substituteCoachName                                    String?                   @map("substitute_coach_name") @db.VarChar(150)
+  substitutionNote                                       String?                   @map("substitution_note") @db.VarChar(500)
+  substitutionRespondedAt                                DateTime?                 @map("substitution_responded_at") @db.Timestamptz(6)
+  substitutionDeclinedReason                             String?                   @map("substitution_declined_reason") @db.VarChar(500)
+  booking                                                Booking?                  @relation(fields: [bookingId], references: [id], onDelete: Restrict, map: "fk_cancellation_requests_booking")
+  coach                                                  User                      @relation("CoachCancellationRequests", fields: [coachId], references: [id], onDelete: Cascade, map: "fk_cancellation_requests_coach")
+  reviewedBy                                             User?                     @relation("ReviewedCancellationRequests", fields: [reviewedById], references: [id], map: "fk_cancellation_requests_reviewer")
+  schedule                                               Schedule?                 @relation(fields: [scheduleId], references: [id], onDelete: Restrict, map: "fk_cancellation_requests_schedule")
+  substituteCoach                                        User?                     @relation("SubstituteCoachRequests", fields: [substituteCoachId], references: [id], onUpdate: NoAction, map: "fk_cancellation_requests_substitute_coach")
+  coachPenalties                                         CoachPenalty[]
+
+  @@index([status], map: "idx_cancellation_requests_status")
+  @@index([coachId], map: "idx_cancellation_requests_coach")
+  @@map("cancellation_requests")
+}
+
+model CoachPenalty {
+  id                        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId                   String               @map("coach_id") @db.Uuid
+  cancellationRequestId     String?              @map("cancellation_request_id") @db.Uuid
+  bookingId                 String?              @map("booking_id") @db.Uuid
+  penaltyType               String               @default("EMERGENCY_CANCELLATION") @map("penalty_type") @db.VarChar(50)
+  appliedMonth              String               @map("applied_month") @db.VarChar(7)
+  suggestedAction           String               @default("WARNING") @map("suggested_action") @db.VarChar(50)
+  suggestedRateReductionPct Decimal?             @default(0) @map("suggested_rate_reduction_pct") @db.Decimal(5, 2)
+  isReviewedByManager       Boolean              @default(false) @map("is_reviewed_by_manager")
+  managerFinalDecision      String?              @map("manager_final_decision")
+  reviewedAt                DateTime?            @map("reviewed_at") @db.Timestamptz(6)
+  notes                     String?
+  createdAt                 DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  coach_name                String?              @db.VarChar(150)
+  booking                   Booking?             @relation(fields: [bookingId], references: [id], map: "fk_coach_penalties_booking")
+  cancellationRequest       CancellationRequest? @relation(fields: [cancellationRequestId], references: [id], map: "fk_coach_penalties_cancellation")
+  coach                     User                 @relation("CoachPenalties", fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_penalties_coach")
+
+  @@index([coachId, appliedMonth], map: "idx_coach_penalties_month")
+  @@index([isReviewedByManager], map: "idx_coach_penalties_pending_review")
+  @@map("coach_penalties")
+}
+
+model WorkoutPlan {
+  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  memberId     String?           @map("member_id") @db.Uuid
+  coachId      String            @map("coach_id") @db.Uuid
+  bookingId    String?           @map("booking_id") @db.Uuid
+  templateId   String?           @map("template_id") @db.Uuid
+  sessionOrder Int?              @map("session_order")
+  title        String            @db.VarChar(150)
+  notes        String?
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  member_name  String?           @db.VarChar(150)
+  coach_name   String?           @db.VarChar(150)
+  exercises    WorkoutExercise[]
+  booking      Booking?          @relation(fields: [bookingId], references: [id], map: "fk_workout_plans_booking")
+  coach        User              @relation("CoachWorkoutPlans", fields: [coachId], references: [id], map: "fk_workout_plans_coach")
+  member       User?             @relation("MemberWorkoutPlans", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_workout_plans_member")
+  template     WorkoutTemplate?  @relation(fields: [templateId], references: [id], map: "fk_workout_plans_template")
+
+  @@index([memberId], map: "idx_workout_plans_member_id")
+  @@index([coachId], map: "idx_workout_plans_coach_id")
+  @@index([bookingId], map: "idx_workout_plans_booking_id")
+  @@index([templateId], map: "idx_workout_plans_template_id")
+  @@map("workout_plans")
+}
+
+model ExerciseKnowledge {
+  id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title             String                    @db.VarChar(150)
+  category          String                    @db.VarChar(50)
+  instructions      String
+  embedding         Unsupported("vector")?
+  exercises         WorkoutExercise[]
+  templateExercises WorkoutTemplateExercise[]
+
+  @@index([embedding], map: "idx_exercise_knowledge_embedding")
+  @@map("exercise_knowledge")
+}
+
+model WorkoutTemplate {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  templateCode   String                    @unique(map: "uq_workout_templates_code") @map("template_code") @db.VarChar(50)
+  disciplineCode String                    @map("discipline_code") @db.VarChar(20)
+  title          String                    @db.VarChar(150)
+  weekNumber     Int                       @map("week_number")
+  sessionOrder   Int                       @map("session_order")
+  description    String?
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  workoutPlans   WorkoutPlan[]
+  exercises      WorkoutTemplateExercise[]
+
+  @@index([disciplineCode], map: "idx_workout_templates_discipline_code")
+  @@map("workout_templates")
+}
+
+model WorkoutTemplateExercise {
+  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  templateId  String            @map("template_id") @db.Uuid
+  exerciseId  String            @map("exercise_id") @db.Uuid
+  sets        Int?
+  reps        Int?
+  unit        String?           @default("reps") @db.VarChar(20)
+  weightKg    Decimal?          @map("weight_kg") @db.Decimal(5, 2)
+  restSeconds Int?              @map("rest_seconds")
+  orderIndex  Int               @default(0) @map("order_index")
+  exercise    ExerciseKnowledge @relation(fields: [exerciseId], references: [id], map: "fk_workout_template_exercises_exercise")
+  template    WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade, map: "fk_workout_template_exercises_template")
+
+  @@index([templateId], map: "idx_workout_template_exercises_template_id")
+  @@index([exerciseId], map: "idx_workout_template_exercises_exercise_id")
+  @@map("workout_template_exercises")
+}
+
+model WorkoutExercise {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workoutPlanId String            @map("workout_plan_id") @db.Uuid
+  exerciseId    String            @map("exercise_id") @db.Uuid
+  sets          Int?
+  reps          Int?
+  weightKg      Decimal?          @map("weight_kg") @db.Decimal(5, 2)
+  restSeconds   Int?              @map("rest_seconds")
+  coachFeedback String?           @map("coach_feedback")
+  orderIndex    Int               @default(0) @map("order_index")
+  exercise      ExerciseKnowledge @relation(fields: [exerciseId], references: [id], map: "fk_workout_exercises_exercise")
+  workoutPlan   WorkoutPlan       @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade, map: "fk_workout_exercises_plan")
+
+  @@index([workoutPlanId], map: "idx_workout_exercises_plan_id")
+  @@index([exerciseId], map: "idx_workout_exercises_exercise_id")
+  @@map("workout_exercises")
+}
+
+model AuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  action       String   @db.VarChar(100)
+  targetEntity String   @map("target_entity") @db.VarChar(100)
+  targetId     String?  @map("target_id") @db.Uuid
+  beforeState  Json?    @map("before_state")
+  afterState   Json?    @map("after_state")
+  ipAddress    String?  @map("ip_address") @db.VarChar(45)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user_name    String?  @db.VarChar(150)
+  user         User?    @relation(fields: [userId], references: [id], map: "fk_audit_logs_user")
+
+  @@index([userId], map: "idx_audit_logs_user_id")
+  @@index([targetEntity, targetId], map: "idx_audit_logs_target_entity_id")
+  @@index([createdAt], map: "idx_audit_logs_created_at")
+  @@map("audit_logs")
+}
 
 enum UserRole {
   ADMIN
@@ -169,734 +925,75 @@ enum CancellationTargetType {
 
 enum ScheduleStatus {
   OPEN
-  FULL               // Đủ chỗ: trigger DB suy ra từ current_enrolled/capacity khi cập nhật sĩ số
-  CANCELLED_BY_COACH // HLV hủy khẩn cấp: ngừng nhận booking mới, giải phóng GiST exclusion khi cần
-  COMPLETED          // Lớp đã diễn ra xong
+  FULL
+  CANCELLED_BY_COACH
+  COMPLETED
 
   @@map("schedule_status")
 }
 
-// -------------------------------------------------------------
-// MODELS (base V5 models plus MEMBER checkout/payment audit models)
-// -------------------------------------------------------------
+model CoachPayout {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId           String    @map("coach_id") @db.Uuid
+  coachName         String?   @map("coach_name") @db.VarChar(150)
+  month             String    @db.VarChar(7)
+  groupSessionCount Int       @default(0) @map("group_session_count")
+  ptSessionCount    Int       @default(0) @map("pt_session_count")
+  totalSessions     Int       @default(0) @map("total_sessions")
+  ratePerSession    Decimal   @default(200000) @map("rate_per_session") @db.Decimal(12, 2)
+  totalAmount       Decimal   @default(0) @map("total_amount") @db.Decimal(14, 2)
+  status            String    @default("UNPAID") @db.VarChar(20)
+  bankName          String?   @map("bank_name") @db.VarChar(100)
+  bankAccountNumber String?   @map("bank_account_number") @db.VarChar(50)
+  bankAccountName   String?   @map("bank_account_name") @db.VarChar(150)
+  paymentNote       String?   @map("payment_note") @db.VarChar(255)
+  receiptUrl        String?   @map("receipt_url")
+  paidAt            DateTime? @map("paid_at") @db.Timestamptz(6)
+  paidById          String?   @map("paid_by_id") @db.Uuid
+  paidByName        String?   @map("paid_by_name") @db.VarChar(150)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  coach             User      @relation("CoachPayouts", fields: [coachId], references: [id], onDelete: Cascade)
+  paidBy            User?     @relation("PaidPayouts", fields: [paidById], references: [id], onUpdate: NoAction)
 
-model User {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String   @unique(map: "uq_users_email") @db.VarChar(255)
-  passwordHash String   @map("password_hash") @db.VarChar(255)
-  fullName     String   @map("full_name") @db.VarChar(150)
-  phone        String   @unique(map: "uq_users_phone") @db.VarChar(20)
-  role         UserRole   @default(MEMBER)
-  gender       UserGender @default(OTHER) @map("gender")
-  avatarUrl    String?    @map("avatar_url") @db.Text
-  isActive     Boolean  @default(true) @map("is_active")
-  tokenVersion Int      @default(1) @map("token_version")
-  createdById  String?  @map("created_by_id") @db.Uuid
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Self-relation: Phân cấp người tạo tài khoản
-  createdBy    User?  @relation("UserCreator", fields: [createdById], references: [id], onDelete: SetNull, map: "fk_users_created_by")
-  createdUsers User[] @relation("UserCreator")
-
-  // Relations
-  memberProfile            MemberProfile?
-  coachProfile             CoachProfile?
-  coachRates               CoachRate[]
-  coachAvailabilities      CoachAvailability[]
-  subscriptions            UserSubscription[]      @relation("UserSubscriptions")
-  assignedVipSubs          UserSubscription[]      @relation("AssignedCoachSubs")
-  issuedInvoices           Invoice[]               @relation("InvoiceIssuer")
-  coachedSchedules         Schedule[]              @relation("CoachSchedules")
-  bookings                 Booking[]               @relation("MemberBookings")
-  attendances              Attendance[]            @relation("MemberAttendances")
-  verifiedAttendances      Attendance[]            @relation("VerifiedByStaff")
-  staffShifts              StaffShift[]            @relation("StaffShifts")
-  assignedStaffShifts      StaffShift[]            @relation("AssignedShifts")
-  memberWorkoutPlans       WorkoutPlan[]           @relation("MemberWorkoutPlans")
-  coachWorkoutPlans        WorkoutPlan[]           @relation("CoachWorkoutPlans")
-  memberInbodyLogs         MemberInbodyLog[]       @relation("MemberInbodyLogs")
-  measuredInbodyLogs       MemberInbodyLog[]       @relation("MeasuredByStaff")
-  lockerAssignments        LockerAssignment[]      @relation("MemberLockerAssignments")
-  assignedLockers          LockerAssignment[]      @relation("StaffLockerAssignments")
-  coachCancellationRequests CancellationRequest[]  @relation("CoachCancellationRequests")
-  reviewedCancellationRequests CancellationRequest[] @relation("ReviewedCancellationRequests")
-  coachPenalties           CoachPenalty[]          @relation("CoachPenalties")
-  auditLogs                AuditLog[]
-  checkoutOrders           CheckoutOrder[]
-  sessions                 UserSession[]
-
-  @@index([createdById], map: "idx_users_created_by_id")
-  @@map("users")
+  @@unique([coachId, month], map: "uq_coach_payouts_coach_month")
+  @@index([month], map: "idx_coach_payouts_month")
+  @@index([coachId], map: "idx_coach_payouts_coach_id")
+  @@map("coach_payouts")
 }
 
-model UserSession {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String   @map("user_id") @db.Uuid
-  refreshTokenHash String   @map("refresh_token_hash") @db.VarChar(255)
-  deviceInfo       String?  @map("device_info") @db.VarChar(255)
-  expiresAt        DateTime @map("expires_at") @db.Timestamptz(6)
-  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+model CoachTopicRequest {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  coachId         String    @map("coach_id") @db.Uuid
+  specialtyId     String    @map("specialty_id") @db.Uuid
+  reason          String    @db.VarChar(500)
+  certificateUrl  String?   @map("certificate_url") @db.VarChar(500)
+  status          String    @default("PENDING") @db.VarChar(50)
+  reviewedById    String?   @map("reviewed_by_id") @db.Uuid
+  reviewedAt      DateTime? @map("reviewed_at") @db.Timestamptz(6)
+  rejectionReason String?   @map("rejection_reason") @db.VarChar(500)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  coach           User      @relation("CoachTopicRequests", fields: [coachId], references: [id], onDelete: Cascade)
+  specialty       Specialty @relation(fields: [specialtyId], references: [id], onDelete: Cascade)
+  reviewedBy      User?     @relation("ReviewedTopicRequests", fields: [reviewedById], references: [id], onUpdate: NoAction)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_user_sessions_user")
-
-  @@index([userId], map: "idx_user_sessions_user_id")
-  @@map("user_sessions")
+  @@index([coachId], map: "idx_coach_topic_requests_coach_id")
+  @@index([status], map: "idx_coach_topic_requests_status")
+  @@map("coach_topic_requests")
 }
 
-model MemberProfile {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId         String   @unique(map: "uq_member_profiles_user_id") @map("user_id") @db.Uuid
-  heightCm       Decimal? @map("height_cm") @db.Decimal(5, 2)
-  weightKg       Decimal? @map("weight_kg") @db.Decimal(5, 2)
-  bmi            Decimal? @map("bmi") @db.Decimal(4, 2)
-  bodyFatPct     Decimal? @map("body_fat_pct") @db.Decimal(4, 2)
-  fitnessGoals   String?  @map("fitness_goals") @db.Text
-  medicalHistory String?  @map("medical_history") @db.Text
-  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_member_profiles_user")
-
-  @@map("member_profiles")
-}
-
-model CoachProfile {
-  id                             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId                         String    @unique(map: "uq_coach_profiles_user_id") @map("user_id") @db.Uuid
-  specialties                    String?   @db.Text
-  bio                            String?   @db.Text
-  certificateUrls                String[]  @default([]) @map("certificate_urls")
-  yearsExperience                Int?      @default(0) @map("years_experience")
-  // DSS — Hệ thống kỷ luật hủy khẩn cấp
-  emergencyCancellationCount     Int       @default(0) @map("emergency_cancellation_count")
-  monthlyEmergencyCancellations  Int       @default(0) @map("monthly_emergency_cancellations")
-  lastCancellationResetDate      DateTime? @map("last_cancellation_reset_date") @db.Date
-  updatedAt                      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_coach_profiles_user")
-  coachSpecialties CoachSpecialty[]
-
-  @@map("coach_profiles")
-}
-
-model CoachRate {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  coachId        String    @map("coach_id") @db.Uuid
-  disciplineId   String?   @map("discipline_id") @db.Uuid
-  ratePerSession Decimal   @map("rate_per_session") @db.Decimal(12, 2)
-  effectiveFrom  DateTime  @default(now()) @map("effective_from") @db.Date
-  effectiveTo    DateTime? @map("effective_to") @db.Date
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  coach User @relation(fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_rates_coach")
-  discipline Discipline? @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_coach_rates_discipline")
-
-  @@index([coachId], map: "idx_coach_rates_coach_id")
-  @@index([coachId, disciplineId], map: "idx_coach_rates_coach_discipline")
-  @@map("coach_rates")
-}
-
-model StaffShift {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  staffId      String   @map("staff_id") @db.Uuid
-  shiftDate    DateTime @map("shift_date") @db.Date
-  startTime    DateTime @map("start_time") @db.Timestamptz(6)
-  endTime      DateTime @map("end_time") @db.Timestamptz(6)
-  assignedById String?  @map("assigned_by_id") @db.Uuid
-  notes        String?  @db.Text
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  staff      User  @relation("StaffShifts", fields: [staffId], references: [id], onDelete: Cascade, map: "fk_staff_shifts_staff")
-  assignedBy User? @relation("AssignedShifts", fields: [assignedById], references: [id], onDelete: SetNull, map: "fk_staff_shifts_assigned_by")
-
-  @@index([staffId], map: "idx_staff_shifts_staff_id")
-  @@index([shiftDate], map: "idx_staff_shifts_shift_date")
-  @@map("staff_shifts")
-}
-
-model Discipline {
-  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code        String  @unique(map: "uq_disciplines_code") @db.VarChar(50)
-  name        String  @unique(map: "uq_disciplines_name") @db.VarChar(100)
-  description String? @db.Text
-
-  plans                  MembershipPlan[]
-  classes                Class[]
-  curriculumRequirements PlanCurriculumRequirement[]
-  specialties            Specialty[]
-  userSubscriptions      UserSubscription[]
-  bookings               Booking[]
-  coachRates             CoachRate[]
-
-  @@map("disciplines")
-}
-
-model Specialty {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  disciplineId String   @map("discipline_id") @db.Uuid
-  code         String   @unique(map: "uq_specialties_code") @db.VarChar(50)
-  name         String   @db.VarChar(150)
-  description  String?  @db.Text
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  discipline       Discipline       @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_specialties_discipline")
-  coachSpecialties CoachSpecialty[]
-
-  @@index([disciplineId], map: "idx_specialties_discipline_id")
-  @@map("specialties")
-}
-
-model CoachSpecialty {
-  coachProfileId String   @map("coach_profile_id") @db.Uuid
-  specialtyId    String   @map("specialty_id") @db.Uuid
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  coachProfile CoachProfile @relation(fields: [coachProfileId], references: [id], onDelete: Cascade, map: "fk_coach_spec_profile")
-  specialty    Specialty    @relation(fields: [specialtyId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_coach_spec_specialty")
-
-  @@id([coachProfileId, specialtyId])
-  @@index([specialtyId], map: "idx_coach_specialties_spec_id")
-  @@map("coach_specialties")
-}
-
-model MembershipPlan {
-  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  disciplineId      String?      @map("discipline_id") @db.Uuid
-  name              String       @db.VarChar(100)
-  description       String?      @db.Text
-  price             Decimal      @db.Decimal(12, 2)
-  durationDays      Int          @map("duration_days")
-  sessionQuota      Int?         @map("session_quota")
-  planType          PlanType     @default(GENERAL) @map("plan_type")
-  isActive          Boolean      @default(true) @map("is_active")
-  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  packageTier       PackageTier  @default(PLUS) @map("package_tier")
-  trainingMode      TrainingMode @default(GROUP_CLASS) @map("training_mode")
-  groupSessionQuota Int?         @default(0) @map("group_session_quota")
-  ptSessionQuota    Int?         @default(0) @map("pt_session_quota")
-  unlimitedGymEntry Boolean?     @default(false) @map("unlimited_gym_entry")
-
-  discipline             Discipline?                 @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_plans_discipline")
-  subscriptions          UserSubscription[]
-  curriculumRequirements PlanCurriculumRequirement[]
-
-  @@map("membership_plans")
-}
-
-model PlanCurriculumRequirement {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  planId          String   @map("plan_id") @db.Uuid
-  disciplineId    String   @map("discipline_id") @db.Uuid
-  sessionsPerWeek Int      @map("sessions_per_week")
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  plan       MembershipPlan @relation(fields: [planId], references: [id], onDelete: Cascade, map: "fk_curriculum_plan")
-  discipline Discipline     @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_curriculum_discipline")
-
-  @@unique([planId, disciplineId], map: "uq_curriculum_plan_discipline")
-  @@index([planId], map: "idx_curriculum_plan_id")
-  @@map("plan_curriculum_requirements")
-}
-
-model UserSubscription {
-  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId                String             @map("user_id") @db.Uuid
-  planId                String             @map("plan_id") @db.Uuid
-  disciplineId          String?            @map("discipline_id") @db.Uuid
-  packageTier           PackageTier        @default(PLUS) @map("package_tier")
-  assignedCoachId       String?            @map("assigned_coach_id") @db.Uuid
-  startDate             DateTime           @map("start_date") @db.Date
-  endDate               DateTime           @map("end_date") @db.Date
-  remainingSessions     Int?               @map("remaining_sessions")
-  remainingGroupSessions Int?              @default(0) @map("remaining_group_sessions")
-  remainingPtSessions   Int?               @default(0) @map("remaining_pt_sessions")
-  hasUnlimitedGymAccess Boolean?           @default(false) @map("has_unlimited_gym_access")
-  status                SubscriptionStatus @default(ACTIVE)
-  frozenAt              DateTime?          @map("frozen_at") @db.Timestamptz(6)
-  createdAt             DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user          User           @relation("UserSubscriptions", fields: [userId], references: [id], onDelete: Restrict, map: "fk_user_subscriptions_user")
-  plan          MembershipPlan @relation(fields: [planId], references: [id], onDelete: Restrict, map: "fk_user_subscriptions_plan")
-  discipline    Discipline?    @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_user_subscriptions_discipline")
-  assignedCoach User?          @relation("AssignedCoachSubs", fields: [assignedCoachId], references: [id], onDelete: SetNull, map: "fk_user_subscriptions_coach")
-  invoices      Invoice[]
-  bookings      Booking[]
-
-  @@index([userId], map: "idx_user_subscriptions_user_id")
-  @@index([planId], map: "idx_user_subscriptions_plan_id")
-  @@index([assignedCoachId], map: "idx_user_subscriptions_coach_id")
-  @@map("user_subscriptions")
-}
-
-model Invoice {
-  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  invoiceCode    String        @unique(map: "uq_invoices_invoice_code") @map("invoice_code") @db.VarChar(50)
-  subscriptionId String        @map("subscription_id") @db.Uuid
-  issuerId       String        @map("issuer_id") @db.Uuid
-  amount         Decimal       @db.Decimal(12, 2)
-  baseAmount     Decimal?      @default(0) @map("base_amount") @db.Decimal(12, 2)
-  ptAmount       Decimal?      @default(0) @map("pt_amount") @db.Decimal(12, 2)
-  paymentMethod  PaymentMethod @map("payment_method")
-  status         InvoiceStatus @default(PAID)
-  type           InvoiceType   @default(SUBSCRIPTION_NEW)
-  transactionRef String?       @map("transaction_ref") @db.VarChar(100)
-  checkoutId     String?       @unique(map: "uq_invoices_checkout_id") @map("checkout_id") @db.Uuid
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  subscription UserSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict, map: "fk_invoices_subscription")
-  issuer       User             @relation("InvoiceIssuer", fields: [issuerId], references: [id], onDelete: Restrict, map: "fk_invoices_issuer")
-  checkout     CheckoutOrder?   @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
-
-  @@index([subscriptionId], map: "idx_invoices_subscription_id")
-  @@index([issuerId], map: "idx_invoices_issuer_id")
-  @@index([createdAt], map: "idx_invoices_created_at")
-  @@map("invoices")
-}
-
-model CheckoutOrder {
-  id                   String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  memberId             String         @map("member_id") @db.Uuid
-  kind                 CheckoutKind
-  status               CheckoutStatus @default(PENDING_PAYMENT)
-  planId               String?        @map("plan_id") @db.Uuid
-  targetSubscriptionId String?        @map("target_subscription_id") @db.Uuid
-  coachId              String?        @map("coach_id") @db.Uuid
-  addonSessions        Int?           @map("addon_sessions")
-  baseAmount           Decimal        @map("base_amount") @db.Decimal(12, 2)
-  ptAmount             Decimal        @map("pt_amount") @db.Decimal(12, 2)
-  amount               Decimal        @db.Decimal(12, 2)
-  currency             String         @default("VND") @db.VarChar(3)
-  priceSnapshot        Json           @map("price_snapshot")
-  idempotencyKey       String         @map("idempotency_key") @db.VarChar(100)
-  requestHash          String         @map("request_hash") @db.VarChar(64)
-  expiresAt            DateTime       @map("expires_at") @db.Timestamptz(6)
-  failureReason        String?        @map("failure_reason") @db.VarChar(200)
-  fulfilledSubscriptionId String?     @map("fulfilled_subscription_id") @db.Uuid
-  createdAt            DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  member               User              @relation(fields: [memberId], references: [id], onDelete: Restrict)
-  attempts             PaymentAttempt[]
-  webhookEvents        PaymentWebhookEvent[]
-  invoice              Invoice?
-
-  @@unique([memberId, idempotencyKey], map: "uq_checkout_member_idempotency")
-  @@index([memberId, createdAt], map: "idx_checkout_member_created")
-  @@index([status, expiresAt], map: "idx_checkout_status_expiry")
-  @@map("checkout_orders")
-}
-
-model PaymentAttempt {
-  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  checkoutId         String               @map("checkout_id") @db.Uuid
-  paymentId          String               @unique(map: "uq_payment_attempt_payment_id") @map("payment_id") @db.VarChar(32)
-  retryKey           String?              @map("retry_key") @db.VarChar(100)
-  status             PaymentAttemptStatus @default(PENDING)
-  simulationOutcome  String?              @map("simulation_outcome") @db.VarChar(16)
-  simulationEventId  String?              @unique(map: "uq_payment_attempt_simulation_event") @map("simulation_event_id") @db.Uuid
-  createdAt          DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  checkout CheckoutOrder @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
-
-  @@index([checkoutId, createdAt], map: "idx_payment_attempt_checkout_created")
-  @@unique([checkoutId, retryKey], map: "uq_payment_attempt_retry_key")
-  @@map("payment_attempts")
-}
-
-model PaymentWebhookEvent {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  checkoutId String   @map("checkout_id") @db.Uuid
-  provider   String   @db.VarChar(40)
-  eventId    String   @map("event_id") @db.VarChar(100)
-  payloadHash String  @map("payload_hash") @db.VarChar(64)
-  outcome    String   @db.VarChar(16)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  checkout CheckoutOrder @relation(fields: [checkoutId], references: [id], onDelete: Restrict)
-
-  @@unique([provider, eventId], map: "uq_payment_webhook_event")
-  @@index([checkoutId], map: "idx_payment_webhook_checkout")
-  @@map("payment_webhook_events")
-}
-
-model Room {
-  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String  @db.VarChar(100)
-  capacity     Int
-  locationNote String? @map("location_note") @db.Text
-  isActive     Boolean @default(true) @map("is_active")
-
-  schedules Schedule[]
-  equipment Equipment[]
-
-  @@map("rooms")
-}
-
-model Equipment {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  roomId        String   @map("room_id") @db.Uuid
-  name          String   @db.VarChar(150)
-  equipmentType String   @map("equipment_type") @db.VarChar(50)
-  isActive      Boolean  @default(true) @map("is_active")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  room         Room                   @relation(fields: [roomId], references: [id], onDelete: Restrict, map: "fk_equipment_room")
-  reservations EquipmentReservation[]
-
-  @@index([roomId], map: "idx_equipment_room_id")
-  @@map("equipment")
-}
-
-model Class {
-  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  disciplineId String  @map("discipline_id") @db.Uuid
-  name         String  @db.VarChar(150)
-  description  String? @db.Text
-
-  discipline Discipline @relation(fields: [disciplineId], references: [id], onDelete: Restrict, map: "fk_classes_discipline")
-  schedules  Schedule[]
-
-  @@index([disciplineId], map: "idx_classes_discipline_id")
-  @@map("classes")
-}
-
-model Schedule {
-  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  classId         String         @map("class_id") @db.Uuid
-  roomId          String         @map("room_id") @db.Uuid
-  coachId         String         @map("coach_id") @db.Uuid
-  startTime       DateTime       @map("start_time") @db.Timestamptz(6)
-  endTime         DateTime       @map("end_time") @db.Timestamptz(6)
-  capacity        Int
-  currentEnrolled Int            @default(0) @map("current_enrolled")
-  status          ScheduleStatus @default(OPEN)
-  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  class                Class                 @relation(fields: [classId], references: [id], onDelete: Cascade, map: "fk_schedules_class")
-  room                 Room                  @relation(fields: [roomId], references: [id], onDelete: Restrict, map: "fk_schedules_room")
-  coach                User                  @relation("CoachSchedules", fields: [coachId], references: [id], onDelete: Restrict, map: "fk_schedules_coach")
-  bookings             Booking[]
-  cancellationRequests CancellationRequest[]
-
-  @@index([classId], map: "idx_schedules_class_id")
-  @@index([roomId], map: "idx_schedules_room_id")
-  @@index([coachId], map: "idx_schedules_coach_id")
-  @@index([startTime], map: "idx_schedules_start_time")
-  @@map("schedules")
-}
-
-model CoachAvailability {
-  id                    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  coachId               String   @map("coach_id") @db.Uuid
-  startTime             DateTime @map("start_time") @db.Timestamptz(6)
-  endTime               DateTime @map("end_time") @db.Timestamptz(6)
-  isBooked              Boolean  @default(false) @map("is_booked")
-  // Đặt true khi HLV hủy khẩn cấp → slot không thể bị đặt lại dù is_booked = false
-  isEmergencyCancelled  Boolean  @default(false) @map("is_emergency_cancelled")
-  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  coach    User      @relation(fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_availability_coach")
-  bookings Booking[]
-
-  @@index([coachId], map: "idx_coach_availability_coach_id")
-  @@index([startTime], map: "idx_coach_availability_start_time")
-  @@map("coach_availability")
-}
-
-model Booking {
-  id                      String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  subscriptionId          String        @map("subscription_id") @db.Uuid
-  bookingType             BookingType   @default(GROUP_CLASS) @map("booking_type")
-  disciplineId            String?       @map("discipline_id") @db.Uuid
-  scheduleId              String?       @map("schedule_id") @db.Uuid
-  coachAvailabilityId     String?       @map("coach_availability_id") @db.Uuid
-  memberId                String        @map("member_id") @db.Uuid
-  status                  BookingStatus @default(CONFIRMED)
-  bookedAt                DateTime      @default(now()) @map("booked_at") @db.Timestamptz(6)
-  cancelledAt             DateTime?     @map("cancelled_at") @db.Timestamptz(6)
-  isLateCancellation      Boolean?      @default(false) @map("is_late_cancellation")
-  cancellationReason      String?       @map("cancellation_reason") @db.Text
-  cancelledBy             String?       @default("MEMBER") @map("cancelled_by") @db.VarChar(20)
-  isEmergencyCancellation Boolean       @default(false) @map("is_emergency_cancellation")
-
-  subscription         UserSubscription      @relation(fields: [subscriptionId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_bookings_subscription")
-  discipline           Discipline?           @relation(fields: [disciplineId], references: [id], onUpdate: Cascade, onDelete: Restrict, map: "fk_bookings_discipline")
-  schedule             Schedule?             @relation(fields: [scheduleId], references: [id], onDelete: Cascade, map: "fk_bookings_schedule")
-  coachAvailability    CoachAvailability?    @relation(fields: [coachAvailabilityId], references: [id], onDelete: Cascade, map: "fk_bookings_coach_availability")
-  member               User                  @relation("MemberBookings", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_bookings_member")
-  attendance           Attendance?
-  equipmentReservation EquipmentReservation?
-  cancellationRequests CancellationRequest[]
-  coachPenalties       CoachPenalty[]
-  workoutPlans         WorkoutPlan[]
-
-  @@index([subscriptionId], map: "idx_bookings_subscription_id")
-  @@index([disciplineId], map: "idx_bookings_discipline_id")
-  @@index([scheduleId], map: "idx_bookings_schedule_id")
-  @@index([coachAvailabilityId], map: "idx_bookings_coach_availability_id")
-  @@index([memberId], map: "idx_bookings_member_id")
-  @@map("bookings")
-}
-
-model EquipmentReservation {
+model PeakHourConfig {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  equipmentId String   @map("equipment_id") @db.Uuid
-  bookingId   String   @unique(map: "uq_equipment_reservation_booking") @map("booking_id") @db.Uuid
-  startTime   DateTime @map("start_time") @db.Timestamptz(6)
-  endTime     DateTime @map("end_time") @db.Timestamptz(6)
-  reservedAt  DateTime @default(now()) @map("reserved_at") @db.Timestamptz(6)
+  label       String   @db.VarChar(120)
+  startHour   Int      @map("start_hour")
+  startMinute Int      @default(0) @map("start_minute")
+  endHour     Int      @map("end_hour")
+  endMinute   Int      @default(0) @map("end_minute")
+  dailyCap    Int      @default(2) @map("daily_cap")
+  weeklyCap   Int      @default(10) @map("weekly_cap")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade, map: "fk_equipment_reservations_equipment")
-  booking   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade, map: "fk_equipment_reservations_booking")
-
-  @@index([equipmentId], map: "idx_equipment_reservations_equipment_id")
-  @@index([startTime, endTime], map: "idx_equipment_reservations_time")
-  @@map("equipment_reservations")
-}
-
-model Attendance {
-  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  bookingId    String?          @unique(map: "uq_attendances_booking_id") @map("booking_id") @db.Uuid
-  memberId     String           @map("member_id") @db.Uuid
-  verifiedById String?          @map("verified_by_id") @db.Uuid
-  checkInTime  DateTime         @default(now()) @map("check_in_time") @db.Timestamptz(6)
-  status       AttendanceStatus @default(PRESENT)
-  checkinType  String           @default("CLASS_SESSION") @map("checkin_type") @db.VarChar(20)
-  towelIssued  Boolean?         @default(false) @map("towel_issued")
-  notes        String?          @db.Text
-
-  booking    Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull, map: "fk_attendances_booking")
-  member     User     @relation("MemberAttendances", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_attendances_member")
-  verifiedBy User?    @relation("VerifiedByStaff", fields: [verifiedById], references: [id], onDelete: SetNull, map: "fk_attendances_verifier")
-
-  @@index([memberId], map: "idx_attendances_member_id")
-  @@index([verifiedById], map: "idx_attendances_verified_by_id")
-  @@index([checkInTime], map: "idx_attendances_check_in_time")
-  @@map("attendances")
-}
-
-model MemberInbodyLog {
-  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId               String   @map("user_id") @db.Uuid
-  measuredById         String?  @map("measured_by_id") @db.Uuid
-  heightCm             Decimal  @map("height_cm") @db.Decimal(5, 2)
-  weightKg             Decimal  @map("weight_kg") @db.Decimal(5, 2)
-  muscleMassKg         Decimal? @map("muscle_mass_kg") @db.Decimal(5, 2)
-  bodyFatPct           Decimal? @map("body_fat_pct") @db.Decimal(4, 2)
-  bmi                  Decimal? @map("bmi") @db.Decimal(4, 2)
-  bodyFatMassKg        Decimal? @map("body_fat_mass_kg") @db.Decimal(5, 2)
-  leanBodyMassKg       Decimal? @map("lean_body_mass_kg") @db.Decimal(5, 2)
-  skeletalMuscleMassKg Decimal? @map("skeletal_muscle_mass_kg") @db.Decimal(5, 2)
-  tbwLiters            Decimal? @map("tbw_liters") @db.Decimal(5, 2)
-  proteinKg            Decimal? @map("protein_kg") @db.Decimal(5, 2)
-  mineralKg            Decimal? @map("mineral_kg") @db.Decimal(5, 2)
-  visceralFatLevel     Int?     @map("visceral_fat_level")
-  bmrKcal              Int?     @map("bmr_kcal")
-  waistHipRatio        Decimal? @map("waist_hip_ratio") @db.Decimal(4, 2)
-  inbodyScore          Int?     @map("inbody_score")
-  segmentalLean        Json?    @default("{\"rightArm\":null,\"leftArm\":null,\"trunk\":null,\"rightLeg\":null,\"leftLeg\":null}") @map("segmental_lean")
-  notes                String?  @db.Text
-  measuredAt           DateTime @default(now()) @map("measured_at") @db.Timestamptz(6)
-
-  user       User  @relation("MemberInbodyLogs", fields: [userId], references: [id], onDelete: Cascade, map: "fk_inbody_user")
-  measuredBy User? @relation("MeasuredByStaff", fields: [measuredById], references: [id], onDelete: SetNull, map: "fk_inbody_measurer")
-
-  @@index([userId, measuredAt], map: "idx_member_inbody_user_id")
-  @@map("member_inbody_logs")
-}
-
-model Locker {
-  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  lockerNumber String       @unique(map: "uq_lockers_number") @map("locker_number") @db.VarChar(20)
-  zone         String       @db.VarChar(50)
-  status       LockerStatus @default(AVAILABLE)
-  isActive     Boolean      @default(true) @map("is_active")
-
-  assignments LockerAssignment[]
-
-  @@map("lockers")
-}
-
-model LockerAssignment {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  lockerId     String    @map("locker_id") @db.Uuid
-  userId       String    @map("user_id") @db.Uuid
-  assignedById String?   @map("assigned_by_id") @db.Uuid
-  assignedAt   DateTime  @default(now()) @map("assigned_at") @db.Timestamptz(6)
-  returnedAt   DateTime? @map("returned_at") @db.Timestamptz(6)
-  notes        String?   @db.Text
-
-  locker     Locker @relation(fields: [lockerId], references: [id], onDelete: Restrict, map: "fk_locker_assign_locker")
-  user       User   @relation("MemberLockerAssignments", fields: [userId], references: [id], onDelete: Cascade, map: "fk_locker_assign_user")
-  assignedBy User?  @relation("StaffLockerAssignments", fields: [assignedById], references: [id], onDelete: SetNull, map: "fk_locker_assign_staff")
-
-  @@index([userId], map: "idx_locker_assign_user")
-  @@map("locker_assignments")
-}
-
-model CancellationRequest {
-  id                   String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  coachId              String                    @map("coach_id") @db.Uuid
-  targetType           CancellationTargetType    @map("target_type")
-  bookingId            String?                   @map("booking_id") @db.Uuid
-  scheduleId           String?                   @map("schedule_id") @db.Uuid
-  reasonMessage        String                    @map("reason_message") @db.Text
-  internalNote         String?                   @map("internal_note") @db.Text
-  status               CancellationRequestStatus @default(PENDING)
-  reviewedById         String?                   @map("reviewed_by_id") @db.Uuid
-  reviewedAt           DateTime?                 @map("reviewed_at") @db.Timestamptz(6)
-  rejectionReason      String?                   @map("rejection_reason") @db.Text
-  isFrontdeskOverride  Boolean                   @default(false) @map("is_frontdesk_override")
-  createdAt            DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  coach          User            @relation("CoachCancellationRequests", fields: [coachId], references: [id], onDelete: Cascade, map: "fk_cancellation_requests_coach")
-  booking        Booking?        @relation(fields: [bookingId], references: [id], onDelete: Restrict, map: "fk_cancellation_requests_booking")
-  schedule       Schedule?       @relation(fields: [scheduleId], references: [id], onDelete: Restrict, map: "fk_cancellation_requests_schedule")
-  reviewedBy     User?           @relation("ReviewedCancellationRequests", fields: [reviewedById], references: [id], onDelete: SetNull, map: "fk_cancellation_requests_reviewer")
-  coachPenalties CoachPenalty[]
-
-  @@index([status], map: "idx_cancellation_requests_status")
-  @@index([coachId], map: "idx_cancellation_requests_coach")
-  @@map("cancellation_requests")
-}
-
-model CoachPenalty {
-  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  coachId                    String    @map("coach_id") @db.Uuid
-  cancellationRequestId      String?   @map("cancellation_request_id") @db.Uuid
-  bookingId                  String?   @map("booking_id") @db.Uuid
-  penaltyType                String    @default("EMERGENCY_CANCELLATION") @map("penalty_type") @db.VarChar(50)
-  appliedMonth               String    @map("applied_month") @db.VarChar(7)
-  suggestedAction            String    @default("WARNING") @map("suggested_action") @db.VarChar(50)
-  suggestedRateReductionPct  Decimal?  @default(0) @map("suggested_rate_reduction_pct") @db.Decimal(5, 2)
-  isReviewedByManager        Boolean   @default(false) @map("is_reviewed_by_manager")
-  managerFinalDecision       String?   @map("manager_final_decision") @db.Text
-  reviewedAt                 DateTime? @map("reviewed_at") @db.Timestamptz(6)
-  notes                      String?   @db.Text
-  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  coach               User                 @relation("CoachPenalties", fields: [coachId], references: [id], onDelete: Cascade, map: "fk_coach_penalties_coach")
-  cancellationRequest CancellationRequest? @relation(fields: [cancellationRequestId], references: [id], onDelete: SetNull, map: "fk_coach_penalties_cancellation")
-  booking             Booking?             @relation(fields: [bookingId], references: [id], onDelete: SetNull, map: "fk_coach_penalties_booking")
-
-  @@index([coachId, appliedMonth], map: "idx_coach_penalties_month")
-  @@index([isReviewedByManager], map: "idx_coach_penalties_pending_review")
-  @@map("coach_penalties")
-}
-
-model WorkoutPlan {
-  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  memberId     String            @map("member_id") @db.Uuid
-  coachId      String            @map("coach_id") @db.Uuid
-  bookingId    String?           @map("booking_id") @db.Uuid
-  templateId   String?           @map("template_id") @db.Uuid
-  sessionOrder Int?              @map("session_order")
-  title        String            @db.VarChar(150)
-  notes        String?           @db.Text
-  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  member       User              @relation("MemberWorkoutPlans", fields: [memberId], references: [id], onDelete: Cascade, map: "fk_workout_plans_member")
-  coach        User              @relation("CoachWorkoutPlans", fields: [coachId], references: [id], onDelete: Restrict, map: "fk_workout_plans_coach")
-  booking      Booking?          @relation(fields: [bookingId], references: [id], onDelete: SetNull, map: "fk_workout_plans_booking")
-  template     WorkoutTemplate?  @relation(fields: [templateId], references: [id], onDelete: SetNull, map: "fk_workout_plans_template")
-  exercises    WorkoutExercise[]
-
-  @@index([memberId], map: "idx_workout_plans_member_id")
-  @@index([coachId], map: "idx_workout_plans_coach_id")
-  @@index([bookingId], map: "idx_workout_plans_booking_id")
-  @@index([templateId], map: "idx_workout_plans_template_id")
-  @@map("workout_plans")
-}
-
-model ExerciseKnowledge {
-  id           String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  title        String                      @db.VarChar(150)
-  category     String                      @db.VarChar(50)
-  instructions String                      @db.Text
-  // RAG: Vector embedding 1536 chiều (OpenAI text-embedding-3-small / Gemini text-embedding-004)
-  // Kiểu VECTOR không được Prisma hỗ trợ native → khai báo Unsupported để Client không bỏ qua cột.
-  // Phải tạo thủ công qua SQL migration: ALTER TABLE exercise_knowledge ADD COLUMN embedding vector(1536);
-  // Index: CREATE INDEX ON exercise_knowledge USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
-  embedding    Unsupported("vector(1536)")?
-
-  exercises         WorkoutExercise[]
-  templateExercises WorkoutTemplateExercise[]
-
-  @@map("exercise_knowledge")
-}
-
-model WorkoutTemplate {
-  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  templateCode   String                    @unique(map: "uq_workout_templates_code") @map("template_code") @db.VarChar(50)
-  disciplineCode String                    @map("discipline_code") @db.VarChar(20)
-  title          String                    @db.VarChar(150)
-  weekNumber     Int                       @map("week_number")
-  sessionOrder   Int                       @map("session_order")
-  description    String?                   @db.Text
-  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  exercises      WorkoutTemplateExercise[]
-  workoutPlans   WorkoutPlan[]
-
-  @@index([disciplineCode], map: "idx_workout_templates_discipline_code")
-  @@map("workout_templates")
-}
-
-model WorkoutTemplateExercise {
-  id          String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  templateId  String            @map("template_id") @db.Uuid
-  exerciseId  String            @map("exercise_id") @db.Uuid
-  sets        Int?
-  reps        Int?
-  unit        String?           @default("reps") @db.VarChar(20)
-  weightKg    Decimal?          @map("weight_kg") @db.Decimal(5, 2)
-  restSeconds Int?              @map("rest_seconds")
-  orderIndex  Int               @default(0) @map("order_index")
-
-  template    WorkoutTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade, map: "fk_workout_template_exercises_template")
-  exercise    ExerciseKnowledge @relation(fields: [exerciseId], references: [id], onDelete: Restrict, map: "fk_workout_template_exercises_exercise")
-
-  @@index([templateId], map: "idx_workout_template_exercises_template_id")
-  @@index([exerciseId], map: "idx_workout_template_exercises_exercise_id")
-  @@map("workout_template_exercises")
-}
-
-model WorkoutExercise {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  workoutPlanId String   @map("workout_plan_id") @db.Uuid
-  exerciseId    String   @map("exercise_id") @db.Uuid
-  sets          Int?
-  reps          Int?
-  weightKg      Decimal? @map("weight_kg") @db.Decimal(5, 2)
-  restSeconds   Int?     @map("rest_seconds")
-  coachFeedback String?  @map("coach_feedback") @db.Text
-  orderIndex    Int      @default(0) @map("order_index")
-
-  workoutPlan WorkoutPlan       @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade, map: "fk_workout_exercises_plan")
-  exercise    ExerciseKnowledge @relation(fields: [exerciseId], references: [id], onDelete: Restrict, map: "fk_workout_exercises_exercise")
-
-  @@index([workoutPlanId], map: "idx_workout_exercises_plan_id")
-  @@index([exerciseId], map: "idx_workout_exercises_exercise_id")
-  @@map("workout_exercises")
-}
-
-model AuditLog {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String?  @map("user_id") @db.Uuid
-  action       String   @db.VarChar(100)
-  targetEntity String   @map("target_entity") @db.VarChar(100)
-  targetId     String?  @map("target_id") @db.Uuid
-  beforeState  Json?    @map("before_state")
-  afterState   Json?    @map("after_state")
-  ipAddress    String?  @map("ip_address") @db.VarChar(45)
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull, map: "fk_audit_logs_user")
-
-  @@index([userId], map: "idx_audit_logs_user_id")
-  @@index([targetEntity, targetId], map: "idx_audit_logs_target_entity_id")
-  @@index([createdAt], map: "idx_audit_logs_created_at")
-  @@map("audit_logs")
+  @@map("peak_hour_configs")
 }

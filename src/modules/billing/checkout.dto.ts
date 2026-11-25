@@ -17,6 +17,7 @@ export class CreateCheckoutDto {
   @IsOptional() @IsUUID() coachId?: string;
   @IsOptional() @IsUUID() subscriptionId?: string;
   @IsOptional() @IsInt() @Min(1) @Max(100) addonSessions?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(5) coachRatingStars?: number;
 }
 
 import { ApiPropertyOptional } from '@nestjs/swagger';

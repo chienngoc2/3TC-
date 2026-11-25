@@ -56,7 +56,15 @@ export class AnalyticsService {
           },
           _sum: { capacity: true, currentEnrolled: true },
         }),
-        this.prisma.cancellationRequest.count({ where: { status: 'PENDING' } }),
+        this.prisma.cancellationRequest.count({
+          where: {
+            status: 'PENDING',
+            OR: [
+              { substitutionStatus: null },
+              { substitutionStatus: { not: 'ACCEPTED' } },
+            ],
+          },
+        }),
       ]);
     return {
       date: localDate().toISOString().slice(0, 10),

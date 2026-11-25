@@ -33,7 +33,17 @@ export class ClassesService {
     });
   }
   rooms() {
-    return this.prisma.room.findMany({ where: { isActive: true } });
+    return this.prisma.room.findMany({
+      where: { isActive: true },
+      include: {
+        discipline: true,
+        plans: {
+          where: { isActive: true },
+          select: { id: true, name: true, packageTier: true },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
   }
   createRoom(dto: RoomDto, actor: Actor) {
     return this.transactions.run(async (tx) => {

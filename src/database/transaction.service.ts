@@ -11,13 +11,12 @@ export class TransactionService {
       try {
         return await this.prisma.$transaction(
           async (tx) => {
-            await tx.$executeRaw`SET LOCAL TIME ZONE 'Asia/Ho_Chi_Minh'`;
             return work(tx);
           },
           {
-            isolationLevel: 'Serializable',
-            timeout: 20000,
-            maxWait: 10000,
+            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+            timeout: 10000,
+            maxWait: 5000,
           },
         );
       } catch (error) {

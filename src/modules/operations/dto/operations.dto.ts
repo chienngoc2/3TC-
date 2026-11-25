@@ -64,6 +64,28 @@ export class UpdateClassDto extends PartialType(ClassDto, {
 export class SlotDto {
   @IsDateString() startTime: string;
   @IsDateString() endTime: string;
+  @IsOptional() @IsString() exceptionReason?: string;
+  @IsOptional() @IsString() notes?: string;
+  @IsOptional() @IsUUID() workoutPlanId?: string;
+}
+
+export class ApplySlotWorkoutPlanDto {
+  @IsOptional() @IsUUID() workoutPlanId?: string;
+  @IsOptional() @IsString() @MaxLength(150) title?: string;
+  @IsOptional() @IsString() @MaxLength(8000) notes?: string;
+  @IsOptional() @IsArray() exercises?: any[];
+}
+
+export class ReviewExceptionDto {
+  @IsString() action: 'APPROVE' | 'REJECT';
+  @IsOptional() @IsString() rejectionReason?: string;
+}
+export class RespondSubstitutionDto {
+  @IsString() action: 'ACCEPT' | 'DECLINE';
+  @IsOptional() @IsString() reason?: string;
+}
+export class ReassignSubstituteDto {
+  @IsUUID() substituteCoachId: string;
 }
 export class BulkCreateSlotsDto {
   @IsArray()
@@ -103,7 +125,6 @@ export class SlotQueryDto extends DateRangeQueryDto {
 export class ShiftDto extends SlotDto {
   @IsUUID() staffId: string;
   @IsDateString() shiftDate: string;
-  @IsOptional() @IsString() notes?: string;
 }
 export class UpdateShiftDto extends PartialType(ShiftDto, {
   skipNullProperties: false,

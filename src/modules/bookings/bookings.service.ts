@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { Prisma, UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
@@ -16,17 +16,24 @@ import { ptDayBlockReason } from '../../common/utils/pt-day-policy';
 import { parsePagination } from '../../common/dto/pagination.dto';
 import { getVietnamDateRange } from '../../common/utils/timezone';
 import {
+  isClassCompatibleWithPlan,
+  getClassSpecialtyCode,
+  isCoachQualifiedForSpecialty,
+} from '../../common/utils/topic-matcher';
+import {
   GroupBookingDto,
   PtBookingDto,
   CancelDto,
   BookingListQueryDto,
 } from '../commerce/dto/commerce.dto';
+import { EmailService } from '../auth/email.service';
 @Injectable()
 export class BookingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly transactions: TransactionService,
     private readonly events: DomainEvents,
+    private readonly email: EmailService,
   ) {}
   private async member(
     tx: Prisma.TransactionClient,
@@ -36,7 +43,6 @@ export class BookingsService {
     const id = memberId ?? actor.userId;
     await memberAccess(tx, actor, id);
     await requireRole(tx, id, UserRole.MEMBER);
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`member:${id}`}))`;
     return id;
   }
   private async noOverlap(
@@ -74,6 +80,7 @@ export class BookingsService {
     date: Date,
     pt: boolean,
     coachId?: string,
+    coachStars?: number,
   ) {
     const today = localDate(),
       sessionDate = localDate(date);
@@ -84,11 +91,34 @@ export class BookingsService {
           disciplineId,
           status: 'ACTIVE',
           startDate: { lte: today },
-          endDate: { gte: sessionDate > today ? sessionDate : today },
           ...(pt
-            ? { assignedCoachId: coachId, remainingPtSessions: { gt: 0 } }
-            : { remainingGroupSessions: { gt: 0 } }),
+            ? {
+                // Cho phép đặt lịch HLV khi vẫn còn token PT dù thời hạn vào gym đã hết
+                remainingPtSessions: { gt: 0 },
+                OR: [
+                  { assignedCoachId: coachId },
+                  ...(coachStars
+                    ? [
+                        { coachRatingStars: coachStars },
+                        { coachRatingStars: null },
+                      ]
+                    : []),
+                ],
+              }
+            : {
+                endDate: { gte: sessionDate > today ? sessionDate : today },
+                remainingGroupSessions: { gt: 0 },
+                ...(coachStars
+                  ? {
+                      OR: [
+                        { coachRatingStars: coachStars },
+                        { coachRatingStars: null },
+                      ],
+                    }
+                  : {}),
+              }),
         },
+        include: { plan: true },
         orderBy: [{ endDate: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
       }),
       'NO_VALID_SUBSCRIPTION_OR_QUOTA',
@@ -140,10 +170,65 @@ export class BookingsService {
     });
     if (!discipline) return;
 
+    const sub = await tx.userSubscription.findUnique({
+      where: { id: subscriptionId },
+      include: { plan: true },
+    });
+
+    const isYoga =
+      discipline.code === 'YOGA' ||
+      (sub?.plan?.name || '').toLowerCase().includes('yoga') ||
+      (sub?.plan?.name || '').toLowerCase().includes('trị liệu');
+
+    if (isYoga) {
+      // Find or create Bridge Pose exercise
+      let bridgeEx = await tx.exerciseKnowledge.findFirst({
+        where: {
+          OR: [
+            { title: { contains: 'Cây cầu', mode: 'insensitive' } },
+            { title: { contains: 'Bridge', mode: 'insensitive' } },
+          ],
+        },
+      });
+      if (!bridgeEx) {
+        bridgeEx = await tx.exerciseKnowledge.create({
+          data: {
+            title: 'Cây cầu (Bridge Pose)',
+            category: 'backbends_seated',
+            instructions: 'Thực hiện tư thế cây cầu giữ hông nâng cao và siết cơ mông đùi.',
+          },
+        });
+      }
+
+      await (tx as any).workoutPlan.create({
+        data: {
+          memberId,
+          coachId,
+          bookingId,
+          sessionOrder: 1,
+          title: sub?.plan?.name || 'Khóa Học Yoga Trị Liệu & Phục Hồi Cột Sống (12 Buổi / Tháng)',
+          notes:
+            '[CHUYÊN ĐỀ]: Đánh giá cơ xương khớp & Giải tỏa căng cứng vùng cổ vai gáy\n' +
+            '• Nội dung: Buổi 1–3: Đánh giá cơ xương khớp & Giải tỏa căng cứng vùng cổ vai gáy',
+          exercises: {
+            create: [
+              {
+                exerciseId: bridgeEx.id,
+                sets: 5,
+                reps: 30,
+                restSeconds: 60,
+                orderIndex: 0,
+              },
+            ],
+          },
+        },
+      });
+      return;
+    }
+
     const sessionCount = await tx.booking.count({
       where: {
         subscriptionId,
-        bookingType: 'PERSONAL_TRAINING',
         status: { in: ['CONFIRMED', 'ATTENDED'] },
       },
     });
@@ -182,6 +267,98 @@ export class BookingsService {
       }
     }
   }
+
+  private async cloneSlotNotesWorkoutPlan(
+    tx: Prisma.TransactionClient,
+    bookingId: string,
+    memberId: string,
+    coachId: string,
+    rawNotes: string,
+  ) {
+    const normalized = rawNotes.replace(/\r\n/g, '\n').trim();
+    if (!normalized) return;
+
+    const titleMatch = normalized.match(/^\[GIÁO ÁN\]:\s*([^\n]+)/);
+    const title = titleMatch ? titleMatch[1].trim() : 'Giáo án buổi tập';
+    const topicMatch = normalized.match(/\[CHUYÊN ĐỀ\]:\s*([^\n]+)/);
+    const descMatch = normalized.match(/•\s*Nội dung:\s*([^\n]+)/);
+    const notesMatch = normalized.match(/--- GHI CHÚ ---\n([\s\S]+)$/);
+    const rawExtra = (notesMatch ? notesMatch[1] : normalized)
+      .replace(/^\[GIÁO ÁN\]:[^\n]*\n?/gm, '')
+      .replace(/--- DANH SÁCH BÀI TẬP[^-]*---[\s\S]*?(?=--- GHI CHÚ ---|$)/g, '')
+      .replace(/\[CHUYÊN ĐỀ\]:[^\n]*\n?/g, '')
+      .replace(/•\s*Nội dung:[^\n]*\n?/g, '')
+      .trim();
+
+    const noteParts: string[] = [];
+    if (topicMatch) {
+      noteParts.push(`[CHUYÊN ĐỀ]: ${topicMatch[1].trim()}`);
+      if (descMatch) noteParts.push(`• Nội dung: ${descMatch[1].trim()}`);
+    }
+    if (rawExtra) {
+      noteParts.push(rawExtra);
+    }
+    const cleanNotes = noteParts.join('\n').trim() || null;
+
+    const exerciseMatches = Array.from(
+      normalized.matchAll(
+        /^\d+\.\s*([^:\n\r]+):\s*(\d+)\s*hiệp\s*x\s*(\d+)\s*lần(?:\s*\(Nghỉ\s*(\d+)s\))?/gm,
+      ),
+    );
+
+    const resolvedExercises: Array<{
+      exerciseId: string;
+      sets: number;
+      reps: number;
+      restSeconds: number;
+    }> = [];
+
+    for (const m of exerciseMatches) {
+      const exTitle = m[1].trim();
+      let found = await tx.exerciseKnowledge.findFirst({
+        where: { title: { equals: exTitle, mode: 'insensitive' } },
+      });
+      if (!found) {
+        found = await tx.exerciseKnowledge.findFirst({
+          where: { title: { contains: exTitle, mode: 'insensitive' } },
+        });
+      }
+      if (!found) {
+        found = await tx.exerciseKnowledge.create({
+          data: {
+            title: exTitle,
+            category: 'CUSTOM',
+            instructions: 'Thực hiện theo hướng dẫn của HLV.',
+          },
+        });
+      }
+      resolvedExercises.push({
+        exerciseId: found.id,
+        sets: Number(m[2]) || 3,
+        reps: Number(m[3]) || 10,
+        restSeconds: m[4] ? Number(m[4]) : 60,
+      });
+    }
+
+    await (tx as any).workoutPlan.create({
+      data: {
+        memberId,
+        coachId,
+        bookingId,
+        title,
+        notes: cleanNotes,
+        exercises: {
+          create: resolvedExercises.map((e, orderIndex) => ({
+            exerciseId: e.exerciseId,
+            sets: e.sets,
+            reps: e.reps,
+            restSeconds: e.restSeconds,
+            orderIndex,
+          })),
+        },
+      },
+    });
+  }
   async group(dto: GroupBookingDto, actor: Actor) {
     const result = await this.transactions.run(async (tx) => {
       const memberId = await this.member(tx, actor, dto.memberId);
@@ -189,7 +366,19 @@ export class BookingsService {
       const schedule = requireRecord(
         await tx.schedule.findUnique({
           where: { id: dto.scheduleId },
-          include: { class: true, coach: true, room: true },
+          include: {
+            class: { include: { discipline: true } },
+            coach: {
+              include: {
+                coachProfile: {
+                  include: {
+                    coachSpecialties: { include: { specialty: true } },
+                  },
+                },
+              },
+            },
+            room: true,
+          },
         }),
       );
       requireCondition(
@@ -204,13 +393,57 @@ export class BookingsService {
         'SESSION_UNAVAILABLE',
       );
       await this.noOverlap(tx, memberId, schedule.startTime, schedule.endTime);
+      const coachStars = schedule.coach?.coachProfile?.ratingStars ?? 3;
       const sub = await this.quota(
         tx,
         memberId,
         schedule.class.disciplineId,
         schedule.startTime,
         false,
+        undefined,
+        coachStars,
       );
+      const subStars = (sub as any).coachRatingStars ?? 3;
+      if (coachStars !== subStars) {
+        throw new BadRequestException(
+          `Gói tập của bạn (hạng ${subStars} sao) chỉ áp dụng cho lớp của HLV ${subStars} sao. Lớp này do HLV ${coachStars} sao phụ trách. Vui lòng chọn lớp có HLV cùng hạng hoặc đổi/nâng cấp gói.`,
+        );
+      }
+
+      // Check Course Specialty compatibility (khóa học nào đi với chuyên đề lớp học đó)
+      const subPlanName = (sub as any).plan?.name || '';
+      const compatibility = isClassCompatibleWithPlan(
+        schedule.class.name,
+        subPlanName,
+        schedule.class.discipline?.code,
+      );
+      if (!compatibility.isCompatible) {
+        throw new BadRequestException(
+          `Gói tập "${subPlanName}" (${compatibility.planSpecialtyName}) không áp dụng cho lớp học "${schedule.class.name}" (${compatibility.classSpecialtyName}). Vui lòng chọn lớp học đúng chuyên đề của gói tập.`,
+        );
+      }
+
+      // Check if coach is qualified to teach this class specialty
+      const coachSpecs =
+        schedule.coach?.coachProfile?.coachSpecialties?.map(
+          (cs: any) => cs.specialty?.code,
+        ) || [];
+      const classSpec = getClassSpecialtyCode(
+        schedule.class.name,
+        schedule.class.discipline?.code,
+      );
+      if (
+        classSpec &&
+        !isCoachQualifiedForSpecialty(
+          coachSpecs,
+          classSpec,
+          schedule.class.discipline?.code,
+        )
+      ) {
+        throw new BadRequestException(
+          `Huấn luyện viên ${schedule.coach.fullName} chưa được cấp phép giảng dạy chuyên đề "${schedule.class.name}".`,
+        );
+      }
       const booking = await tx.booking.create({
         data: {
           subscriptionId: sub.id,
@@ -255,7 +488,6 @@ export class BookingsService {
           where: { id: dto.coachAvailabilityId },
         }),
       );
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${initial.coachId}))`;
       await requireRole(tx, initial.coachId, UserRole.COACH);
       requireCondition(
         await tx.coachSpecialty.findFirst({
@@ -270,39 +502,130 @@ export class BookingsService {
         initial.startTime > new Date(),
         'SESSION_ALREADY_STARTED',
       );
-      const localDay = localDate(initial.startTime);
-      const dayStart = new Date(localDay.getTime() - 7 * 3600000);
-      const dayEnd = new Date(dayStart.getTime() + 86400000);
-      const sameDay = await tx.booking.findMany({
-        where: {
-          memberId,
-          disciplineId: dto.disciplineId,
-          bookingType: 'PERSONAL_TRAINING',
-          status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED', 'CANCELLED'] },
-          coachAvailability: { startTime: { gte: dayStart, lt: dayEnd } },
-        },
-        select: {
-          status: true,
-          cancelledAt: true,
-          isLateCancellation: true,
-          isEmergencyCancellation: true,
+      const discipline = await tx.discipline.findUnique({
+        where: { id: dto.disciplineId },
+        select: { id: true, code: true, name: true },
+      });
+      const isGroupDiscipline =
+        discipline?.code === 'YOGA' || discipline?.code === 'BOXING';
+
+      const coachProfile = await tx.coachProfile.findUnique({
+        where: { userId: initial.coachId },
+        include: {
+          coachSpecialties: { include: { specialty: true } },
         },
       });
-      const dayBlock = ptDayBlockReason(sameDay);
-      if (dayBlock) throw new ConflictException(dayBlock);
+      const coachStars = coachProfile?.ratingStars ?? 3;
+
+      const today = localDate();
+      const activePtSub = await tx.userSubscription.findFirst({
+        where: {
+          userId: memberId,
+          disciplineId: dto.disciplineId,
+          status: 'ACTIVE',
+          startDate: { lte: today },
+          remainingPtSessions: { gt: 0 },
+          OR: [
+            { assignedCoachId: initial.coachId },
+            ...(coachStars ? [{ coachRatingStars: coachStars }, { coachRatingStars: null }] : []),
+          ],
+        },
+        include: { plan: true },
+      });
+
+      const isPtBooking =
+        Boolean(activePtSub) &&
+        !(
+          isGroupDiscipline &&
+          (activePtSub?.plan?.packageCategory === 'GROUP' ||
+            (activePtSub?.remainingGroupSessions ?? 0) > 0)
+        );
+
+      if (isPtBooking) {
+        const localDay = localDate(initial.startTime);
+        const dayStart = new Date(localDay.getTime() - 7 * 3600000);
+        const dayEnd = new Date(dayStart.getTime() + 86400000);
+        const sameDay = await tx.booking.findMany({
+          where: {
+            memberId,
+            disciplineId: dto.disciplineId,
+            bookingType: 'PERSONAL_TRAINING',
+            status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED', 'CANCELLED'] },
+            coachAvailability: { startTime: { gte: dayStart, lt: dayEnd } },
+          },
+          select: {
+            status: true,
+            cancelledAt: true,
+            isLateCancellation: true,
+            isEmergencyCancellation: true,
+          },
+        });
+        const dayBlock = ptDayBlockReason(sameDay);
+        if (dayBlock) throw new ConflictException(dayBlock);
+      }
+
+      if (initial.isBooked) {
+        throw new ConflictException(
+          isPtBooking
+            ? 'Ca 1-1 này đã có học viên đăng ký (Lớp đầy). Vui lòng chọn ca khác.'
+            : 'Ca tập này đã có học viên đăng ký (Lớp đầy). Vui lòng chọn ca khác.',
+        );
+      }
       const claim = await tx.coachAvailability.updateMany({
         where: { id: initial.id, isBooked: false, isEmergencyCancelled: false },
         data: { isBooked: true },
       });
-      requireCondition(claim.count === 1, 'PT_SLOT_UNAVAILABLE');
+      if (claim.count !== 1) {
+        throw new ConflictException(
+          isPtBooking
+            ? 'Ca 1-1 này đã có học viên đăng ký (Lớp đầy). Vui lòng chọn ca khác.'
+            : 'Ca tập này đã có học viên đăng ký (Lớp đầy). Vui lòng chọn ca khác.',
+        );
+      }
+
+      // 5-Star Zone Conflict Check applies ONLY to 1-1 PT sessions of the SAME discipline.
+      // Group Yoga/Boxing sessions and cross-discipline PT 1-1 sessions never conflict with each other.
+      if (isPtBooking && !isGroupDiscipline) {
+        const conflictingZone = await tx.coachAvailability.findFirst({
+          where: {
+            id: { not: initial.id },
+            coachId: { not: initial.coachId },
+            isBooked: true,
+            isEmergencyCancelled: false,
+            startTime: { lt: initial.endTime },
+            endTime: { gt: initial.startTime },
+            coach: {
+              coachProfile: {
+                ratingStars: coachStars,
+              },
+            },
+            bookings: {
+              some: {
+                status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED'] },
+                bookingType: 'PERSONAL_TRAINING',
+                disciplineId: dto.disciplineId,
+              },
+            },
+          },
+          include: { coach: { select: { fullName: true } } },
+        });
+        if (conflictingZone) {
+          throw new ConflictException(
+            `Khu vực ${coachStars} sao của bộ môn này trong khung giờ đã có HLV ${conflictingZone.coach?.fullName || ''} (${coachStars} sao) được học viên đặt trước. Mỗi phòng tập có 5 khu vực (1-5 sao).`,
+          );
+        }
+      }
+
       await this.noOverlap(tx, memberId, initial.startTime, initial.endTime);
+
       const sub = await this.quota(
         tx,
         memberId,
         dto.disciplineId,
         initial.startTime,
-        true,
+        isPtBooking,
         initial.coachId,
+        coachStars,
       );
       const booking = await tx.booking.create({
         data: {
@@ -310,7 +633,7 @@ export class BookingsService {
           coachAvailabilityId: initial.id,
           memberId,
           disciplineId: dto.disciplineId,
-          bookingType: 'PERSONAL_TRAINING',
+          bookingType: isPtBooking ? 'PERSONAL_TRAINING' : 'GROUP_CLASS',
         },
       });
       await this.reserve(
@@ -320,26 +643,97 @@ export class BookingsService {
         initial.startTime,
         initial.endTime,
       );
-      await this.autoAssignWorkoutPlan(
-        tx,
-        booking.id,
-        sub.id,
-        memberId,
-        initial.coachId,
-        dto.disciplineId,
-      );
+      // If coach pre-attached a workout plan on this slot, clone it onto the booking automatically
+      if (initial.notes && initial.notes.trim()) {
+        await this.cloneSlotNotesWorkoutPlan(
+          tx,
+          booking.id,
+          memberId,
+          initial.coachId,
+          initial.notes,
+        );
+      }
       await audit(tx, actor, 'BOOK_PT', 'bookings', booking.id);
+
+      // If another empty overlapping slot of the SAME discipline and SAME star rating exists,
+      // remove it automatically once the first slot is booked so no dead duplicate slot remains.
+      const overlappingEmptySlots = await tx.coachAvailability.findMany({
+        where: {
+          id: { not: initial.id },
+          coachId: { not: initial.coachId },
+          isBooked: false,
+          isEmergencyCancelled: false,
+          startTime: { lt: initial.endTime },
+          endTime: { gt: initial.startTime },
+          coach: {
+            coachProfile: {
+              ratingStars: coachStars,
+            },
+            OR: [
+              {
+                coachProfile: {
+                  coachSpecialties: {
+                    some: { specialty: { disciplineId: dto.disciplineId } },
+                  },
+                },
+              },
+              {
+                coachRates: {
+                  some: { disciplineId: dto.disciplineId },
+                },
+              },
+            ],
+          },
+        },
+        select: {
+          id: true,
+          coachId: true,
+          _count: { select: { bookings: true } },
+        },
+      });
+      const toHardDeleteIds = overlappingEmptySlots
+        .filter((s) => s._count.bookings === 0)
+        .map((s) => s.id);
+      const toSoftHideIds = overlappingEmptySlots
+        .filter((s) => s._count.bookings > 0)
+        .map((s) => s.id);
+
+      if (toHardDeleteIds.length > 0) {
+        await tx.coachAvailability.deleteMany({
+          where: { id: { in: toHardDeleteIds } },
+        });
+      }
+      if (toSoftHideIds.length > 0) {
+        await tx.coachAvailability.updateMany({
+          where: { id: { in: toSoftHideIds } },
+          data: { isEmergencyCancelled: true },
+        });
+      }
+
       return {
         booking,
         coachId: initial.coachId,
-        remainingPtSessions: (sub.remainingPtSessions ?? 0) - 1,
+        remainingPtSessions: isPtBooking ? (sub.remainingPtSessions ?? 0) - 1 : sub.remainingPtSessions,
+        remainingGroupSessions: !isPtBooking ? (sub.remainingGroupSessions ?? 0) - 1 : sub.remainingGroupSessions,
+        removedSlots: overlappingEmptySlots.map((s) => ({
+          id: s.id,
+          coachId: s.coachId,
+        })),
       };
     });
     this.changed(result.booking, result.coachId);
+    for (const removed of result.removedSlots) {
+      this.events.publish({
+        name: 'slot.deleted',
+        roles: ['MEMBER', 'COACH', 'CENTER_MANAGER', 'RECEPTIONIST'],
+        data: { id: removed.id, coachId: removed.coachId },
+      });
+    }
     return {
       ...result.booking,
       bookingId: result.booking.id,
       remainingPtSessions: result.remainingPtSessions,
+      remainingGroupSessions: result.remainingGroupSessions,
     };
   }
   changed(
@@ -356,7 +750,7 @@ export class BookingsService {
       name: 'booking.updated',
       data: { bookingId: booking.id, scheduleId: booking.scheduleId },
       userIds: [booking.memberId, coachId],
-      roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+      roles: ['CENTER_MANAGER', 'RECEPTIONIST', 'COACH', 'MEMBER'],
     });
     if (schedule)
       this.events.publish({
@@ -368,7 +762,7 @@ export class BookingsService {
           status: schedule.status,
         },
         userIds: [booking.memberId, coachId],
-        roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+        roles: ['CENTER_MANAGER', 'RECEPTIONIST', 'COACH', 'MEMBER'],
       });
   }
   async list(actor: Actor, query?: BookingListQueryDto) {
@@ -410,6 +804,17 @@ export class BookingsService {
           schedule: { include: { class: true } },
           coachAvailability: true,
           attendance: true,
+          member: {
+            select: {
+              id: true,
+              fullName: true,
+              email: true,
+              phone: true,
+              avatarUrl: true,
+              memberProfile: true,
+            },
+          },
+          subscription: { include: { plan: true } },
         },
         orderBy: { bookedAt: 'desc' },
         skip,
@@ -424,11 +829,24 @@ export class BookingsService {
       const booking = requireRecord(
         await tx.booking.findUnique({
           where: { id },
-          include: { schedule: true, coachAvailability: true },
+          include: {
+            schedule: {
+              include: {
+                class: true,
+                room: true,
+                coach: { include: { coachProfile: true } },
+              },
+            },
+            coachAvailability: {
+              include: {
+                coach: { include: { coachProfile: true } },
+              },
+            },
+            member: true,
+          },
         }),
       );
       await memberAccess(tx, actor, booking.memberId);
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`member:${booking.memberId}`}))`;
       const session = requireRecord(
         booking.schedule ?? booking.coachAvailability,
       );
@@ -455,8 +873,90 @@ export class BookingsService {
       await audit(tx, actor, 'CANCEL_BOOKING', 'bookings', id, {
         refunded: !late,
       });
-      return { booking, coachId: session.coachId, refunded: !late, schedule };
+
+      const isPt = booking.bookingType === 'PERSONAL_TRAINING' || !!booking.coachAvailabilityId;
+      const sessionTitle = isPt
+        ? 'Ca tập cá nhân 1-1 (PT)'
+        : (booking.schedule?.class?.name || 'Lớp tập nhóm');
+      const coach = booking.schedule?.coach || booking.coachAvailability?.coach;
+      const member = booking.member;
+
+      const formatHn = (d: Date) =>
+        new Intl.DateTimeFormat('vi-VN', {
+          hour: '2-digit',
+          minute: '2-digit',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          timeZone: 'Asia/Ho_Chi_Minh',
+        }).format(d);
+
+      const startTimeStr = formatHn(new Date(session.startTime));
+      const endTimeStr = formatHn(new Date(session.endTime));
+
+      return {
+        booking,
+        coachId: session.coachId,
+        refunded: !late,
+        schedule,
+        isPt,
+        sessionTitle,
+        startTimeStr,
+        endTimeStr,
+        coach,
+        member,
+        reason: dto.reason,
+      };
     });
+
+    // 1. Send Email to Member (Học viên)
+    if (result.member?.email) {
+      void this.email.sendBookingCancelledMemberEmail(
+        result.member.email,
+        result.member.fullName || 'Hội viên',
+        {
+          sessionTitle: result.sessionTitle,
+          startTime: result.startTimeStr,
+          endTime: result.endTimeStr,
+          coachName: result.coach?.fullName,
+          isLateCancellation: !result.refunded,
+          refunded: result.refunded,
+          cancellationReason: result.reason,
+        },
+      );
+    }
+
+    // 2. Emit SSE Event booking.cancelled (Thông báo thời gian thực cho đúng HLV liên quan, Học viên và Quản lý/Lễ tân)
+    const coachMsg = result.isPt
+      ? `Học viên ${result.member?.fullName || 'Hội viên'} vừa hủy ca tập PT 1-1 lúc ${result.startTimeStr}${!result.refunded ? ' (Hủy sát giờ < 2h — HLV vẫn được tính thù lao)' : ' — Slot đã mở lại'}.`
+      : `Học viên ${result.member?.fullName || 'Hội viên'} vừa hủy lịch lớp ${result.sessionTitle} lúc ${result.startTimeStr}${!result.refunded ? ' (Hủy sát giờ < 2h)' : ''}.`;
+    const memberMsg = result.refunded
+      ? `Bạn đã hủy lịch ${result.sessionTitle} lúc ${result.startTimeStr}. 01 lượt tập (token) đã được hoàn trả lại.`
+      : `Bạn đã hủy sát giờ ${result.sessionTitle} lúc ${result.startTimeStr}. Theo quy định (< 2 tiếng), lượt tập này không được hoàn trả.`;
+
+    this.events.publish({
+      name: 'booking.cancelled',
+      userIds: [result.coachId, result.booking.memberId],
+      roles: ['CENTER_MANAGER', 'RECEPTIONIST'],
+      data: {
+        bookingId: id,
+        coachId: result.coachId,
+        memberId: result.booking.memberId,
+        scheduleId: result.booking.scheduleId,
+        coachAvailabilityId: result.booking.coachAvailabilityId,
+        memberName: result.member?.fullName || 'Học viên',
+        coachName: result.coach?.fullName || 'HLV',
+        sessionTitle: result.sessionTitle,
+        sessionTime: result.startTimeStr,
+        isLateCancellation: !result.refunded,
+        refunded: result.refunded,
+        reason: result.reason,
+        coachMessage: coachMsg,
+        memberMessage: memberMsg,
+        message: coachMsg,
+      },
+    });
+
     this.changed(result.booking, result.coachId, result.schedule);
     return {
       id,
@@ -491,11 +991,37 @@ export class BookingsService {
         where: { id: booking.scheduleId },
         data: { currentEnrolled: { decrement: 1 } },
       });
-    if (booking.coachAvailabilityId)
-      await tx.coachAvailability.update({
-        where: { id: booking.coachAvailabilityId },
-        data: { isBooked: false },
+    if (booking.coachAvailabilityId) {
+      if (refund) {
+        // Hủy trước giờ quy định (được hoàn lại token): Ca đó trở lại thành ca trống để member khác có thể đăng ký
+        await tx.coachAvailability.update({
+          where: { id: booking.coachAvailabilityId },
+          data: { isBooked: false, isEmergencyCancelled: false },
+        });
+      } else {
+        // Hủy sát giờ (không hoàn token): Ca học đó biến mất (không thành ca trống, không ai đăng ký được nữa)
+        await tx.coachAvailability.update({
+          where: { id: booking.coachAvailabilityId },
+          data: { isBooked: false, isEmergencyCancelled: true },
+        });
+      }
+    }
+
+    // Xóa nội dung bài tập / giáo án đã gắn với ca/booking này để ca trống không còn nội dung của học viên cũ
+    const workoutPlans = await tx.workoutPlan.findMany({
+      where: { bookingId: booking.id },
+      select: { id: true },
+    });
+    if (workoutPlans.length > 0) {
+      const planIds = workoutPlans.map((p) => p.id);
+      await tx.workoutExercise.deleteMany({
+        where: { workoutPlanId: { in: planIds } },
       });
+      await tx.workoutPlan.deleteMany({
+        where: { id: { in: planIds } },
+      });
+    }
+
     await tx.equipmentReservation.deleteMany({
       where: { bookingId: booking.id },
     });

@@ -36,6 +36,11 @@ export class MembershipsController {
   ) {
     return this.service.list(disciplineId, packageTier);
   }
+  @Public() @Get('memberships/plans/:id') getPlanDetail(
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.service.getPlanDetail(id);
+  }
   @Roles(UserRole.CENTER_MANAGER) @Post('memberships/plans') create(
     @Body() dto: PlanDto,
     @CurrentUser() actor: Actor,
@@ -67,6 +72,25 @@ export class MembershipsController {
     @Query('memberId', new ParseUUIDPipe({ optional: true })) memberId?: string,
   ) {
     return this.service.subscriptions(memberId ?? actor.userId, actor);
+  }
+
+  @Roles(UserRole.MEMBER, UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
+  @Get('memberships/subscriptions/:id/eligible-coaches')
+  eligibleCoaches(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.eligibleCoaches(id, actor);
+  }
+
+  @Roles(UserRole.MEMBER, UserRole.CENTER_MANAGER, UserRole.RECEPTIONIST)
+  @Put('memberships/subscriptions/:id/change-coach')
+  changeCoach(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body('newCoachId', ParseUUIDPipe) newCoachId: string,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.changeCoach(id, newCoachId, actor);
   }
   @Roles(UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Put('memberships/subscriptions/:id/status')

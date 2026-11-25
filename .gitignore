@@ -5,6 +5,7 @@
 *.tsbuildinfo
 .env
 .env.production
+.env.supabase
 
 # Logs
 logs

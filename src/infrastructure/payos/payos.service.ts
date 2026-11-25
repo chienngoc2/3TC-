@@ -56,24 +56,24 @@ export class PayosService {
     const clientId =
       this.config.get<string>('PAYOS_CLIENT_ID') ??
       process.env.PAYOS_CLIENT_ID ??
-      '52993569-18b6-4f5d-a09b-66ea4e9b3b47';
+      '';
     const apiKey =
       this.config.get<string>('PAYOS_API_KEY') ??
       process.env.PAYOS_API_KEY ??
-      'a29d04f5-6f51-4118-81eb-19f41cfb017e';
+      '';
     const checksumKey =
       this.config.get<string>('PAYOS_CHECKSUM_KEY') ??
       process.env.PAYOS_CHECKSUM_KEY ??
-      'ff582abfc2ffcbded24408ddf2a42eae045868938187020fe744703c2656cbec';
+      '';
 
     this.returnUrl =
       this.config.get<string>('PAYOS_RETURN_URL') ??
       process.env.PAYOS_RETURN_URL ??
-      'https://3tcfitness.ddns.net/portal/member/checkout';
+      'http://localhost:5173/portal/member/checkout';
     this.cancelUrl =
       this.config.get<string>('PAYOS_CANCEL_URL') ??
       process.env.PAYOS_CANCEL_URL ??
-      'https://3tcfitness.ddns.net/portal/member/checkout';
+      'http://localhost:5173/portal/member/checkout';
 
     if (clientId && apiKey && checksumKey) {
       try {
@@ -108,14 +108,20 @@ export class PayosService {
     }
 
     try {
-      const response = await this.payosClient.paymentRequests.create({
-        orderCode: params.orderCode,
-        amount: Math.round(params.amount),
-        description: params.description.slice(0, 25),
-        returnUrl: `${this.returnUrl}/${params.checkoutId}`,
-        cancelUrl: `${this.cancelUrl}/${params.checkoutId}`,
-        items: params.items,
-      });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('PAYOS_TIMEOUT')), 3500),
+      );
+      const response = await Promise.race([
+        this.payosClient.paymentRequests.create({
+          orderCode: params.orderCode,
+          amount: Math.round(params.amount),
+          description: params.description.slice(0, 25),
+          returnUrl: `${this.returnUrl}/${params.checkoutId}`,
+          cancelUrl: `${this.cancelUrl}/${params.checkoutId}`,
+          items: params.items,
+        }),
+        timeoutPromise,
+      ]);
 
       return {
         bin: response.bin,
@@ -132,7 +138,7 @@ export class PayosService {
       };
     } catch (error) {
       this.logger.error(`Error creating PayOS payment link for order ${params.orderCode}:`, error);
-      throw error;
+      return null;
     }
   }
 

@@ -24,12 +24,40 @@ import {
   GateCheckinDto,
   UpdateAttendanceDto,
   AttendanceHistoryQueryDto,
+  QrCheckinDto,
+  ManualPinCheckinDto,
 } from './dto/attendance.dto';
 @Controller('attendances')
 @ApiTags('Attendances')
 @ApiBearerAuth()
 export class AttendancesController {
   constructor(private readonly service: AttendancesService) {}
+
+  @Roles(UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
+  @Get('session-qr')
+  getSessionQr(@CurrentUser() actor: Actor) {
+    return this.service.generateSessionQr(actor);
+  }
+
+  @Roles(UserRole.MEMBER, UserRole.COACH)
+  @HttpCode(200)
+  @Post('qr-checkin')
+  qrCheckin(@Body() dto: QrCheckinDto, @CurrentUser() actor: Actor) {
+    return this.service.qrCheckin(dto, actor);
+  }
+
+  @Roles(UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
+  @HttpCode(200)
+  @Post('manual-checkin')
+  manualCheckin(@Body() dto: ManualPinCheckinDto, @CurrentUser() actor: Actor) {
+    return this.service.manualPinCheckin(dto, actor);
+  }
+
+  @Roles(UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
+  @Get('live-feed')
+  getLiveFeed() {
+    return this.service.getLiveFeed();
+  }
   @Roles(UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Post('gate-entry')
   gate(@Body() dto: GateEntryDto, @CurrentUser() actor: Actor) {

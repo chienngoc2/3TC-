@@ -16,6 +16,7 @@ import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { SendGoogleOtpDto, VerifyGoogleOtpDto } from './dto/google-auth.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { Actor } from '../../common/types/actor';
@@ -50,6 +51,24 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Cấp token mới thành công' })
   async refreshToken(@Body() dto: RefreshTokenDto) {
     return this.authService.refreshToken(dto);
+  }
+
+  @Public()
+  @Post('google/send-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Gửi mã xác thực OTP qua email để đăng nhập Google' })
+  @ApiResponse({ status: 200, description: 'Đã gửi mã OTP thành công qua email' })
+  async sendGoogleOtp(@Body() dto: SendGoogleOtpDto) {
+    return this.authService.sendGoogleOtp(dto);
+  }
+
+  @Public()
+  @Post('google/verify-otp')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xác thực OTP và đăng nhập tài khoản Google (tự tạo nếu mới)' })
+  @ApiResponse({ status: 200, description: 'Đăng nhập thành công, trả kèm thông tin tài khoản mặc định' })
+  async verifyGoogleOtp(@Body() dto: VerifyGoogleOtpDto) {
+    return this.authService.verifyGoogleOtp(dto);
   }
 
   @UseGuards(JwtAuthGuard)

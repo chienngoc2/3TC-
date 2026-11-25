@@ -19,6 +19,7 @@ import { UserRole } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateProfileDto, UpdateUserDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { applyPaginationHeaders } from '../../common/dto/pagination.dto';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -51,6 +52,17 @@ export class UsersController {
   }
   @Get('profile/me') me(@CurrentUser() actor: Actor) {
     return this.users.findById(actor.userId);
+  }
+  @Put('change-password')
+  changePassword(
+    @Body() dto: ChangePasswordDto,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.users.changePassword(
+      actor.userId,
+      dto.currentPassword,
+      dto.newPassword,
+    );
   }
   @Put('profile/me') profile(
     @Body() dto: UpdateProfileDto,

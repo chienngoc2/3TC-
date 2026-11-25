@@ -14,12 +14,26 @@ export class PrismaService
   private readonly logger = new Logger(PrismaService.name);
 
   async onModuleInit() {
-    try {
-      await this.$connect();
-      this.logger.log('Prisma successfully connected to PostgreSQL database');
-    } catch (error) {
-      this.logger.error('Failed to connect to database via Prisma', error);
-      throw error;
+    let retries = 5;
+    while (retries > 0) {
+      try {
+        await this.$connect();
+        this.logger.log('Prisma successfully connected to PostgreSQL database');
+        return;
+      } catch (error) {
+        retries--;
+        this.logger.warn(
+          `Failed to connect to database via Prisma. Retrying... (${retries} attempts left)`,
+        );
+        if (retries === 0) {
+          this.logger.error(
+            'Failed to connect to database via Prisma after all retries',
+            error,
+          );
+          throw error;
+        }
+        await new Promise((res) => setTimeout(res, 2000));
+      }
     }
   }
 

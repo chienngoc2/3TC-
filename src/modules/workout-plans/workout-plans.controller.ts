@@ -65,9 +65,10 @@ export class WorkoutPlansController {
   @Get('exercise-knowledge')
   async knowledge(
     @Query() query: ExerciseKnowledgeQueryDto,
+    @CurrentUser() actor: Actor,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { items, total, page, limit } = await this.service.knowledge(query);
+    const { items, total, page, limit } = await this.service.knowledge(query, actor);
     applyPaginationHeaders(res, total, page, limit);
     return items;
   }
@@ -103,5 +104,25 @@ export class WorkoutPlansController {
     @CurrentUser() actor: Actor,
   ) {
     return this.service.getPlanByBooking(bookingId, actor);
+  }
+
+  @Roles(UserRole.COACH, UserRole.CENTER_MANAGER)
+  @Put('bookings/:bookingId/workout-plan')
+  upsertPlanByBooking(
+    @Param('bookingId', ParseUUIDPipe) bookingId: string,
+    @Body() dto: any,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.upsertPlanByBooking(bookingId, dto, actor);
+  }
+
+  @Roles(UserRole.COACH, UserRole.CENTER_MANAGER)
+  @Put('schedules/:scheduleId/workout-plan')
+  upsertPlanBySchedule(
+    @Param('scheduleId', ParseUUIDPipe) scheduleId: string,
+    @Body() dto: any,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.service.upsertPlanBySchedule(scheduleId, dto, actor);
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
 import type { Actor } from '../../common/types/actor';
@@ -46,6 +46,14 @@ export class WorkoutPlansService {
       this.prisma.workoutPlan.findMany({
         where,
         include: {
+          member: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+              email: true,
+            },
+          },
           exercises: {
             include: { exercise: true },
             orderBy: { orderIndex: 'asc' },
@@ -61,12 +69,15 @@ export class WorkoutPlansService {
   }
   create(dto: WorkoutDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
-      await requireRole(tx, dto.memberId, 'MEMBER');
-      await memberAccess(tx, actor, dto.memberId);
-      const { exercises, ...data } = dto;
+      if (dto.memberId) {
+        await requireRole(tx, dto.memberId, 'MEMBER');
+        await memberAccess(tx, actor, dto.memberId);
+      }
+      const { exercises, memberId, ...data } = dto;
       const value = await tx.workoutPlan.create({
         data: {
           ...data,
+          ...(memberId ? { memberId } : { memberId: null }),
           coachId: actor.userId,
           exercises: {
             create: exercises.map((exercise, orderIndex) => ({
@@ -75,7 +86,20 @@ export class WorkoutPlansService {
             })),
           },
         },
-        include: { exercises: true },
+        include: {
+          member: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+              email: true,
+            },
+          },
+          exercises: {
+            include: { exercise: true },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
       });
       await audit(tx, actor, 'CREATE_WORKOUT_PLAN', 'workout_plans', value.id);
       return { ...value, totalExercises: value.exercises.length };
@@ -87,7 +111,9 @@ export class WorkoutPlansService {
         await tx.workoutPlan.findUnique({ where: { id } }),
       );
       requireOwner(actor, old.coachId);
-      await memberAccess(tx, actor, old.memberId);
+      if (old.memberId) {
+        await memberAccess(tx, actor, old.memberId);
+      }
       const { exercises, ...data } = dto;
       if (exercises)
         await tx.workoutExercise.deleteMany({ where: { workoutPlanId: id } });
@@ -106,7 +132,20 @@ export class WorkoutPlansService {
               }
             : {}),
         },
-        include: { exercises: true },
+        include: {
+          member: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+              email: true,
+            },
+          },
+          exercises: {
+            include: { exercise: true },
+            orderBy: { orderIndex: 'asc' },
+          },
+        },
       });
       await audit(tx, actor, 'UPDATE_WORKOUT_PLAN', 'workout_plans', id);
       return value;
@@ -123,34 +162,81 @@ export class WorkoutPlansService {
       return { id };
     });
   }
-  async knowledge(query?: ExerciseKnowledgeQueryDto) {
-    const { page, limit, skip } = parsePagination(query);
-    const where = {
-      ...(query?.category ? { category: query.category } : {}),
-      ...(query?.q
-        ? {
-            OR: [
-              { title: { contains: query.q, mode: 'insensitive' as const } },
-              {
-                instructions: {
-                  contains: query.q,
-                  mode: 'insensitive' as const,
-                },
-              },
-            ],
-          }
-        : {}),
-    };
+  async knowledge(query?: ExerciseKnowledgeQueryDto, actor?: Actor) {
+    const page = query?.page && query.page > 0 ? Number(query.page) : 1;
+    const takeLimit =
+      query?.limit && query.limit > 0
+        ? Math.min(Number(query.limit), 500)
+        : 200;
+    const skip = (page - 1) * takeLimit;
+
+    const disciplines: string[] = [];
+    if (query?.discipline) {
+      disciplines.push(query.discipline);
+    } else if (actor?.role === UserRole.COACH) {
+      const [coachRates, coachProfile] = await Promise.all([
+        this.prisma.coachRate.findMany({
+          where: { coachId: actor.userId },
+          include: { discipline: true },
+        }),
+        this.prisma.coachProfile.findUnique({
+          where: { userId: actor.userId },
+          include: {
+            coachSpecialties: {
+              include: { specialty: { include: { discipline: true } } },
+            },
+          },
+        }),
+      ]);
+      const set = new Set<string>();
+      coachRates.forEach((r) => {
+        if (r.discipline?.code) set.add(r.discipline.code);
+      });
+      (coachProfile?.coachSpecialties || []).forEach((cs) => {
+        if (cs.specialty?.discipline?.code) set.add(cs.specialty.discipline.code);
+      });
+      disciplines.push(...set);
+    }
+
+    const andConditions: any[] = [];
+    if (query?.category) {
+      andConditions.push({ category: query.category });
+    }
+    if (disciplines.length > 0) {
+      andConditions.push({
+        OR: disciplines.map((d) => ({
+          instructions: {
+            contains: `[Môn: ${d}]`,
+            mode: 'insensitive' as const,
+          },
+        })),
+      });
+    }
+    if (query?.q) {
+      andConditions.push({
+        OR: [
+          { title: { contains: query.q, mode: 'insensitive' as const } },
+          {
+            instructions: {
+              contains: query.q,
+              mode: 'insensitive' as const,
+            },
+          },
+        ],
+      });
+    }
+
+    const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
     const [total, items] = await Promise.all([
       this.prisma.exerciseKnowledge.count({ where }),
       this.prisma.exerciseKnowledge.findMany({
         where,
         skip,
-        take: limit,
+        take: takeLimit,
         orderBy: { title: 'asc' },
       }),
     ]);
-    return { items, total, page, limit };
+    return { items, total, page, limit: takeLimit };
   }
   createKnowledge(dto: KnowledgeDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
@@ -346,6 +432,189 @@ export class WorkoutPlansService {
     }
 
     return plan;
+  }
+
+  async upsertPlanByBooking(bookingId: string, dto: any, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      const booking = requireRecord(
+        await tx.booking.findUnique({
+          where: { id: bookingId },
+          include: {
+            schedule: true,
+            coachAvailability: true,
+          },
+        }),
+      );
+
+      const coachId =
+        booking.schedule?.coachId ||
+        booking.coachAvailability?.coachId ||
+        actor.userId;
+
+      let effectiveTitle = dto.title;
+      let effectiveNotes = dto.notes;
+      let rawExercises = Array.isArray(dto.exercises) ? dto.exercises : [];
+
+      if (dto.workoutPlanId) {
+        const sourcePlan = requireRecord(
+          await (tx as any).workoutPlan.findUnique({
+            where: { id: dto.workoutPlanId },
+            include: {
+              exercises: {
+                include: { exercise: true },
+                orderBy: { orderIndex: 'asc' },
+              },
+            },
+          }),
+        );
+        effectiveTitle = effectiveTitle || sourcePlan.title;
+        effectiveNotes =
+          effectiveNotes !== undefined ? effectiveNotes : sourcePlan.notes;
+        rawExercises = (sourcePlan.exercises || []).map((ex: any) => ({
+          exerciseId: ex.exerciseId,
+          sets: ex.sets,
+          reps: ex.reps,
+          restSeconds: ex.restSeconds,
+          weightKg: ex.weightKg,
+        }));
+      }
+
+      // Prepare exercise records
+      const resolvedExercises: Array<{
+        exerciseId: string;
+        sets: number;
+        reps: number;
+        restSeconds: number;
+        weightKg?: number | null;
+      }> = [];
+
+      for (const ex of rawExercises) {
+        let exId = ex.exerciseId;
+        if (exId) {
+          const exists = await tx.exerciseKnowledge.findUnique({
+            where: { id: exId },
+          });
+          if (!exists) exId = undefined;
+        }
+
+        if (!exId && ex.title) {
+          const found = await tx.exerciseKnowledge.findFirst({
+            where: { title: { equals: String(ex.title).trim(), mode: 'insensitive' } },
+          });
+          if (found) {
+            exId = found.id;
+          } else {
+            const created = await tx.exerciseKnowledge.create({
+              data: {
+                title: String(ex.title).trim(),
+                category: ex.category || 'CUSTOM',
+                instructions: 'Thực hiện đúng kỹ thuật và dặn dò của HLV.',
+              },
+            });
+            exId = created.id;
+          }
+        }
+
+        if (exId) {
+          resolvedExercises.push({
+            exerciseId: exId,
+            sets: Number(ex.sets) || 3,
+            reps: Number(ex.reps) || 10,
+            restSeconds: Number(ex.restSeconds) || 30,
+            weightKg: ex.weightKg !== undefined && ex.weightKg !== null ? Number(ex.weightKg) : null,
+          });
+        }
+      }
+
+      const existingPlan = await (tx as any).workoutPlan.findFirst({
+        where: { bookingId },
+      });
+
+      if (existingPlan) {
+        await tx.workoutExercise.deleteMany({
+          where: { workoutPlanId: existingPlan.id },
+        });
+
+        const updated = await (tx as any).workoutPlan.update({
+          where: { id: existingPlan.id },
+          data: {
+            title: effectiveTitle || existingPlan.title || 'Giáo án buổi tập',
+            notes: effectiveNotes !== undefined ? effectiveNotes : existingPlan.notes,
+            coachId,
+            memberId: booking.memberId,
+            exercises: {
+              create: resolvedExercises.map((e, idx) => ({
+                exerciseId: e.exerciseId,
+                sets: e.sets,
+                reps: e.reps,
+                restSeconds: e.restSeconds,
+                weightKg: e.weightKg,
+                orderIndex: idx,
+              })),
+            },
+          },
+          include: {
+            exercises: {
+              include: { exercise: true },
+              orderBy: { orderIndex: 'asc' },
+            },
+            template: true,
+          },
+        });
+        await audit(tx, actor, 'UPDATE_BOOKING_WORKOUT_PLAN', 'workout_plans', updated.id);
+        return updated;
+      }
+
+      const created = await (tx as any).workoutPlan.create({
+        data: {
+          memberId: booking.memberId,
+          coachId,
+          bookingId,
+          title: effectiveTitle || 'Giáo án buổi tập',
+          notes: effectiveNotes || '',
+          exercises: {
+            create: resolvedExercises.map((e, idx) => ({
+              exerciseId: e.exerciseId,
+              sets: e.sets,
+              reps: e.reps,
+              restSeconds: e.restSeconds,
+              weightKg: e.weightKg,
+              orderIndex: idx,
+            })),
+          },
+        },
+        include: {
+          exercises: {
+            include: { exercise: true },
+            orderBy: { orderIndex: 'asc' },
+          },
+          template: true,
+        },
+      });
+      await audit(tx, actor, 'CREATE_BOOKING_WORKOUT_PLAN', 'workout_plans', created.id);
+      return created;
+    });
+  }
+
+  async upsertPlanBySchedule(scheduleId: string, dto: any, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      const schedule = requireRecord(
+        await tx.schedule.findUnique({
+          where: { id: scheduleId },
+          include: { bookings: true },
+        }),
+      );
+
+      const bookings = schedule.bookings.filter(
+        (b) => b.status === 'CONFIRMED' || b.status === 'ATTENDED',
+      );
+      const results = [];
+      for (const b of bookings) {
+        const res = await this.upsertPlanByBooking(b.id, dto, actor);
+        results.push(res);
+      }
+      return { count: results.length, items: results };
+    });
   }
 
   async getRecommendations(memberId: string, actor: Actor) {

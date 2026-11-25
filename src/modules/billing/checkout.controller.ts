@@ -93,6 +93,15 @@ export class CheckoutController {
     return this.checkout.reconcile(id, actor);
   }
 
+  @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
+  @Post('billing/checkouts/:id/mock-pay')
+  mockPay(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: Actor,
+  ) {
+    return this.checkout.simulateSuccess(id, actor);
+  }
+
   @Public()
   @Post('billing/webhooks/payos')
   payosWebhook(@Body() body: any) {

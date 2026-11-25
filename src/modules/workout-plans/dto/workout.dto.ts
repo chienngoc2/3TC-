@@ -29,6 +29,14 @@ export class WorkoutPlanListQueryDto extends PaginationQueryDto {
 }
 
 export class ExerciseKnowledgeQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({ description: 'Number of items per page', default: 200 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  override limit?: number = 200;
+
   @ApiPropertyOptional({ description: 'Search title or instructions' })
   @IsOptional()
   @IsString()
@@ -38,6 +46,11 @@ export class ExerciseKnowledgeQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by discipline (GYM, BOXING, YOGA)' })
+  @IsOptional()
+  @IsString()
+  discipline?: string;
 }
 export class ExerciseDto {
   @IsUUID() exerciseId: string;
@@ -48,7 +61,7 @@ export class ExerciseDto {
   @IsOptional() @IsString() @MaxLength(4000) coachFeedback?: string;
 }
 export class WorkoutDto {
-  @IsUUID() memberId: string;
+  @IsOptional() @IsUUID() memberId?: string;
   @IsString() @MinLength(2) @MaxLength(150) title: string;
   @IsOptional() @IsString() @MaxLength(4000) notes?: string;
   @IsArray()

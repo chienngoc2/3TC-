@@ -25,10 +25,10 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'Họ tên không được để trống' })
   fullName: string;
 
-  @ApiProperty({ example: '0987654321' })
+  @ApiProperty({ example: '0987654321', required: false })
   @IsString()
-  @IsNotEmpty({ message: 'Số điện thoại không được để trống' })
-  phone: string;
+  @IsOptional()
+  phone?: string;
 
   @ApiProperty({ enum: UserRole, default: UserRole.MEMBER })
   @IsEnum(UserRole, { message: 'Vai trò người dùng không hợp lệ' })
@@ -44,4 +44,44 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   avatarUrl?: string;
+
+  @ApiProperty({ required: false, description: 'Tên ngân hàng của HLV' })
+  @IsOptional()
+  @IsString()
+  bankName?: string;
+
+  @ApiProperty({ required: false, description: 'Số tài khoản ngân hàng' })
+  @IsOptional()
+  @IsString()
+  bankAccountNumber?: string;
+
+  @ApiProperty({ required: false, description: 'Tên chủ thẻ/tài khoản' })
+  @IsOptional()
+  @IsString()
+  bankAccountName?: string;
+
+  @ApiProperty({ required: false, description: 'Các thứ rảnh trong tuần (e.g. MONDAY, WEDNESDAY, FRIDAY)' })
+  @IsOptional()
+  workingDays?: string[];
+
+  @ApiProperty({ required: false, description: 'Khung giờ rảnh đăng ký' })
+  @IsOptional()
+  workingHours?: Array<{ shift?: string; from: string; to: string; day?: string }>;
+
+  @ApiProperty({ required: false, description: 'Đánh giá sao của HLV (1-5 sao)' })
+  @IsOptional()
+  ratingStars?: number;
+
+  @ApiProperty({ required: false, description: 'Lương thù lao theo buổi (VNĐ)' })
+  @IsOptional()
+  ratePerSession?: number;
+
+  @ApiProperty({ required: false, description: 'Danh sách ID chuyên môn / môn thể thao' })
+  @IsOptional()
+  specialtyIds?: string[];
+
+  @ApiProperty({ required: false, description: 'Gmail cá nhân của HLV để nhận thông tin tài khoản' })
+  @IsOptional()
+  @IsString()
+  personalEmail?: string;
 }

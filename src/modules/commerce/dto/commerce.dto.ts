@@ -68,6 +68,8 @@ export class PlanDto {
   @IsInt() @Min(0) @Max(10000) groupSessionQuota: number;
   @IsInt() @Min(0) @Max(10000) ptSessionQuota: number;
   @IsBoolean() unlimitedGymEntry: boolean;
+  @IsOptional() @IsUUID() roomId?: string;
+  @IsOptional() weeklySchedulePreview?: any;
 }
 export class UpdatePlanDto extends PartialType(PlanDto, {
   skipNullProperties: false,
@@ -126,6 +128,13 @@ export class ScheduleDto {
 export class UpdateScheduleDto extends PartialType(ScheduleDto, {
   skipNullProperties: false,
 }) {}
+export class ManagerScheduleOverrideDto {
+  @IsEnum(['FORCE_OPEN', 'FORCE_CLOSE'])
+  action: 'FORCE_OPEN' | 'FORCE_CLOSE';
+
+  @IsString()
+  reason: string;
+}
 export class GroupBookingDto {
   @IsUUID() scheduleId: string;
   @IsOptional() @IsUUID() memberId?: string;
@@ -155,6 +164,8 @@ export class ReviewDto {
   @IsOptional() @IsEnum({ APPROVE: 'APPROVE', REJECT: 'REJECT' }) action?:
     'APPROVE' | 'REJECT';
   @IsOptional() @IsString() @MaxLength(2000) rejectionReason?: string;
+  @IsOptional() @IsUUID() substituteCoachId?: string;
+  @IsOptional() @IsBoolean() holdForSubstitute?: boolean;
 }
 export class PenaltyReviewDto {
   @IsString() @MinLength(5) @MaxLength(2000) decision: string;

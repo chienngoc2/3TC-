@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { PackageTier } from '@prisma/client';
 
 import { PrismaService } from '../../database/prisma.service';
@@ -17,6 +17,7 @@ import {
   UpdatePlanDto,
   SubscriptionStatusDto,
 } from '../commerce/dto/commerce.dto';
+import { sortSubscriptionsByPriority } from '../attendances/subscription-priority.util';
 @Injectable()
 export class MembershipsService {
   constructor(
@@ -26,13 +27,39 @@ export class MembershipsService {
   list(disciplineId?: string, packageTier?: PackageTier) {
     return this.prisma.membershipPlan.findMany({
       where: { isActive: true, disciplineId, packageTier },
-      include: { discipline: true, curriculumRequirements: true },
+      include: {
+        discipline: {
+          include: {
+            classes: true,
+          },
+        },
+        curriculumRequirements: true,
+        room: true,
+      },
       orderBy: { price: 'asc' },
     });
+  }
+  async getPlanDetail(id: string) {
+    return requireRecord(
+      await this.prisma.membershipPlan.findUnique({
+        where: { id },
+        include: {
+          discipline: {
+            include: {
+              classes: true,
+            },
+          },
+          curriculumRequirements: true,
+          room: true,
+        },
+      }),
+      'PLAN_NOT_FOUND',
+    );
   }
   async validate(
     tx: import('@prisma/client').Prisma.TransactionClient,
     dto: PlanDto,
+    currentPlanId?: string,
   ) {
     const discipline = requireRecord(
       await tx.discipline.findUnique({ where: { id: dto.disciplineId } }),
@@ -55,13 +82,65 @@ export class MembershipsService {
         (dto.price === 0 && dto.ptSessionQuota === 0),
       'INVALID_TRIAL_PLAN',
     );
+    const isGym = discipline.code.toUpperCase() === 'GYM';
+    if (isGym) {
+      requireCondition(!dto.roomId, 'GYM_ROOM_SELECTION_FORBIDDEN');
+    } else if (dto.roomId) {
+      const room = requireRecord(
+        await tx.room.findUnique({
+          where: { id: dto.roomId },
+          include: { discipline: true },
+        }),
+        'ROOM_NOT_FOUND',
+      );
+      requireCondition(room.isActive, 'ROOM_INACTIVE');
+
+      // 1. Ràng buộc nhãn bộ môn - Không được chọn chéo phòng giữa các môn
+      if (room.disciplineId && room.disciplineId !== dto.disciplineId) {
+        throw new BadRequestException(
+          `Phòng "${room.name}" thuộc bộ môn ${room.discipline?.name || 'khác'}, không thể gán cho gói tập ${discipline.name}! Mỗi bộ môn chỉ được chọn phòng có nhãn tương ứng.`,
+        );
+      }
+      const roomNameLower = room.name.toLowerCase();
+      const isYogaRoom = roomNameLower.includes('yoga');
+      const isBoxingRoom = roomNameLower.includes('box');
+      const isYogaPlan = discipline.code.toUpperCase() === 'YOGA';
+      const isBoxingPlan = discipline.code.toUpperCase() === 'BOXING';
+      if (isYogaPlan && isBoxingRoom) {
+        throw new BadRequestException(
+          `Phòng "${room.name}" là phòng Boxing, không thể gán cho gói tập Yoga!`,
+        );
+      }
+      if (isBoxingPlan && isYogaRoom) {
+        throw new BadRequestException(
+          `Phòng "${room.name}" là phòng Yoga, không thể gán cho gói tập Boxing!`,
+        );
+      }
+
+      // 2. Ràng buộc 1 phòng - 1 gói duy nhất: Phòng đã có gói khác đăng ký thì không cho chọn tiếp
+      const existingPlan = await tx.membershipPlan.findFirst({
+        where: {
+          roomId: dto.roomId,
+          isActive: true,
+          ...(currentPlanId ? { id: { not: currentPlanId } } : {}),
+        },
+      });
+      if (existingPlan) {
+        throw new BadRequestException(
+          `Phòng "${room.name}" đã được book bởi gói "${existingPlan.name}". Mỗi phòng chỉ dành riêng cho 1 gói tập duy nhất!`,
+        );
+      }
+    }
   }
   create(dto: PlanDto, actor: Actor) {
     return this.transactions.run(async (tx) => {
       await this.validate(tx, dto);
+      const discipline = await tx.discipline.findUnique({ where: { id: dto.disciplineId } });
+      const isGym = discipline?.code.toUpperCase() === 'GYM';
       const value = await tx.membershipPlan.create({
         data: {
           ...dto,
+          roomId: isGym ? null : (dto.roomId || null),
           sessionQuota: dto.groupSessionQuota + dto.ptSessionQuota,
         },
       });
@@ -91,11 +170,16 @@ export class MembershipsService {
         unlimitedGymEntry: old.unlimitedGymEntry ?? false,
         ...dto,
       } as PlanDto;
-      await this.validate(tx, data);
+      await this.validate(tx, data, id);
+      const discipline = old.disciplineId
+        ? await tx.discipline.findUnique({ where: { id: old.disciplineId } })
+        : null;
+      const isGym = discipline?.code.toUpperCase() === 'GYM';
       const value = await tx.membershipPlan.update({
         where: { id },
         data: {
           ...dto,
+          roomId: isGym ? null : (dto.roomId !== undefined ? dto.roomId : old.roomId),
           sessionQuota: data.groupSessionQuota + data.ptSessionQuota,
         },
       });
@@ -117,14 +201,225 @@ export class MembershipsService {
   subscriptions(memberId: string, actor: Actor) {
     return this.transactions.run(async (tx) => {
       await memberAccess(tx, actor, memberId);
-      return tx.userSubscription.findMany({
+      const list = await tx.userSubscription.findMany({
         where: { userId: memberId },
         include: {
-          plan: true,
-          assignedCoach: { select: { id: true, fullName: true } },
+          plan: {
+            include: {
+              discipline: true,
+            },
+          },
+          discipline: true,
+          assignedCoach: {
+            select: {
+              id: true,
+              fullName: true,
+              avatarUrl: true,
+              phone: true,
+              coachProfile: {
+                select: {
+                  ratingStars: true,
+                  ratePerSession: true,
+                  workingDays: true,
+                  workingHours: true,
+                  bio: true,
+                  specialties: true,
+                },
+              },
+            },
+          },
         },
         orderBy: { endDate: 'asc' },
       });
+      return sortSubscriptionsByPriority(list);
+    });
+  }
+
+  async eligibleCoaches(subscriptionId: string, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      const sub = requireRecord(
+        await tx.userSubscription.findUnique({
+          where: { id: subscriptionId },
+          include: {
+            plan: { include: { discipline: true } },
+            discipline: true,
+            assignedCoach: { include: { coachProfile: true } },
+          },
+        }),
+        'SUBSCRIPTION_NOT_FOUND',
+      );
+      await memberAccess(tx, actor, sub.userId);
+      requireCondition(sub.status === 'ACTIVE', 'SUBSCRIPTION_NOT_ACTIVE');
+      requireCondition(
+        Boolean(sub.assignedCoachId),
+        'NO_ASSIGNED_COACH_TO_CHANGE',
+      );
+
+      const currentCoachStars =
+        sub.coachRatingStars ??
+        sub.assignedCoach?.coachProfile?.ratingStars ??
+        3;
+
+      const candidateCoaches = await tx.user.findMany({
+        where: {
+          id: { not: sub.assignedCoachId! },
+          role: 'COACH',
+          isActive: true,
+          coachProfile: {
+            ratingStars: currentCoachStars,
+          },
+          ...(sub.disciplineId
+            ? {
+                coachProfile: {
+                  ratingStars: currentCoachStars,
+                  coachSpecialties: {
+                    some: {
+                      specialty: {
+                        disciplineId: sub.disciplineId,
+                      },
+                    },
+                  },
+                },
+              }
+            : {}),
+        },
+        select: {
+          id: true,
+          fullName: true,
+          avatarUrl: true,
+          phone: true,
+          coachProfile: {
+            select: {
+              ratingStars: true,
+              ratePerSession: true,
+              workingDays: true,
+              workingHours: true,
+              bio: true,
+              specialties: true,
+            },
+          },
+          coachAvailabilities: {
+            where: {
+              startTime: { gt: new Date() },
+              isEmergencyCancelled: false,
+            },
+            orderBy: { startTime: 'asc' },
+            take: 20,
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              isBooked: true,
+            },
+          },
+        },
+      });
+
+      return {
+        subscriptionId: sub.id,
+        currentCoach: {
+          id: sub.assignedCoach?.id,
+          fullName: sub.assignedCoach?.fullName,
+          ratingStars: currentCoachStars,
+          ratePerSession: currentCoachStars * 1000,
+        },
+        targetStars: currentCoachStars,
+        eligibleCoaches: candidateCoaches,
+      };
+    });
+  }
+
+  async changeCoach(subscriptionId: string, newCoachId: string, actor: Actor) {
+    return this.transactions.run(async (tx) => {
+      const sub = requireRecord(
+        await tx.userSubscription.findUnique({
+          where: { id: subscriptionId },
+          include: {
+            assignedCoach: { include: { coachProfile: true } },
+          },
+        }),
+        'SUBSCRIPTION_NOT_FOUND',
+      );
+      await memberAccess(tx, actor, sub.userId);
+      requireCondition(sub.status === 'ACTIVE', 'SUBSCRIPTION_NOT_ACTIVE');
+      requireCondition(
+        Boolean(sub.assignedCoachId),
+        'NO_ASSIGNED_COACH_TO_CHANGE',
+      );
+      requireCondition(
+        sub.assignedCoachId !== newCoachId,
+        'ALREADY_ASSIGNED_TO_THIS_COACH',
+      );
+
+      const newCoach = requireRecord(
+        await tx.user.findUnique({
+          where: { id: newCoachId },
+          include: { coachProfile: true },
+        }),
+        'COACH_NOT_FOUND',
+      );
+      requireCondition(
+        newCoach.role === 'COACH' && newCoach.isActive,
+        'COACH_UNAVAILABLE',
+      );
+
+      const currentCoachStars =
+        sub.coachRatingStars ??
+        sub.assignedCoach?.coachProfile?.ratingStars ??
+        3;
+      const newCoachStars = newCoach.coachProfile?.ratingStars ?? 3;
+
+      requireCondition(
+        currentCoachStars === newCoachStars,
+        `Chỉ được đổi sang huấn luyện viên có cùng hạng ${currentCoachStars} sao (${(currentCoachStars * 1000).toLocaleString('vi-VN')} đ/buổi - ngang giá tiền).`,
+      );
+
+      if (sub.disciplineId) {
+        const expertise = await tx.coachSpecialty.findFirst({
+          where: {
+            coachProfile: { userId: newCoachId },
+            specialty: { disciplineId: sub.disciplineId },
+          },
+        });
+        requireCondition(
+          Boolean(expertise),
+          'Huấn luyện viên được chọn không phụ trách bộ môn của gói tập này.',
+        );
+      }
+
+      const updated = await tx.userSubscription.update({
+        where: { id: subscriptionId },
+        data: {
+          assignedCoachId: newCoachId,
+          assigned_coach_name: newCoach.fullName,
+          coachRatingStars: newCoachStars,
+        },
+        include: {
+          assignedCoach: {
+            select: {
+              id: true,
+              fullName: true,
+              avatarUrl: true,
+              coachProfile: true,
+            },
+          },
+        },
+      });
+
+      await audit(
+        tx,
+        actor,
+        'CHANGE_COACH',
+        'user_subscriptions',
+        subscriptionId,
+        {
+          oldCoachId: sub.assignedCoachId,
+          newCoachId,
+          starRating: newCoachStars,
+        },
+      );
+
+      return updated;
     });
   }
   status(id: string, dto: SubscriptionStatusDto, actor: Actor) {
