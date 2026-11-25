@@ -1,0 +1,199 @@
+/* Keep the fitness background and layout scoped to this dashboard. */
+.inbody-backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 auto;
+  height: 640px;
+  background-position: center top;
+  background-size: cover;
+  pointer-events: none;
+}
+.inbody-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(248, 250, 252, 0.1),
+    rgba(248, 250, 252, 0.1) 65%,
+    #f8fafc
+  );
+}
+.inbody-overview {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: stretch;
+}
+.inbody-dashboard .inbody-visual-card {
+  min-width: 0;
+  border-radius: 1.5rem;
+  padding: 1rem;
+}
+.inbody-overview-side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+/* Charts keep their natural height; the shape card fills the rest beside the body map. */
+.inbody-dashboard .inbody-overview-side > .inbody-visual-card {
+  min-height: 0;
+}
+.inbody-overview-side > .inbody-visual-card:last-child {
+  flex: 1;
+}
+.inbody-body-stage {
+  height: 420px;
+  min-height: 420px;
+  flex: 1;
+}
+/* Each part of the figure widens or narrows around its own centre line. */
+.inbody-body-shape {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 600ms ease;
+}
+.inbody-body-path {
+  transition: fill 150ms ease;
+}
+.inbody-body-region {
+  cursor: pointer;
+  outline: none;
+}
+.inbody-body-region:focus-visible path {
+  stroke: #0f172a;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+@media (prefers-reduced-motion: reduce) {
+  .inbody-body-shape,
+  .inbody-body-path {
+    transition: none;
+  }
+}
+/* Four wide charts stacked one per row; each row puts its numbers left of the plot. */
+.inbody-chart-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+}
+.inbody-metric-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem 0.75rem;
+}
+@media (min-width: 480px) {
+  .inbody-metric-row {
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    align-items: center;
+  }
+}
+.inbody-chart-plot {
+  height: 110px;
+  min-width: 0;
+}
+.inbody-history-table {
+  min-width: 0;
+  width: 100%;
+  margin-bottom: 0;
+}
+
+/* Scoped overrides for legacy global button rules; other pages stay unchanged. */
+.inbody-dashboard button {
+  min-height: 36px;
+  padding: 0.5rem 0.75rem;
+}
+.inbody-dashboard button[data-variant='outline'] {
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+}
+.inbody-dashboard button[data-variant='outline']:hover {
+  background: #f1f5f9;
+}
+.inbody-dashboard button[aria-pressed='true'] {
+  border-color: #17664e;
+  background: #ecfdf5;
+  color: #135641;
+}
+.inbody-dashboard select {
+  font-weight: 500;
+}
+
+@media (min-width: 640px) {
+  .inbody-dashboard .inbody-visual-card {
+    padding: 1.5rem;
+  }
+  .inbody-body-stage {
+    height: 460px;
+    min-height: 460px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .inbody-overview {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr);
+    gap: 1.5rem;
+  }
+  .inbody-dashboard .inbody-visual-card {
+    min-height: 480px;
+  }
+}
+
+/* Stack table cells into measurement cards without duplicating history data. */
+@media (max-width: 1279px) {
+  .inbody-history-table,
+  .inbody-history-table tbody {
+    display: block;
+  }
+  .inbody-history-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .inbody-history-table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+  .inbody-history-table tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: 1rem;
+  }
+  .inbody-history-table tbody th,
+  .inbody-history-table tbody td {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .inbody-history-table tbody th {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .inbody-history-table tbody td {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .inbody-history-table tbody td::before {
+    content: attr(data-label);
+    color: #64748b;
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+}
