@@ -21,10 +21,6 @@ interface CalendarHeaderProps {
   disciplines: Discipline[]
   subscriptions: CalendarSubscription[]
   isLoading?: boolean
-  filterMyPackagesOnly?: boolean
-  onToggleFilterMyPackagesOnly?: () => void
-  hasActiveGroupSubs?: boolean
-  activeSpecialtyNames?: string[]
 }
 
 export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
@@ -37,10 +33,6 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   disciplines,
   subscriptions,
   isLoading,
-  filterMyPackagesOnly = true,
-  onToggleFilterMyPackagesOnly,
-  hasActiveGroupSubs = false,
-  activeSpecialtyNames = [],
 }) => {
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false)
   const [isQuotaDropdownOpen, setIsQuotaDropdownOpen] = useState(false)
@@ -144,35 +136,6 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                 <ChevronDown className="w-3.5 h-3.5 text-slate-600 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               </div>
             </div>
-
-            {hasActiveGroupSubs && onToggleFilterMyPackagesOnly && (
-              <button
-                type="button"
-                onClick={onToggleFilterMyPackagesOnly}
-                className={cn(
-                  'h-9 px-3 rounded-md text-xs font-bold transition-all shadow-xs cursor-pointer border inline-flex items-center gap-2',
-                  filterMyPackagesOnly
-                    ? 'bg-[#17664e]/10 border-[#17664e] text-[#17664e]'
-                    : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50',
-                )}
-                title="Bật/tắt chế độ chỉ hiển thị các lớp học thuộc đúng chuyên đề và hạng sao gói tập của bạn"
-              >
-                <span
-                  className={cn(
-                    'w-2 h-2 rounded-full shrink-0',
-                    filterMyPackagesOnly ? 'bg-[#17664e]' : 'bg-slate-400',
-                  )}
-                />
-                <span>
-                  {filterMyPackagesOnly ? 'Lọc theo gói của tôi' : 'Xem toàn bộ lịch'}
-                </span>
-                {filterMyPackagesOnly && activeSpecialtyNames && activeSpecialtyNames.length > 0 && (
-                  <span className="text-[10px] font-semibold bg-white px-1.5 py-0.5 rounded text-emerald-800 border border-emerald-200 shadow-2xs max-w-[150px] truncate">
-                    {activeSpecialtyNames.join(', ')}
-                  </span>
-                )}
-              </button>
-            )}
 
             {isLoading && (
               <span className="text-xs text-slate-400 font-medium animate-pulse flex items-center gap-1.5">

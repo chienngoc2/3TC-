@@ -15,7 +15,7 @@ import type { CalendarEventItem } from '../components/calendar-grid'
 import { BookingModal } from '../components/booking-modal'
 import { ClusterSessionsModal, type ClusterSessionItem } from '../components/cluster-sessions-modal'
 import { AlertCircle, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react'
-import { getClassSpecialtyCode, getPlanSpecialtyCode, SPECIALTY_NAME_MAP } from '@/lib/topic-matcher'
+import { getClassSpecialtyCode, getPlanSpecialtyCode } from '@/lib/topic-matcher'
 import { useSyncListener, notifyDataChanged } from '@/lib/sync-channel'
 import { useNotification } from '@/context/notification-context'
 
@@ -269,9 +269,6 @@ export const CalendarPage: React.FC = () => {
     await loadCalendar(true)
   }
 
-  // Filter mode: filter BOTH classes and PT/coach slots strictly by member's active packages & quota
-  const [filterMyPackagesOnly, setFilterMyPackagesOnly] = useState<boolean>(true)
-
   const activeSubs = useMemo(() => {
     return (calendarData?.subscriptions || []).filter((s) => s.status === 'ACTIVE')
   }, [calendarData?.subscriptions])
@@ -279,21 +276,6 @@ export const CalendarPage: React.FC = () => {
   // Active group subscriptions with remaining quota
   const activeGroupSubs = useMemo(() => {
     return activeSubs.filter((s) => (s.remainingGroupSessions ?? 0) > 0)
-  }, [activeSubs])
-
-  // Extract unique active specialty / package names for UI badge
-  const activeSpecialtyNames = useMemo(() => {
-    const names = new Set<string>()
-    for (const sub of activeSubs) {
-      if ((sub.remainingGroupSessions ?? 0) <= 0 && (sub.remainingPtSessions ?? 0) <= 0) continue
-      const spec = getPlanSpecialtyCode(sub.planName, sub.discipline?.code)
-      if (spec && SPECIALTY_NAME_MAP[spec]) {
-        names.add(SPECIALTY_NAME_MAP[spec])
-      } else if (sub.discipline?.name) {
-        names.add(sub.discipline.name)
-      }
-    }
-    return Array.from(names)
   }, [activeSubs])
 
   // Pre-index active bookings so already-booked items never disappear regardless of filter
@@ -311,7 +293,7 @@ export const CalendarPage: React.FC = () => {
   // Filter group schedules according to the member's active group packages (discipline, star rating, specialty)
   const filteredSchedules = useMemo(() => {
     if (!calendarData?.schedules) return []
-    if (!filterMyPackagesOnly || activeSubs.length === 0) {
+    if (activeSubs.length === 0) {
       return calendarData.schedules
     }
 
@@ -335,21 +317,15 @@ export const CalendarPage: React.FC = () => {
         return true
       })
     })
-  }, [calendarData?.schedules, activeSubs.length, activeGroupSubs, filterMyPackagesOnly, activeBookingIds.scheduleIds])
+  }, [calendarData?.schedules, activeSubs.length, activeGroupSubs, activeBookingIds.scheduleIds])
 
-  // Filter PT & Group coach slots:
-  // - filterMyPackagesOnly ON: show slots matching active subscriptions with remaining quota
-  // - filterMyPackagesOnly OFF: show all available slots returned for the selected discipline filter
+  // Filter PT & Group coach slots matching active subscriptions with remaining quota
   const filteredPtSlots = useMemo(() => {
     if (!calendarData?.ptSlots) return []
 
     const activeSubsWithQuota = activeSubs.filter(
       (s) => (s.remainingGroupSessions ?? 0) > 0 || (s.remainingPtSessions ?? 0) > 0,
     )
-
-    if (!filterMyPackagesOnly) {
-      return calendarData.ptSlots
-    }
 
     if (activeSubsWithQuota.length === 0) {
       return calendarData.ptSlots.filter((slot) => activeBookingIds.ptSlotIds.has(slot.id))
@@ -376,7 +352,7 @@ export const CalendarPage: React.FC = () => {
         return true
       })
     })
-  }, [calendarData?.ptSlots, activeSubs, filterMyPackagesOnly, activeBookingIds.ptSlotIds])
+  }, [calendarData?.ptSlots, activeSubs, activeBookingIds.ptSlotIds])
 
   return (
     <div className="min-h-screen rounded-none bg-slate-100 flex flex-col font-sans">
@@ -413,10 +389,6 @@ export const CalendarPage: React.FC = () => {
         disciplines={disciplines}
         subscriptions={calendarData?.subscriptions || []}
         isLoading={isLoading}
-        filterMyPackagesOnly={filterMyPackagesOnly}
-        onToggleFilterMyPackagesOnly={() => setFilterMyPackagesOnly((p) => !p)}
-        hasActiveGroupSubs={activeSubs.length > 0}
-        activeSpecialtyNames={activeSpecialtyNames}
       />
 
       {/* Main Content Area */}
