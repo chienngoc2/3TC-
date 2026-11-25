@@ -32,19 +32,28 @@ const ACTIVE_BOOKING_STATUSES = new Set(['CONFIRMED', 'PENDING'])
 // Modern curated discipline color styling (clean borders, no thick stripes)
 const getDisciplineCardClasses = (code?: string, name?: string) => {
   const value = `${code ?? ''} ${name ?? ''}`.toLowerCase()
-  if (value.includes('gym') || value.includes('fitness')) {
-    return 'bg-sky-50/95 dark:bg-sky-950/40 text-sky-950 dark:text-sky-100 border border-sky-200/90 dark:border-sky-800/60 hover:bg-sky-100/95 dark:hover:bg-sky-950/60 focus:ring-sky-400'
+  if (value.includes('yoga')) {
+    return 'bg-violet-50/95 dark:bg-violet-950/40 text-violet-950 dark:text-violet-100 border border-violet-300/90 dark:border-violet-800/60 hover:bg-violet-100/95 dark:hover:bg-violet-950/60 focus:ring-violet-400'
   }
   if (value.includes('box') || value.includes('combat')) {
-    return 'bg-rose-50/95 dark:bg-rose-950/40 text-rose-950 dark:text-rose-100 border border-rose-200/90 dark:border-rose-800/60 hover:bg-rose-100/95 dark:hover:bg-rose-950/60 focus:ring-rose-400'
+    return 'bg-rose-50/95 dark:bg-rose-950/40 text-rose-950 dark:text-rose-100 border border-rose-300/90 dark:border-rose-800/60 hover:bg-rose-100/95 dark:hover:bg-rose-950/60 focus:ring-rose-400'
   }
-  if (value.includes('yoga')) {
-    return 'bg-violet-50/95 dark:bg-violet-950/40 text-violet-950 dark:text-violet-100 border border-violet-200/90 dark:border-violet-800/60 hover:bg-violet-100/95 dark:hover:bg-violet-950/60 focus:ring-violet-400'
+  if (value.includes('gym') || value.includes('fitness')) {
+    return 'bg-indigo-50/95 dark:bg-indigo-950/40 text-indigo-950 dark:text-indigo-100 border border-indigo-300/90 dark:border-indigo-800/60 hover:bg-indigo-100/95 dark:hover:bg-indigo-950/60 focus:ring-indigo-400'
   }
   if (value.includes('dance') || value.includes('zumba')) {
-    return 'bg-amber-50/95 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 border border-amber-200/90 dark:border-amber-800/60 hover:bg-amber-100/95 dark:hover:bg-amber-950/60 focus:ring-amber-400'
+    return 'bg-amber-50/95 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 border border-amber-300/90 dark:border-amber-800/60 hover:bg-amber-100/95 dark:hover:bg-amber-950/60 focus:ring-amber-400'
   }
-  return 'bg-teal-50/95 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 border border-teal-200/90 dark:border-teal-800/60 hover:bg-teal-100/95 dark:hover:bg-teal-950/60 focus:ring-teal-400'
+  return 'bg-teal-50/95 dark:bg-teal-950/40 text-teal-950 dark:text-teal-100 border border-teal-300/90 dark:border-teal-800/60 hover:bg-teal-100/95 dark:hover:bg-teal-950/60 focus:ring-teal-400'
+}
+
+const getDisciplineDotClass = (code?: string, name?: string) => {
+  const value = `${code ?? ''} ${name ?? ''}`.toLowerCase()
+  if (value.includes('yoga')) return 'bg-violet-500'
+  if (value.includes('box') || value.includes('combat')) return 'bg-rose-500'
+  if (value.includes('gym') || value.includes('fitness')) return 'bg-indigo-500'
+  if (value.includes('dance') || value.includes('zumba')) return 'bg-amber-500'
+  return 'bg-teal-500'
 }
 
 interface CalendarGridProps {
@@ -213,21 +222,22 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
           : isFull
           ? 'Hết chỗ'
           : `${schedule.currentEnrolled}/${schedule.capacity}`
+        const isPeak = Boolean(isRangeInPeakHours(schedule.startAt, schedule.endAt ?? new Date(endMs), peakHours))
         const dotColorClass = isBooked
           ? 'bg-emerald-500'
           : isPast
           ? 'bg-slate-400'
           : isFull
-          ? 'bg-rose-500'
-          : 'bg-sky-500'
+          ? 'bg-slate-400'
+          : getDisciplineDotClass(
+              schedule.discipline?.code,
+              schedule.discipline?.name || schedule.class?.name,
+            )
 
-        const isPeak = Boolean(isRangeInPeakHours(schedule.startAt, schedule.endAt ?? new Date(endMs), peakHours))
         const cardClass = isBooked
           ? 'bg-emerald-50/95 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 border border-emerald-300/90 dark:border-emerald-800 hover:bg-emerald-100/95 dark:hover:bg-emerald-950/60 focus:ring-emerald-400'
           : isFull
           ? 'bg-slate-50/80 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 border border-slate-200/90 dark:border-slate-800 hover:bg-slate-100/90 focus:ring-slate-400'
-          : isPeak
-          ? 'bg-amber-50/95 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100 border border-amber-300/90 dark:border-amber-800 hover:bg-amber-100/95 focus:ring-amber-400'
           : getDisciplineCardClasses(
               schedule.discipline?.code,
               schedule.discipline?.name || schedule.class?.name,
@@ -344,8 +354,8 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         : isPast || isBookedByOther
         ? 'bg-slate-400'
         : isGroupSlot
-        ? 'bg-sky-500'
-        : 'bg-purple-500'
+        ? getDisciplineDotClass((ptSlot as any).disciplineCode, slotDiscipline)
+        : 'bg-sky-500'
 
       const cardClass = isBookedByMe
         ? 'bg-emerald-50/95 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 border border-emerald-300/90 dark:border-emerald-800 hover:bg-emerald-100/95 dark:hover:bg-emerald-950/60 focus:ring-emerald-400'
@@ -353,7 +363,7 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
         ? 'bg-slate-100/80 dark:bg-slate-900/40 text-slate-500 dark:text-slate-400 border border-slate-300/80 dark:border-slate-800 opacity-60 hover:bg-slate-200/80'
         : isGroupSlot
         ? getDisciplineCardClasses((ptSlot as any).disciplineCode, slotDiscipline)
-        : 'bg-purple-50/95 dark:bg-purple-950/40 text-purple-950 dark:text-purple-100 border border-purple-200/90 dark:border-purple-800/60 hover:bg-purple-100/95 dark:hover:bg-purple-950/60 focus:ring-purple-400'
+        : 'bg-sky-50/95 dark:bg-sky-950/40 text-sky-950 dark:text-sky-100 border border-sky-300/90 dark:border-sky-800/60 hover:bg-sky-100/95 dark:hover:bg-sky-950/60 focus:ring-sky-400'
 
       return {
         id: ptSlot.id,

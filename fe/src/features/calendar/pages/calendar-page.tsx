@@ -269,90 +269,94 @@ export const CalendarPage: React.FC = () => {
     await loadCalendar(true)
   }
 
-  // Filter mode: When member has active group packages, filter classes matching package specialty & stars
+  // Filter mode: filter BOTH classes and PT/coach slots strictly by member's active packages & quota
   const [filterMyPackagesOnly, setFilterMyPackagesOnly] = useState<boolean>(true)
+
+  const activeSubs = useMemo(() => {
+    return (calendarData?.subscriptions || []).filter((s) => s.status === 'ACTIVE')
+  }, [calendarData?.subscriptions])
 
   // Active group subscriptions with remaining quota
   const activeGroupSubs = useMemo(() => {
-    return (calendarData?.subscriptions || []).filter(
-      (s) => s.status === 'ACTIVE' && (s.remainingGroupSessions ?? 0) > 0,
-    )
-  }, [calendarData?.subscriptions])
+    return activeSubs.filter((s) => (s.remainingGroupSessions ?? 0) > 0)
+  }, [activeSubs])
 
-  // Extract unique active specialty names for UI badge
+  // Extract unique active specialty / package names for UI badge
   const activeSpecialtyNames = useMemo(() => {
     const names = new Set<string>()
-    for (const sub of activeGroupSubs) {
+    for (const sub of activeSubs) {
+      if ((sub.remainingGroupSessions ?? 0) <= 0 && (sub.remainingPtSessions ?? 0) <= 0) continue
       const spec = getPlanSpecialtyCode(sub.planName, sub.discipline?.code)
       if (spec && SPECIALTY_NAME_MAP[spec]) {
         names.add(SPECIALTY_NAME_MAP[spec])
+      } else if (sub.discipline?.name) {
+        names.add(sub.discipline.name)
       }
     }
     return Array.from(names)
-  }, [activeGroupSubs])
+  }, [activeSubs])
 
-  // Filter group schedules according to the member's active star rating and specialty for each discipline
-  // (e.g. Members with Yoga Trị Liệu only see Yoga Trị Liệu classes when filter is active)
+  // Pre-index active bookings so already-booked items never disappear regardless of filter
+  const activeBookingIds = useMemo(() => {
+    const scheduleIds = new Set<string>()
+    const ptSlotIds = new Set<string>()
+    for (const b of calendarData?.bookings || []) {
+      if (b.status === 'CANCELLED') continue
+      if (b.scheduleId) scheduleIds.add(b.scheduleId)
+      if (b.coachAvailabilityId) ptSlotIds.add(b.coachAvailabilityId)
+    }
+    return { scheduleIds, ptSlotIds }
+  }, [calendarData?.bookings])
+
+  // Filter group schedules according to the member's active group packages (discipline, star rating, specialty)
   const filteredSchedules = useMemo(() => {
     if (!calendarData?.schedules) return []
-    if (activeGroupSubs.length === 0 || !filterMyPackagesOnly) {
+    if (!filterMyPackagesOnly || activeSubs.length === 0) {
       return calendarData.schedules
     }
 
-    const starMap = new Map<string, Set<number>>()
-    const specMap = new Map<string, Set<string>>()
-
-    for (const sub of activeGroupSubs) {
-      if (sub.coachRatingStars) {
-        if (!starMap.has(sub.disciplineId)) {
-          starMap.set(sub.disciplineId, new Set<number>())
-        }
-        starMap.get(sub.disciplineId)!.add(sub.coachRatingStars)
-      }
-      const spec = getPlanSpecialtyCode(sub.planName, sub.discipline?.code)
-      if (spec) {
-        if (!specMap.has(sub.disciplineId)) {
-          specMap.set(sub.disciplineId, new Set<string>())
-        }
-        specMap.get(sub.disciplineId)!.add(spec)
-      }
-    }
-
     return calendarData.schedules.filter((schedule) => {
+      if (activeBookingIds.scheduleIds.has(schedule.id)) return true
+      if (activeGroupSubs.length === 0) return false
+
       const discId = schedule.disciplineId || schedule.class?.disciplineId || ''
-      const allowedStars = starMap.get(discId)
-      if (allowedStars) {
-        const coachStars =
-          schedule.coach?.coachProfile?.ratingStars || schedule.coach?.ratingStars || 2
-        if (!allowedStars.has(coachStars)) return false
-      }
+      const coachStars =
+        schedule.coach?.coachProfile?.ratingStars || schedule.coach?.ratingStars || 2
+      const classSpec = getClassSpecialtyCode(
+        schedule.class?.name || '',
+        schedule.class?.discipline?.code || schedule.discipline?.code,
+      )
 
-      const allowedSpecs = specMap.get(discId)
-      if (allowedSpecs && allowedSpecs.size > 0) {
-        const classSpec = getClassSpecialtyCode(
-          schedule.class?.name || '',
-          schedule.class?.discipline?.code || schedule.discipline?.code,
-        )
-        if (classSpec && !allowedSpecs.has(classSpec)) return false
-      }
-
-      return true
+      return activeGroupSubs.some((sub) => {
+        if (sub.disciplineId && discId && sub.disciplineId !== discId) return false
+        if (sub.coachRatingStars && sub.coachRatingStars !== coachStars) return false
+        const planSpec = getPlanSpecialtyCode(sub.planName, sub.discipline?.code)
+        if (planSpec && classSpec && planSpec !== classSpec) return false
+        return true
+      })
     })
-  }, [calendarData?.schedules, activeGroupSubs, filterMyPackagesOnly])
+  }, [calendarData?.schedules, activeSubs.length, activeGroupSubs, filterMyPackagesOnly, activeBookingIds.scheduleIds])
 
-  // Filter PT & Group coach slots: match ANY active subscription with remaining quota
-  // (assigned coach for PT 1-1 OR discipline + star tier for unassigned Group/PT packages)
+  // Filter PT & Group coach slots:
+  // - filterMyPackagesOnly ON: show slots matching active subscriptions with remaining quota
+  // - filterMyPackagesOnly OFF: show all available slots returned for the selected discipline filter
   const filteredPtSlots = useMemo(() => {
     if (!calendarData?.ptSlots) return []
 
-    const activeSubsWithQuota = (calendarData?.subscriptions || []).filter(
-      (s) =>
-        s.status === 'ACTIVE' &&
-        ((s.remainingGroupSessions ?? 0) > 0 || (s.remainingPtSessions ?? 0) > 0),
+    const activeSubsWithQuota = activeSubs.filter(
+      (s) => (s.remainingGroupSessions ?? 0) > 0 || (s.remainingPtSessions ?? 0) > 0,
     )
-    if (activeSubsWithQuota.length === 0) return []
+
+    if (!filterMyPackagesOnly) {
+      return calendarData.ptSlots
+    }
+
+    if (activeSubsWithQuota.length === 0) {
+      return calendarData.ptSlots.filter((slot) => activeBookingIds.ptSlotIds.has(slot.id))
+    }
 
     return calendarData.ptSlots.filter((slot) => {
+      if (activeBookingIds.ptSlotIds.has(slot.id)) return true
       const slotCoachId = (slot as any).coachId || slot.coach?.id
       const eligible = slot.eligibleDisciplines || []
       const coachStars =
@@ -372,7 +376,7 @@ export const CalendarPage: React.FC = () => {
         return true
       })
     })
-  }, [calendarData?.ptSlots, calendarData?.subscriptions])
+  }, [calendarData?.ptSlots, activeSubs, filterMyPackagesOnly, activeBookingIds.ptSlotIds])
 
   return (
     <div className="min-h-screen rounded-none bg-slate-100 flex flex-col font-sans">
@@ -411,7 +415,7 @@ export const CalendarPage: React.FC = () => {
         isLoading={isLoading}
         filterMyPackagesOnly={filterMyPackagesOnly}
         onToggleFilterMyPackagesOnly={() => setFilterMyPackagesOnly((p) => !p)}
-        hasActiveGroupSubs={activeGroupSubs.length > 0}
+        hasActiveGroupSubs={activeSubs.length > 0}
         activeSpecialtyNames={activeSpecialtyNames}
       />
 

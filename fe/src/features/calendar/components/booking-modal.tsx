@@ -43,20 +43,19 @@ const BACKEND_ERROR_MESSAGES: Record<string, string> = {
   SESSION_UNAVAILABLE: 'Lớp học hoặc ca tập hiện không khả dụng. Vui lòng liên hệ trung tâm.',
   SESSION_ALREADY_STARTED: 'Buổi tập hoặc ca dạy đã bắt đầu hoặc đã qua thời gian đăng ký.',
   PT_SLOT_UNAVAILABLE: 'Ca rảnh của HLV đã được người khác đặt trước hoặc không còn khả dụng.',
-  MEMBER_SCHEDULE_OVERLAP: 'Bạn đã có một lịch tập khác trùng vào khung giờ này.',
-  OVERLAPPING_BOOKING: 'Khung giờ này bị trùng với lịch tập khác của bạn.',
+  MEMBER_SCHEDULE_OVERLAP: 'Trùng giờ với lịch tập bạn đã đặt.',
+  OVERLAPPING_BOOKING: 'Trùng giờ với lịch tập bạn đã đặt.',
   SAME_DAY_ACTIVE_PT_BOOKING_EXISTS:
-    'Mỗi ngày bạn chỉ được đặt tối đa 1 ca tập PT còn hiệu lực cho bộ môn này.',
+    'Mỗi ngày chỉ được đặt tối đa 1 ca tập PT cho cùng một bộ môn.',
   SAME_DAY_PT_LATE_CANCELLATION_LIMIT:
-    'Hôm nay bạn đã hủy muộn 1 ca PT cho bộ môn này, hệ thống không cho phép đặt thêm ca mới trong cùng ngày.',
-  SAME_DAY_PT_LIMIT: 'Hạn mức đặt lịch PT trong ngày của bạn đã đạt tối đa.',
+    'Hôm nay bạn đã hủy muộn 1 ca PT cho bộ môn này, không thể đặt thêm trong ngày.',
+  SAME_DAY_PT_LIMIT: 'Bạn đã đạt giới hạn đặt lịch PT trong ngày.',
   SUBSCRIPTION_NOT_ACTIVE_ON_DAY: 'Gói tập chưa có hiệu lực hoặc đã hết hạn vào ngày diễn ra buổi tập.',
   GROUP_QUOTA_EXHAUSTED: 'Gói tập của bạn đã hết số lượt tham gia lớp học nhóm.',
   PT_QUOTA_EXHAUSTED: 'Gói tập của bạn đã hết số lượt tập kèm HLV 1-1.',
   INVALID_EQUIPMENT: 'Thiết bị tập không khả dụng hoặc phòng tập tạm ngưng phục vụ.',
   CANCELLATION_WINDOW_EXPIRED: 'Đã quá thời hạn cho phép hủy lịch tập.',
-  SCHEDULE_OR_DATA_CONFLICT:
-    'Khung giờ này bị xung đột hoặc trùng lặp với lịch tập/ca dạy khác. Hệ thống không cho phép xếp trùng giờ.',
+  SCHEDULE_OR_DATA_CONFLICT: 'Trùng giờ với lịch tập bạn đã đặt.',
   COACH_AVAILABILITY_ALREADY_BOOKED: 'Ca 1-1 này đã có học viên đăng ký (Lớp đầy). Vui lòng chọn ca khác.',
   PT_SLOT_ALREADY_BOOKED: 'Ca 1-1 này đã có học viên đăng ký (Lớp đầy). Vui lòng chọn ca khác.',
 }
@@ -87,8 +86,24 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
     rawMsg = error.message
   }
 
-  if (rawMsg && /[à-ỹÀ-Ỹ]/.test(rawMsg)) {
-    return rawMsg
+  if (errorCode) {
+    for (const [key, translated] of Object.entries(BACKEND_ERROR_MESSAGES)) {
+      if (errorCode.includes(key)) {
+        return translated
+      }
+    }
+  }
+
+  if (rawMsg) {
+    if (
+      rawMsg.includes('xung đột hoặc trùng lặp') ||
+      rawMsg.includes('trùng với lịch tập')
+    ) {
+      return 'Trùng giờ với lịch tập bạn đã đặt.'
+    }
+    if (/[à-ỹÀ-Ỹ]/.test(rawMsg)) {
+      return rawMsg
+    }
   }
 
   const code = errorCode || rawMsg
@@ -197,6 +212,27 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const diffHours = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60)
   const isStarted = diffHours <= 0
   const isRefundable = diffHours >= 2
+
+  const slotEndAt =
+    scheduleData?.endAt ||
+    ptData?.endAt ||
+    existingBooking?.endAt ||
+    (startAt ? new Date(startTime.getTime() + 60 * 60 * 1000).toISOString() : '')
+
+  const overlappingBooking = useMemo(() => {
+    if (!startAt || !slotEndAt || existingBooking || !bookings?.length) return null
+    const curStart = new Date(startAt).getTime()
+    const curEnd = new Date(slotEndAt).getTime()
+    if (!Number.isFinite(curStart) || !Number.isFinite(curEnd)) return null
+    return (
+      bookings.find((b) => {
+        if (b.status === 'CANCELLED') return false
+        const bStart = new Date(b.startAt).getTime()
+        const bEnd = b.endAt ? new Date(b.endAt).getTime() : bStart + 60 * 60 * 1000
+        return bStart < curEnd && bEnd > curStart
+      }) || null
+    )
+  }, [startAt, slotEndAt, existingBooking, bookings])
 
   // Date strings for quota and subscription validity check
   const todayStr = formatDateToYMD(new Date())
@@ -672,9 +708,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 'h-2.5 w-2.5 rounded-full',
                 existingBooking
                   ? 'bg-emerald-500'
-                  : event.type === 'PT_SLOT'
-                    ? 'bg-purple-500'
-                    : 'bg-sky-500',
+                  : disciplineName.toLowerCase().includes('yoga')
+                    ? 'bg-violet-500'
+                    : disciplineName.toLowerCase().includes('box')
+                      ? 'bg-rose-500'
+                      : event.type === 'PT_SLOT'
+                        ? 'bg-sky-500'
+                        : 'bg-indigo-500',
               )}
             />
             <h2 className="text-base font-bold text-slate-900">Chi tiết buổi tập</h2>
@@ -1045,6 +1085,15 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
           
 
+          {overlappingBooking && !existingBooking && !isStarted && (
+            <div className="p-3 rounded-xl bg-slate-100 border border-slate-300 text-slate-700 text-xs flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-slate-500 mt-0.5" />
+              <div>
+                <span className="font-bold">Trùng khung giờ:</span> Bạn đã đặt một ca tập khác trong khung giờ này nên không thể đặt thêm ca song song.
+              </div>
+            </div>
+          )}
+
           {/* Cancellation section if already booked */}
           {existingBooking && (
             <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
@@ -1140,13 +1189,17 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 disabled={
                   isSubmitting ||
                   isStarted ||
+                  Boolean(overlappingBooking) ||
                   scheduleData.currentEnrolled >= scheduleData.capacity ||
                   !matchingGroupSub
                 }
                 onClick={() => setShowBookConfirm(true)}
                 className={cn(
                   'py-2 px-5 rounded-xl text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer',
-                  isStarted || scheduleData.currentEnrolled >= scheduleData.capacity || !matchingGroupSub
+                  isStarted ||
+                    Boolean(overlappingBooking) ||
+                    scheduleData.currentEnrolled >= scheduleData.capacity ||
+                    !matchingGroupSub
                     ? 'bg-slate-400 cursor-not-allowed'
                     : 'bg-[#17664e] hover:bg-[#00735f] active:bg-[#005f4f]',
                 )}
@@ -1155,6 +1208,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   ? 'Đang đặt...'
                   : isStarted
                     ? 'Buổi tập đã qua giờ'
+                    : overlappingBooking
+                    ? 'Trùng giờ với lịch đã đặt'
                     : scheduleData.currentEnrolled >= scheduleData.capacity
                     ? 'Lớp đã đủ người'
                     : hasDifferentStarSub
@@ -1171,6 +1226,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 disabled={
                   isSubmitting ||
                   isStarted ||
+                  Boolean(overlappingBooking) ||
                   Boolean(ptData.isBooked && !existingBooking) ||
                   availablePtDisciplines.length === 0 ||
                   isDayNotAllowed
@@ -1179,17 +1235,20 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 className={cn(
                   'py-2 px-5 rounded-xl text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer',
                   isStarted ||
+                    Boolean(overlappingBooking) ||
                     Boolean(ptData.isBooked && !existingBooking) ||
                     availablePtDisciplines.length === 0 ||
                     isDayNotAllowed
                     ? 'bg-slate-400 cursor-not-allowed opacity-90'
-                    : 'bg-purple-600 hover:bg-purple-700 active:bg-purple-800',
+                    : 'bg-sky-600 hover:bg-sky-700 active:bg-sky-800',
                 )}
               >
                 {isSubmitting
                   ? 'Đang đặt...'
                   : isStarted
                     ? 'Khung giờ đã qua'
+                    : overlappingBooking
+                    ? 'Trùng giờ với lịch đã đặt'
                     : ptData.isBooked && !existingBooking
                     ? 'Ca tập đã có người đặt'
                     : hasDifferentStarPtSub

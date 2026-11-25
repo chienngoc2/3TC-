@@ -265,8 +265,8 @@ export const ClusterSessionsModal: React.FC<ClusterSessionsModalProps> = ({
                               </div>
                             )}
                             {isPt && (
-                              <div className="flex items-center gap-1.5 text-purple-700 font-semibold">
-                                <User className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <div className="flex items-center gap-1.5 text-sky-700 font-semibold">
+                                <User className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                                 <span>PT 1-1</span>
                               </div>
                             )}

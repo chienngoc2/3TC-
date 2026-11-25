@@ -69,11 +69,11 @@ export class PayosService {
     this.returnUrl =
       this.config.get<string>('PAYOS_RETURN_URL') ??
       process.env.PAYOS_RETURN_URL ??
-      'http://localhost:5173/portal/member/checkout';
+      'https://3tcfitness.vercel.app/portal/member/checkout';
     this.cancelUrl =
       this.config.get<string>('PAYOS_CANCEL_URL') ??
       process.env.PAYOS_CANCEL_URL ??
-      'http://localhost:5173/portal/member/checkout';
+      'https://3tcfitness.vercel.app/portal/member/checkout';
 
     if (clientId && apiKey && checksumKey) {
       try {
