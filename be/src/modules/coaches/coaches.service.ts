@@ -2600,6 +2600,33 @@ export class CoachesService {
     }
 
     const isApprove = dto.action === 'APPROVE';
+    if (isApprove && request.coach.coachProfile) {
+      const targetSpec = await this.prisma.specialty.findUnique({
+        where: { id: request.specialtyId },
+        include: { discipline: true },
+      });
+      const targetCode = targetSpec?.discipline?.code?.toUpperCase();
+      const existingSpecs = await this.prisma.coachSpecialty.findMany({
+        where: { coachProfileId: request.coach.coachProfile.id },
+        include: { specialty: { include: { discipline: true } } },
+      });
+      const existingCodes = new Set(
+        existingSpecs
+          .map((cs) => cs.specialty?.discipline?.code?.toUpperCase())
+          .filter(Boolean),
+      );
+      if (
+        (existingCodes.has('GYM') &&
+          (targetCode === 'YOGA' || targetCode === 'BOXING')) ||
+        ((existingCodes.has('YOGA') || existingCodes.has('BOXING')) &&
+          targetCode === 'GYM')
+      ) {
+        throw new BadRequestException(
+          'Không thể duyệt chuyên đề trái nhóm ngành (HLV Gym không được dạy lớp Nhóm và ngược lại).',
+        );
+      }
+    }
+
     const updated = await (this.prisma as any).coachTopicRequest.update({
       where: { id },
       data: {

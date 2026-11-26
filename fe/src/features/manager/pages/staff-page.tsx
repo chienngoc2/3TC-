@@ -533,7 +533,31 @@ function StaffForm({
     return rawSpecs.map((s: any) => s.specialtyId || s.specialty?.id).filter(Boolean)
   })
 
+  const selectedDiscCodes = useMemo(() => {
+    const set = new Set<string>()
+    for (const sid of selectedSpecialtyIds) {
+      const spec = activeSpecialties.find((s) => s.id === sid)
+      const code = spec?.discipline?.code?.toUpperCase()
+      if (code) set.add(code)
+    }
+    return set
+  }, [selectedSpecialtyIds, activeSpecialties])
+
+  const isSpecialtyIncompatible = (discCode?: string) => {
+    const code = (discCode || '').toUpperCase()
+    if (!code) return false
+    const hasGym = selectedDiscCodes.has('GYM')
+    const hasGroup = selectedDiscCodes.has('YOGA') || selectedDiscCodes.has('BOXING')
+    if (hasGym && (code === 'YOGA' || code === 'BOXING')) return true
+    if (hasGroup && code === 'GYM') return true
+    return false
+  }
+
   const toggleSpecialty = (id: string) => {
+    const target = activeSpecialties.find((s) => s.id === id)
+    if (!selectedSpecialtyIds.includes(id) && isSpecialtyIncompatible(target?.discipline?.code)) {
+      return
+    }
     setSelectedSpecialtyIds((prev) =>
       prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
     )
@@ -1047,6 +1071,7 @@ function StaffForm({
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {activeSpecialties.map((s) => {
                     const isChecked = selectedSpecialtyIds.includes(s.id)
+                    const isLockedOut = !isChecked && isSpecialtyIncompatible(s.discipline?.code)
                     const discCode = s.discipline?.code || ''
                     const dotClass =
                       discCode === 'YOGA'
@@ -1059,17 +1084,20 @@ function StaffForm({
                       <label
                         key={s.id}
                         className={cn(
-                          'flex items-start gap-3 p-3 rounded-lg border text-xs cursor-pointer transition-colors',
-                          isChecked
-                            ? 'bg-emerald-50/60 border-[#17664e] text-slate-900'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300',
+                          'flex items-start gap-3 p-3 rounded-lg border text-xs transition-colors',
+                          isLockedOut
+                            ? 'bg-slate-50 border-slate-200 text-slate-400 opacity-60 cursor-not-allowed'
+                            : isChecked
+                              ? 'bg-emerald-50/60 border-[#17664e] text-slate-900 cursor-pointer'
+                              : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 cursor-pointer',
                         )}
                       >
                         <input
                           type="checkbox"
                           checked={isChecked}
+                          disabled={isLockedOut}
                           onChange={() => toggleSpecialty(s.id)}
-                          className="h-4 w-4 mt-0.5 accent-[#17664e] shrink-0 rounded cursor-pointer"
+                          className="h-4 w-4 mt-0.5 accent-[#17664e] shrink-0 rounded cursor-pointer disabled:cursor-not-allowed"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center justify-between gap-2">

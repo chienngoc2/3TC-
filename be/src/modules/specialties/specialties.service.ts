@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { TransactionService } from '../../database/transaction.service';
@@ -61,6 +61,23 @@ export class SpecialtiesService {
       const profile = requireRecord(
         await tx.coachProfile.findUnique({ where: { userId: coachId } }),
       );
+      if (specialtyIds.length > 0) {
+        const specs = await tx.specialty.findMany({
+          where: { id: { in: specialtyIds } },
+          include: { discipline: true },
+        });
+        const discCodes = new Set(
+          specs.map((s) => s.discipline?.code?.toUpperCase()).filter(Boolean),
+        );
+        if (
+          discCodes.has('GYM') &&
+          (discCodes.has('YOGA') || discCodes.has('BOXING'))
+        ) {
+          throw new BadRequestException(
+            'Không thể gán lẫn chuyên môn Gym (PT 1-1) và chuyên môn Nhóm (Yoga / Boxing) cho cùng một HLV.',
+          );
+        }
+      }
       await tx.coachSpecialty.deleteMany({
         where: { coachProfileId: profile.id },
       });

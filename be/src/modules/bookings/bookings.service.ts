@@ -512,9 +512,36 @@ export class BookingsService {
       const coachProfile = await tx.coachProfile.findUnique({
         where: { userId: initial.coachId },
         include: {
-          coachSpecialties: { include: { specialty: true } },
+          coachSpecialties: {
+            include: { specialty: { include: { discipline: true } } },
+          },
         },
       });
+      const coachDiscCodes = new Set(
+        (coachProfile?.coachSpecialties || [])
+          .map((cs: any) => cs.specialty?.discipline?.code?.toUpperCase())
+          .filter(Boolean),
+      );
+      if (
+        coachDiscCodes.size > 0 &&
+        discipline?.code?.toUpperCase() === 'GYM' &&
+        !coachDiscCodes.has('GYM') &&
+        (coachDiscCodes.has('YOGA') || coachDiscCodes.has('BOXING'))
+      ) {
+        throw new BadRequestException(
+          'HLV chuyên môn Nhóm (Yoga / Boxing) không được dạy kèm Gym PT 1-1.',
+        );
+      }
+      if (
+        coachDiscCodes.size > 0 &&
+        isGroupDiscipline &&
+        coachDiscCodes.has('GYM') &&
+        !coachDiscCodes.has(discipline?.code?.toUpperCase() || '')
+      ) {
+        throw new BadRequestException(
+          'HLV Gym & Fitness không được dạy lớp Nhóm (Yoga / Boxing).',
+        );
+      }
       const coachStars = coachProfile?.ratingStars ?? 3;
 
       const today = localDate();

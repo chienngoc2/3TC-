@@ -1620,22 +1620,19 @@ l
                       const alreadyHas = (profile?.coachProfile?.coachSpecialties || []).some(
                         (cs: any) => cs.specialtyId === s.id || cs.specialty?.id === s.id
                       );
-                      return !alreadyHas;
-                    })
-                    .map((s: any) => {
+                      if (alreadyHas) return false;
                       const tCode = s.discipline?.code?.toUpperCase();
                       const isGymCoach = coachDisciplineCodes.has('GYM');
                       const isYogaOrBoxingCoach = coachDisciplineCodes.has('YOGA') || coachDisciplineCodes.has('BOXING');
-                      const isIncompatible =
-                        (isGymCoach && (tCode === 'YOGA' || tCode === 'BOXING')) ||
-                        (isYogaOrBoxingCoach && tCode === 'GYM');
-
-                      return (
-                        <option key={s.id} value={s.id} disabled={isIncompatible}>
-                          [{s.discipline?.name || 'Khác'}] {s.name} {isIncompatible ? '⛔ (Không áp dụng cho bộ môn của bạn)' : ''}
-                        </option>
-                      );
-                    })}
+                      if (isGymCoach && (tCode === 'YOGA' || tCode === 'BOXING')) return false;
+                      if (isYogaOrBoxingCoach && tCode === 'GYM') return false;
+                      return true;
+                    })
+                    .map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        [{s.discipline?.name || 'Khác'}] {s.name}
+                      </option>
+                    ))}
                 </select>
 
                 {(() => {
