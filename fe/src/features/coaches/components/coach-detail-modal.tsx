@@ -325,6 +325,17 @@ export const CoachDetailModal: React.FC<CoachDetailModalProps> = ({
     };
   }, [isOpen, onClose]);
 
+  const specialties = useMemo(() => {
+    const all = activeCoach?.coachProfile?.coachSpecialties || [];
+    const filtered = all.filter(
+      (s: any) =>
+        s.specialty?.code !== "SPEC_YOG_AS" &&
+        s.specialty?.code !== "SPEC_BOX_KB" &&
+        s.specialty?.code !== "SPEC_GYM_BB"
+    );
+    return filtered.length > 0 ? filtered : all;
+  }, [activeCoach?.coachProfile?.coachSpecialties]);
+
   if (!isOpen || !activeCoach) return null;
 
   const targetCode = activeCoach.primaryDiscipline || "GYM";
@@ -333,17 +344,6 @@ export const CoachDetailModal: React.FC<CoachDetailModalProps> = ({
     activeCoach.coachRates && activeCoach.coachRates.length > 0
       ? activeCoach.coachRates[0]
       : null;
-
-  const specialties = useMemo(() => {
-    const all = activeCoach.coachProfile?.coachSpecialties || [];
-    const filtered = all.filter(
-      (s: any) =>
-        s.specialty?.code !== "SPEC_YOG_AS" &&
-        s.specialty?.code !== "SPEC_BOX_KB" &&
-        s.specialty?.code !== "SPEC_GYM_BB"
-    );
-    return filtered.length > 0 ? filtered : all;
-  }, [activeCoach.coachProfile?.coachSpecialties]);
   const hasAvatar = Boolean(activeCoach.avatarUrl && activeCoach.avatarUrl.trim());
   const bio = activeCoach.bio || activeCoach.coachProfile?.bio;
 
