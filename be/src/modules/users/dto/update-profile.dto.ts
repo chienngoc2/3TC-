@@ -23,6 +23,7 @@ export class UpdateProfileDto {
   @IsString()
   @Matches(/^\d{4,6}$/, { message: 'Mã PIN check-in bảo mật phải là 4 đến 6 chữ số' })
   checkinCode?: string;
+  @IsOptional() @IsString() currentPassword?: string;
   @IsOptional()
   @IsEnum(UserGender, { message: 'Giới tính không hợp lệ' })
   gender?: UserGender;

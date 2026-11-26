@@ -291,6 +291,7 @@ export class UsersService {
     }
 
     const {
+      currentPassword,
       fitnessGoals,
       medicalHistory,
       heightCm,
@@ -304,6 +305,25 @@ export class UsersService {
       workingHours,
       ...userData
     } = dto;
+
+    if (actor.userId === id) {
+      const existingUser = requireRecord(
+        await this.prisma.user.findUnique({
+          where: { id },
+          select: { id: true, passwordHash: true },
+        }),
+        'USER_NOT_FOUND',
+      );
+      if (!currentPassword) {
+        throw new BadRequestException(
+          'Vui lòng nhập mật khẩu hiện tại để xác nhận lưu thay đổi',
+        );
+      }
+      const valid = await bcrypt.compare(currentPassword, existingUser.passwordHash);
+      if (!valid) {
+        throw new BadRequestException('Mật khẩu xác nhận không chính xác');
+      }
+    }
 
     // Validate max 8 hours per day for coach working hours (per day, not across whole week)
     if (workingHours && Array.isArray(workingHours)) {

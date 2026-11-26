@@ -117,6 +117,9 @@ export const profileApiService = {
     if (dto.checkinCode !== undefined) {
       payload.checkinCode = dto.checkinCode.trim();
     }
+    if (dto.currentPassword) {
+      payload.currentPassword = dto.currentPassword;
+    }
     if (dto.gender !== undefined) {
       payload.gender = dto.gender;
     }

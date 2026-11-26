@@ -66,6 +66,7 @@ export interface UpdateProfileDto {
   fullName: string;
   phone?: string;
   checkinCode?: string;
+  currentPassword?: string;
   avatarUrl?: string;
   gender?: GenderType;
   heightCm?: number;

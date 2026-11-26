@@ -73,6 +73,10 @@ export const CoachProfilePage: React.FC = () => {
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isConfirmSaveOpen, setIsConfirmSaveOpen] = useState(false);
+  const [confirmSavePassword, setConfirmSavePassword] = useState('');
+  const [showConfirmSavePassword, setShowConfirmSavePassword] = useState(false);
+  const [confirmSaveError, setConfirmSaveError] = useState<string | null>(null);
   const [bio, setBio] = useState<string>('');
   const [yearsExperience, setYearsExperience] = useState<number>(0);
   const [bankName, setBankName] = useState<string>('');
@@ -281,7 +285,7 @@ export const CoachProfilePage: React.FC = () => {
 
   // Update Profile Mutation
   const updateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (confirmPasswordArg?: string) => {
       if (!fullName.trim()) throw new Error('Vui lòng nhập họ và tên.');
       if (dayOver8Hours) {
         const dayLabel = ALL_DAYS.find((d) => d.code === dayOver8Hours)?.label || dayOver8Hours;
@@ -304,6 +308,7 @@ export const CoachProfilePage: React.FC = () => {
         fullName: fullName.trim(),
         phone: phone.trim() || undefined,
         checkinCode: checkinCode.trim() || undefined,
+        currentPassword: confirmPasswordArg,
         bio: bio.trim() || undefined,
         yearsExperience: Number(yearsExperience) || 0,
         bankName: bankName.trim() || undefined,
@@ -311,9 +316,12 @@ export const CoachProfilePage: React.FC = () => {
         bankAccountName: bankAccountName.trim() || undefined,
         workingDays,
         workingHours: flatWorkingHours,
-      });
+      } as any);
     },
     onSuccess: (updated) => {
+      setIsConfirmSaveOpen(false);
+      setConfirmSavePassword('');
+      setConfirmSaveError(null);
       setSuccessMsg('Cập nhật hồ sơ & khung giờ rảnh thành công.');
       showToast('success', 'Thành công', 'Cập nhật hồ sơ & khung giờ rảnh thành công.');
       if (authUser) {
@@ -332,9 +340,13 @@ export const CoachProfilePage: React.FC = () => {
     onError: (err: any) => {
       const msg = err.response?.data?.message || err.message || 'Lỗi khi cập nhật hồ sơ';
       const errorString = typeof msg === 'string' ? msg : JSON.stringify(msg);
-      setErrorMsg(errorString);
+      if (isConfirmSaveOpen) {
+        setConfirmSaveError(errorString);
+      } else {
+        setErrorMsg(errorString);
+        setTimeout(() => setErrorMsg(null), 4000);
+      }
       showToast('error', 'Cập nhật thất bại', errorString);
-      setTimeout(() => setErrorMsg(null), 4000);
     },
   });
 
@@ -1202,7 +1214,21 @@ l
 
           <Button
             type="button"
-            onClick={() => updateMutation.mutate()}
+            onClick={() => {
+              if (!fullName.trim()) {
+                setErrorMsg('Vui lòng nhập họ và tên.');
+                return;
+              }
+              if (checkinCode && !/^\d{4,6}$/.test(checkinCode.trim())) {
+                setErrorMsg('Mã PIN check-in bảo mật phải là 4 đến 6 chữ số');
+                return;
+              }
+              setErrorMsg(null);
+              setConfirmSaveError(null);
+              setConfirmSavePassword('');
+              setShowConfirmSavePassword(false);
+              setIsConfirmSaveOpen(true);
+            }}
             disabled={updateMutation.isPending || Boolean(dayOver8Hours)}
             className={`text-xs font-bold gap-2 h-10 px-7 rounded-xl shadow-sm cursor-pointer transition-all ${
               dayOver8Hours
@@ -1304,6 +1330,107 @@ l
           </div>
         )}
       </div>
+
+      {/* ========================================================= */}
+      {/* MODAL: XÁC NHẬN MẬT KHẨU KHI LƯU HỒ SƠ HLV               */}
+      {/* ========================================================= */}
+      {isConfirmSaveOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-7 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                    Xác nhận mật khẩu
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Nhập mật khẩu hiện tại để lưu thay đổi hồ sơ
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsConfirmSaveOpen(false);
+                  setConfirmSaveError(null);
+                  setConfirmSavePassword('');
+                }}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {confirmSaveError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{confirmSaveError}</span>
+              </div>
+            )}
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!confirmSavePassword) {
+                  setConfirmSaveError('Vui lòng nhập mật khẩu hiện tại để xác nhận.');
+                  return;
+                }
+                setConfirmSaveError(null);
+                updateMutation.mutate(confirmSavePassword);
+              }}
+              className="space-y-4"
+            >
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-bold text-slate-800 dark:text-slate-200">
+                  Mật khẩu hiện tại
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmSavePassword ? 'text' : 'password'}
+                    autoFocus
+                    placeholder="Nhập mật khẩu tài khoản để xác nhận..."
+                    value={confirmSavePassword}
+                    onChange={(e) => setConfirmSavePassword(e.target.value)}
+                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs font-medium focus:border-emerald-600 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmSavePassword((p) => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    aria-label={showConfirmSavePassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showConfirmSavePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsConfirmSaveOpen(false);
+                    setConfirmSaveError(null);
+                    setConfirmSavePassword('');
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateMutation.isPending}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#17664e] text-white hover:bg-[#135641] transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {updateMutation.isPending ? 'Đang xác nhận...' : 'Xác nhận & Lưu'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================= */}
       {/* MODAL: ĐỔI MẬT KHẨU TÀI KHOẢN HLV                         */}

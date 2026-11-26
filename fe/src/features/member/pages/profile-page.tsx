@@ -663,6 +663,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
     initialData.medicalHistory || initialData.memberProfile?.medicalHistory || ""
   );
   const [showPinInput, setShowPinInput] = useState(false);
+  const [pendingSaveDto, setPendingSaveDto] = useState<UpdateProfileDto | null>(null);
+  const [confirmSavePassword, setConfirmSavePassword] = useState("");
+  const [showConfirmSavePassword, setShowConfirmSavePassword] = useState(false);
+  const [confirmSaveError, setConfirmSaveError] = useState("");
   const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
@@ -712,7 +716,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
     setValidationError("");
   };
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!fullName.trim()) {
       const msg = "Vui lòng nhập họ và tên của bạn";
@@ -727,8 +731,10 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
       return;
     }
     setValidationError("");
-
-    await onSubmit({
+    setConfirmSaveError("");
+    setConfirmSavePassword("");
+    setShowConfirmSavePassword(false);
+    setPendingSaveDto({
       fullName: fullName.trim(),
       phone: phone.trim(),
       checkinCode: checkinCode.trim() || undefined,
@@ -738,6 +744,27 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
       fitnessGoals: fitnessGoals.trim(),
       medicalHistory: medicalHistory.trim(),
     });
+  };
+
+  const handleConfirmSaveWithPassword = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!pendingSaveDto) return;
+    if (!confirmSavePassword) {
+      setConfirmSaveError("Vui lòng nhập mật khẩu hiện tại để xác nhận.");
+      return;
+    }
+    setConfirmSaveError("");
+    try {
+      await onSubmit({
+        ...pendingSaveDto,
+        currentPassword: confirmSavePassword,
+      });
+      setPendingSaveDto(null);
+      setConfirmSavePassword("");
+      setShowConfirmSavePassword(false);
+    } catch (err) {
+      setConfirmSaveError(errorText(err) || "Mật khẩu xác nhận không chính xác.");
+    }
   };
 
   return (
@@ -1068,6 +1095,96 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
           </Button>
         </div>
       </div>
+
+      {/* MODAL XÁC NHẬN MẬT KHẨU KHI LƯU HỒ SƠ */}
+      {pendingSaveDto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 text-white shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold">Xác nhận mật khẩu</h3>
+                  <p className="text-xs text-slate-400">Nhập mật khẩu hiện tại để lưu thay đổi hồ sơ</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingSaveDto(null);
+                  setConfirmSavePassword("");
+                  setConfirmSaveError("");
+                }}
+                className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {confirmSaveError && (
+              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{confirmSaveError}</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="space-y-1.5 text-xs">
+                <label className="block font-bold text-slate-300">Mật khẩu hiện tại</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmSavePassword ? "text" : "password"}
+                    autoFocus
+                    placeholder="Nhập mật khẩu tài khoản để xác nhận..."
+                    value={confirmSavePassword}
+                    onChange={(e) => setConfirmSavePassword(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void handleConfirmSaveWithPassword(e);
+                      }
+                    }}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmSavePassword((p) => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                    aria-label={showConfirmSavePassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                  >
+                    {showConfirmSavePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingSaveDto(null);
+                    setConfirmSavePassword("");
+                    setConfirmSaveError("");
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <Button
+                  type="button"
+                  variant="mint"
+                  disabled={isSaving}
+                  onClick={(e) => void handleConfirmSaveWithPassword(e)}
+                  className="h-10 px-5 text-xs font-bold bg-[#17664e] text-white hover:bg-[#135641]"
+                >
+                  {isSaving ? "Đang xác nhận..." : "Xác nhận & Lưu"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 };
@@ -1179,7 +1296,7 @@ export const ProfilePage: React.FC = () => {
   const handleSubmit = (dto: UpdateProfileDto) => {
     setSaveSuccess(false);
     setSaveError("");
-    saveMutation.mutate(dto);
+    return saveMutation.mutateAsync(dto);
   };
 
   return (
