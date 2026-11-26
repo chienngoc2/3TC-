@@ -98,6 +98,28 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ item, discip
   const showGroupQuota = !isGym || (item.plan?.groupSessionQuota ?? 0) > 0
   const showPtQuota = isGym
   const quotaCols = showGroupQuota && showPtQuota ? 'grid-cols-3' : 'grid-cols-2'
+  const starRating =
+    item.coachRatingStars ||
+    item.assignedCoach?.coachProfile?.ratingStars ||
+    null
+  const usedGroup =
+    item.usedGroupSessions ??
+    (item.plan?.groupSessionQuota != null && item.remainingGroupSessions != null
+      ? Math.max(0, item.plan.groupSessionQuota - item.remainingGroupSessions)
+      : 0)
+  const totalGroup = Math.max(
+    item.plan?.groupSessionQuota ?? 0,
+    (item.remainingGroupSessions ?? 0) + usedGroup,
+  )
+  const usedPt =
+    item.usedPtSessions ??
+    (item.plan?.ptSessionQuota != null && item.remainingPtSessions != null
+      ? Math.max(0, item.plan.ptSessionQuota - item.remainingPtSessions)
+      : 0)
+  const totalPt = Math.max(
+    item.plan?.ptSessionQuota ?? 0,
+    (item.remainingPtSessions ?? 0) + usedPt,
+  )
   const planImg = getPlanImage(
     disciplineName,
     item.packageTier,
@@ -156,6 +178,12 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ item, discip
             >
               {formatSubscriptionTier(item.packageTier)}
             </span>
+
+            {starRating && starRating > 0 && !['DROP_IN', 'TRIAL'].includes(item.packageTier) && (
+              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-400/95 text-slate-950 border border-amber-300 backdrop-blur-md shadow-2xs">
+                <span>★ {starRating} sao</span>
+              </span>
+            )}
           </div>
 
           {/* Right: Status Badge */}
@@ -217,14 +245,11 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ item, discip
                 <span className="text-[10px] font-normal text-slate-400 ml-0.5">còn</span>
               </strong>
               <span className="text-[10px] text-slate-500 block truncate">
-                {item.plan?.groupSessionQuota != null && item.remainingGroupSessions != null
-                  ? `Đã dùng: ${Math.max(0, item.plan.groupSessionQuota - item.remainingGroupSessions)}`
-                  : item.plan?.groupSessionQuota
-                  ? `/ ${item.plan.groupSessionQuota} buổi`
+                {totalGroup > 0
+                  ? `Đã dùng: ${usedGroup} / ${totalGroup}`
                   : 'buổi'}
               </span>
-              {item.plan?.groupSessionQuota != null &&
-                item.plan.groupSessionQuota > 0 &&
+              {totalGroup > 0 &&
                 item.remainingGroupSessions != null && (
                   <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-200">
                     <div
@@ -232,7 +257,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ item, discip
                       style={{
                         width: `${Math.min(
                           100,
-                          Math.max(0, (item.remainingGroupSessions / item.plan.groupSessionQuota) * 100),
+                          Math.max(0, (item.remainingGroupSessions / totalGroup) * 100),
                         )}%`,
                       }}
                     />
@@ -253,14 +278,11 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ item, discip
                 <span className="text-[10px] font-normal text-slate-400 ml-0.5">còn</span>
               </strong>
               <span className="text-[10px] text-slate-500 block truncate">
-                {item.plan?.ptSessionQuota != null && item.remainingPtSessions != null
-                  ? `Đã dùng: ${Math.max(0, item.plan.ptSessionQuota - item.remainingPtSessions)}`
-                  : item.plan?.ptSessionQuota
-                  ? `/ ${item.plan.ptSessionQuota} buổi`
+                {totalPt > 0
+                  ? `Đã dùng: ${usedPt} / ${totalPt}`
                   : 'buổi PT'}
               </span>
-              {item.plan?.ptSessionQuota != null &&
-                item.plan.ptSessionQuota > 0 &&
+              {totalPt > 0 &&
                 item.remainingPtSessions != null && (
                   <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-200">
                     <div
@@ -268,7 +290,7 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({ item, discip
                       style={{
                         width: `${Math.min(
                           100,
-                          Math.max(0, (item.remainingPtSessions / item.plan.ptSessionQuota) * 100),
+                          Math.max(0, (item.remainingPtSessions / totalPt) * 100),
                         )}%`,
                       }}
                     />

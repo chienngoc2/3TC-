@@ -240,6 +240,7 @@ export class BillingService {
           status: 'ACTIVE',
           endDate: { gte: localDate() },
           assignedCoachId: { not: null },
+          coachRatingStars,
         },
         orderBy: { endDate: 'desc' },
       });

@@ -150,20 +150,22 @@ export const SubscriptionDetailModal: React.FC<SubscriptionDetailModalProps> = (
     (b) => b.subscriptionId === item.id,
   )
 
-  // Calculate used counts
-  const totalGroup = item.plan?.groupSessionQuota ?? 0
+  // Calculate used counts (prefer server booking count when stacked)
   const remainingGroup = item.remainingGroupSessions ?? 0
   const usedGroup =
-    totalGroup > 0
-      ? Math.max(0, totalGroup - remainingGroup)
-      : usedSessionsList.filter((b) => b.bookingType === 'GROUP_CLASS').length
+    item.usedGroupSessions ??
+    (item.plan?.groupSessionQuota != null
+      ? Math.max(0, item.plan.groupSessionQuota - remainingGroup)
+      : usedSessionsList.filter((b) => b.bookingType === 'GROUP_CLASS').length)
+  const totalGroup = Math.max(item.plan?.groupSessionQuota ?? 0, remainingGroup + usedGroup)
 
-  const totalPt = item.plan?.ptSessionQuota ?? 0
   const remainingPt = item.remainingPtSessions ?? 0
   const usedPt =
-    totalPt > 0
-      ? Math.max(0, totalPt - remainingPt)
-      : usedSessionsList.filter((b) => b.bookingType === 'PERSONAL_TRAINING').length
+    item.usedPtSessions ??
+    (item.plan?.ptSessionQuota != null
+      ? Math.max(0, item.plan.ptSessionQuota - remainingPt)
+      : usedSessionsList.filter((b) => b.bookingType === 'PERSONAL_TRAINING').length)
+  const totalPt = Math.max(item.plan?.ptSessionQuota ?? 0, remainingPt + usedPt)
 
   return createPortal(
     <div

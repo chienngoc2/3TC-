@@ -120,6 +120,8 @@ export interface Subscription {
   remainingGroupSessions: number | null
   remainingPtSessions: number | null
   remainingSessions: number | null
+  usedGroupSessions?: number
+  usedPtSessions?: number
   hasUnlimitedGymAccess?: boolean | null
   coachRatingStars?: number | null
   assignedCoachId?: string | null

@@ -228,10 +228,27 @@ export class MembershipsService {
               },
             },
           },
+          bookings: {
+            where: { status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED'] } },
+            select: { id: true, bookingType: true },
+          },
         },
         orderBy: { endDate: 'asc' },
       });
-      return sortSubscriptionsByPriority(list);
+      const enriched = list.map(({ bookings, ...sub }) => {
+        const usedGroupSessions = (bookings || []).filter(
+          (b) => b.bookingType === 'GROUP_CLASS',
+        ).length;
+        const usedPtSessions = (bookings || []).filter(
+          (b) => b.bookingType === 'PERSONAL_TRAINING',
+        ).length;
+        return {
+          ...sub,
+          usedGroupSessions,
+          usedPtSessions,
+        };
+      });
+      return sortSubscriptionsByPriority(enriched);
     });
   }
 

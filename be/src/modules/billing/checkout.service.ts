@@ -274,17 +274,11 @@ export class CheckoutService {
           ? (validPlan.groupSessionQuota ?? 12)
           : 0;
 
-      const [activeSub, usedTrial, fetchedRate] = await Promise.all([
-        coachId && ptQuota > 0
-          ? this.prisma.userSubscription.findFirst({
-              where: {
-                userId: targetMemberId,
-                disciplineId: validPlan.disciplineId,
-                status: 'ACTIVE',
-                endDate: { gte: localDate() },
-                assignedCoachId: { not: null },
-              },
-              orderBy: { endDate: 'desc' },
+      const [selectedCoach, usedTrial, fetchedRate] = await Promise.all([
+        coachId
+          ? this.prisma.user.findUnique({
+              where: { id: coachId },
+              select: { coachProfile: { select: { ratingStars: true } } },
             })
           : Promise.resolve(null),
         validPlan.packageTier === 'TRIAL'
@@ -301,6 +295,24 @@ export class CheckoutService {
           ? this.billing.rate(this.prisma, coachId, validPlan.disciplineId)
           : Promise.resolve(null),
       ]);
+
+      const targetCoachStars =
+        selectedCoach?.coachProfile?.ratingStars ?? effectiveStars;
+
+      const activeSub =
+        coachId && ptQuota > 0
+          ? await this.prisma.userSubscription.findFirst({
+              where: {
+                userId: targetMemberId,
+                disciplineId: validPlan.disciplineId,
+                status: 'ACTIVE',
+                endDate: { gte: localDate() },
+                assignedCoachId: { not: null },
+                coachRatingStars: targetCoachStars,
+              },
+              orderBy: { endDate: 'desc' },
+            })
+          : null;
 
       if (activeSub && activeSub.assignedCoachId !== coachId) {
         throw new ConflictException(
