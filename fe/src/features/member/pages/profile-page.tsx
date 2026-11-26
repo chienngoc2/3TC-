@@ -23,6 +23,8 @@ import {
   Calendar,
   Check,
   Flame,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useSession } from "@/auth/session-context";
 import { useNotification } from "@/context/notification-context";
@@ -98,8 +100,10 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
   onChangePasswordClick,
 }) => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [showPin, setShowPin] = useState(false);
   const [tempUrl, setTempUrl] = useState(avatarUrl ?? profile.avatarUrl ?? "");
   const [imgError, setImgError] = useState(false);
+  const pinValue = liveCheckinCode || profile.checkinCode || "1234";
 
   const displayAvatar = avatarUrl !== undefined ? avatarUrl : profile.avatarUrl;
   const displayName = liveFullName || profile.fullName || "Hội viên Sports Center";
@@ -242,7 +246,21 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
               )}
               <span className="inline-flex items-center gap-1.5 bg-emerald-950/70 px-2.5 py-1 rounded-xl border border-emerald-800/80 text-emerald-300">
                 <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Mã PIN: <strong className="font-mono tracking-wider">{liveCheckinCode || profile.checkinCode || "1234"}</strong></span>
+                <span>
+                  Mã PIN:{" "}
+                  <strong className="font-mono tracking-wider">
+                    {showPin ? pinValue : "*".repeat(Math.max(4, pinValue.length))}
+                  </strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowPin((prev) => !prev)}
+                  className="ml-0.5 text-emerald-400 hover:text-emerald-200 transition-colors cursor-pointer"
+                  title={showPin ? "Ẩn mã PIN" : "Xem mã PIN"}
+                  aria-label={showPin ? "Ẩn mã PIN" : "Xem mã PIN"}
+                >
+                  {showPin ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
               </span>
               {heightNum && (
                 <span className="inline-flex items-center gap-1.5 bg-slate-900/60 px-2.5 py-1 rounded-xl border border-slate-800/80">
@@ -644,7 +662,24 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
   const [medicalHistory, setMedicalHistory] = useState(
     initialData.medicalHistory || initialData.memberProfile?.medicalHistory || ""
   );
+  const [showPinInput, setShowPinInput] = useState(false);
   const [validationError, setValidationError] = useState("");
+
+  useEffect(() => {
+    setFullName(initialData.fullName || "");
+    setPhone(initialData.phone || "");
+    setCheckinCode(initialData.checkinCode || "1234");
+    setGender(initialData.gender || "MALE");
+    setHeightCm(
+      initialData.heightCm
+        ? String(initialData.heightCm)
+        : initialData.memberProfile?.heightCm
+        ? String(initialData.memberProfile.heightCm)
+        : ""
+    );
+    setFitnessGoals(initialData.fitnessGoals || initialData.memberProfile?.fitnessGoals || "");
+    setMedicalHistory(initialData.medicalHistory || initialData.memberProfile?.medicalHistory || "");
+  }, [initialData]);
 
   useEffect(() => {
     if (onLiveChange) {
@@ -807,15 +842,27 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
                     <span>Mã PIN check-in (4-6 số)</span>
                   </span>
                 </div>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  value={checkinCode}
-                  onChange={(e) => setCheckinCode(e.target.value.replace(/\D/g, ""))}
-                  placeholder="1234"
-                  className="h-11 rounded-2xl text-xs font-mono font-bold tracking-widest bg-emerald-50/50 border-emerald-200 focus:bg-white text-emerald-950 focus:border-[#17664e] focus:ring-2 focus:ring-[#17664e]/15 transition-all"
-                />
+                <div className="relative">
+                  <Input
+                    type={showPinInput ? "text" : "password"}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={6}
+                    value={checkinCode}
+                    onChange={(e) => setCheckinCode(e.target.value.replace(/\D/g, ""))}
+                    placeholder="****"
+                    className="h-11 pr-10 rounded-2xl text-xs font-mono font-bold tracking-widest bg-emerald-50/50 border-emerald-200 focus:bg-white text-emerald-950 focus:border-[#17664e] focus:ring-2 focus:ring-[#17664e]/15 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPinInput((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-[#17664e] transition-colors cursor-pointer"
+                    title={showPinInput ? "Ẩn mã PIN" : "Hiện mã PIN"}
+                    aria-label={showPinInput ? "Ẩn mã PIN" : "Hiện mã PIN"}
+                  >
+                    {showPinInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               {/* Height (cm) */}
@@ -1039,8 +1086,23 @@ export const ProfilePage: React.FC = () => {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
+
+  const closeChangePasswordModal = () => {
+    setShowChangePasswordModal(false);
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setShowCurrentPassword(false);
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setPasswordError(null);
+    setPasswordSuccess(false);
+  };
 
   const profileQuery = useQuery({
     queryKey: ["member", user?.id || "current", "profile"],
@@ -1051,6 +1113,7 @@ export const ProfilePage: React.FC = () => {
     mutationFn: async () => {
       if (!currentPassword) throw new Error("Vui lòng nhập mật khẩu hiện tại.");
       if (newPassword.length < 6) throw new Error("Mật khẩu mới phải có tối thiểu 6 ký tự.");
+      if (!confirmPassword) throw new Error("Vui lòng nhập xác nhận mật khẩu mới.");
       if (newPassword !== confirmPassword) throw new Error("Xác nhận mật khẩu mới không khớp.");
       return profileApiService.changePassword({ currentPassword, newPassword });
     },
@@ -1176,10 +1239,7 @@ export const ProfilePage: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowChangePasswordModal(false);
-                      setPasswordError(null);
-                    }}
+                    onClick={closeChangePasswordModal}
                     className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
                   >
                     <X className="w-5 h-5" />
@@ -1200,62 +1260,96 @@ export const ProfilePage: React.FC = () => {
                   </div>
                 )}
 
-                <div className="space-y-3.5 text-xs">
-                  <div className="space-y-1">
-                    <label className="block font-bold text-slate-300">Mật khẩu hiện tại</label>
-                    <input
-                      type="password"
-                      placeholder="Nhập mật khẩu đang sử dụng..."
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
-                    />
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    changePasswordMutation.mutate();
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="space-y-3.5 text-xs">
+                    <div className="space-y-1">
+                      <label className="block font-bold text-slate-300">Mật khẩu hiện tại</label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPassword ? "text" : "password"}
+                          placeholder="Nhập mật khẩu đang sử dụng..."
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          className="w-full rounded-xl border border-slate-700 bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPassword((p) => !p)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                          aria-label={showCurrentPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                        >
+                          {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block font-bold text-slate-300">Mật khẩu mới</label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          placeholder="Tối thiểu 6 ký tự..."
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          className="w-full rounded-xl border border-slate-700 bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword((p) => !p)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                          aria-label={showNewPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                        >
+                          {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block font-bold text-slate-300">Xác nhận mật khẩu mới</label>
+                      <div className="relative">
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          placeholder="Nhập lại mật khẩu mới..."
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          className="w-full rounded-xl border border-slate-700 bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword((p) => !p)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                          aria-label={showConfirmPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="block font-bold text-slate-300">Mật khẩu mới</label>
-                    <input
-                      type="password"
-                      placeholder="Tối thiểu 6 ký tự..."
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
-                    />
+                  <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+                    <button
+                      type="button"
+                      onClick={closeChangePasswordModal}
+                      className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                    <Button
+                      type="submit"
+                      variant="mint"
+                      disabled={changePasswordMutation.isPending || passwordSuccess}
+                      className="h-10 px-5 text-xs font-bold bg-[#17664e] text-white hover:bg-[#135641]"
+                    >
+                      {changePasswordMutation.isPending ? "Đang cập nhật..." : "Xác nhận đổi mật khẩu"}
+                    </Button>
                   </div>
-
-                  <div className="space-y-1">
-                    <label className="block font-bold text-slate-300">Xác nhận mật khẩu mới</label>
-                    <input
-                      type="password"
-                      placeholder="Nhập lại mật khẩu mới..."
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowChangePasswordModal(false);
-                      setPasswordError(null);
-                    }}
-                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
-                  >
-                    Hủy
-                  </button>
-                  <Button
-                    type="button"
-                    variant="mint"
-                    disabled={changePasswordMutation.isPending || passwordSuccess}
-                    onClick={() => changePasswordMutation.mutate()}
-                    className="h-10 px-5 text-xs font-bold bg-[#17664e] text-white hover:bg-[#135641]"
-                  >
-                    {changePasswordMutation.isPending ? "Đang cập nhật..." : "Xác nhận đổi mật khẩu"}
-                  </Button>
-                </div>
+                </form>
               </div>
             </div>
           )}

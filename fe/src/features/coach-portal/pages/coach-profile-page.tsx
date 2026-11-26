@@ -26,6 +26,8 @@ import {
   Copy,
   ArrowDown,
   Check,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/auth-context';
@@ -66,6 +68,11 @@ export const CoachProfilePage: React.FC = () => {
   const [fullName, setFullName] = useState<string>(authUser?.fullName || '');
   const [phone, setPhone] = useState<string>(authUser?.phone || '');
   const [checkinCode, setCheckinCode] = useState<string>((authUser as any)?.checkinCode || '1234');
+  const [showPinHeader, setShowPinHeader] = useState(false);
+  const [showPinInput, setShowPinInput] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [bio, setBio] = useState<string>('');
   const [yearsExperience, setYearsExperience] = useState<number>(0);
   const [bankName, setBankName] = useState<string>('');
@@ -511,7 +518,21 @@ l
               )}
               <span className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800 text-xs font-semibold">
                 <Lock className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Mã PIN: <strong className="font-mono tracking-wider">{checkinCode}</strong></span>
+                <span>
+                  Mã PIN:{' '}
+                  <strong className="font-mono tracking-wider">
+                    {showPinHeader ? checkinCode : '*'.repeat(Math.max(4, checkinCode.length))}
+                  </strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowPinHeader((prev) => !prev)}
+                  className="ml-0.5 text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-200 cursor-pointer"
+                  title={showPinHeader ? 'Ẩn mã PIN' : 'Xem mã PIN'}
+                  aria-label={showPinHeader ? 'Ẩn mã PIN' : 'Xem mã PIN'}
+                >
+                  {showPinHeader ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
               </span>
              
             </div>
@@ -575,15 +596,27 @@ l
               </span>
               <span className="text-[11px] text-emerald-600 font-semibold">Khi quên ĐT</span>
             </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={checkinCode}
-              onChange={(e) => setCheckinCode(e.target.value.replace(/\D/g, ''))}
-              placeholder="1234"
-              className="w-full rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20 px-4 py-2.5 text-xs font-mono font-bold tracking-widest text-emerald-950 dark:text-emerald-100 focus:border-emerald-600 focus:outline-hidden transition-all"
-            />
+            <div className="relative">
+              <input
+                type={showPinInput ? 'text' : 'password'}
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={6}
+                value={checkinCode}
+                onChange={(e) => setCheckinCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="****"
+                className="w-full rounded-xl border border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/20 pl-4 pr-10 py-2.5 text-xs font-mono font-bold tracking-widest text-emerald-950 dark:text-emerald-100 focus:border-emerald-600 focus:outline-hidden transition-all"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPinInput((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 cursor-pointer"
+                title={showPinInput ? 'Ẩn mã PIN' : 'Hiện mã PIN'}
+                aria-label={showPinInput ? 'Ẩn mã PIN' : 'Hiện mã PIN'}
+              >
+                {showPinInput ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
 
           <div className="space-y-1.5 md:col-span-2">
@@ -1311,67 +1344,107 @@ l
               </div>
             )}
 
-            <div className="space-y-4 text-xs">
-              <div className="space-y-1.5">
-                <label className="block font-bold text-slate-800 dark:text-slate-200">
-                  Mật khẩu hiện tại
-                </label>
-                <input
-                  type="password"
-                  placeholder="Nhập mật khẩu đang sử dụng..."
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-xs font-medium focus:border-emerald-600 focus:outline-none"
-                />
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                changePasswordMutation.mutate();
+              }}
+              className="space-y-5"
+            >
+              <div className="space-y-4 text-xs">
+                <div className="space-y-1.5">
+                  <label className="block font-bold text-slate-800 dark:text-slate-200">
+                    Mật khẩu hiện tại
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      placeholder="Nhập mật khẩu đang sử dụng..."
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs font-medium focus:border-emerald-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      aria-label={showCurrentPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    >
+                      {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block font-bold text-slate-800 dark:text-slate-200">
+                    Mật khẩu mới
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="Tối thiểu 6 ký tự..."
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs font-medium focus:border-emerald-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      aria-label={showNewPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block font-bold text-slate-800 dark:text-slate-200">
+                    Xác nhận mật khẩu mới
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Nhập lại mật khẩu mới..."
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs font-medium focus:border-emerald-600 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((p) => !p)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                      aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block font-bold text-slate-800 dark:text-slate-200">
-                  Mật khẩu mới
-                </label>
-                <input
-                  type="password"
-                  placeholder="Tối thiểu 6 ký tự..."
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-xs font-medium focus:border-emerald-600 focus:outline-none"
-                />
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsChangePasswordOpen(false);
+                    setChangePasswordError(null);
+                    setCurrentPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={changePasswordMutation.isPending}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#17664e] text-white hover:bg-[#135641] transition-all cursor-pointer shadow-sm disabled:opacity-50"
+                >
+                  {changePasswordMutation.isPending ? 'Đang cập nhật...' : 'Xác nhận đổi mật khẩu'}
+                </button>
               </div>
-
-              <div className="space-y-1.5">
-                <label className="block font-bold text-slate-800 dark:text-slate-200">
-                  Xác nhận mật khẩu mới
-                </label>
-                <input
-                  type="password"
-                  placeholder="Nhập lại mật khẩu mới..."
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-xs font-medium focus:border-emerald-600 focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsChangePasswordOpen(false);
-                  setChangePasswordError(null);
-                }}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                disabled={changePasswordMutation.isPending}
-                onClick={() => changePasswordMutation.mutate()}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-[#17664e] text-white hover:bg-[#135641] transition-all cursor-pointer shadow-sm disabled:opacity-50"
-              >
-                {changePasswordMutation.isPending ? 'Đang cập nhật...' : 'Xác nhận đổi mật khẩu'}
-              </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
