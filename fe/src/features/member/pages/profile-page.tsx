@@ -1098,16 +1098,16 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
 
       {/* MODAL XÁC NHẬN MẬT KHẨU KHI LƯU HỒ SƠ */}
       {pendingSaveDto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-slate-800 p-6 text-white shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in">
+          <div className="w-full max-w-md rounded-3xl bg-white border border-slate-200 p-6 text-slate-900 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-50 text-[#17664e]">
                   <Lock className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold">Xác nhận mật khẩu</h3>
-                  <p className="text-xs text-slate-400">Nhập mật khẩu hiện tại để lưu thay đổi hồ sơ</p>
+                  <h3 className="text-base font-bold text-slate-900">Xác nhận mật khẩu</h3>
+                  <p className="text-xs text-slate-500">Nhập mật khẩu hiện tại để lưu thay đổi hồ sơ</p>
                 </div>
               </div>
               <button
@@ -1117,22 +1117,22 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
                   setConfirmSavePassword("");
                   setConfirmSaveError("");
                 }}
-                className="p-1 text-slate-400 hover:text-white rounded-lg cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {confirmSaveError && (
-              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-semibold flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                 <span>{confirmSaveError}</span>
               </div>
             )}
 
             <div className="space-y-3">
               <div className="space-y-1.5 text-xs">
-                <label className="block font-bold text-slate-300">Mật khẩu hiện tại</label>
+                <label className="block font-bold text-slate-700">Mật khẩu hiện tại</label>
                 <div className="relative">
                   <input
                     type={showConfirmSavePassword ? "text" : "password"}
@@ -1146,12 +1146,12 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
                         void handleConfirmSaveWithPassword(e);
                       }
                     }}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-800 pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:border-emerald-500 focus:outline-none"
+                    className="w-full rounded-xl border border-slate-300 bg-slate-50/70 pl-3.5 pr-10 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:bg-white focus:border-[#17664e] focus:ring-2 focus:ring-[#17664e]/15 focus:outline-none transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmSavePassword((p) => !p)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white cursor-pointer"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
                     aria-label={showConfirmSavePassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                   >
                     {showConfirmSavePassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -1159,7 +1159,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
@@ -1167,7 +1167,7 @@ const ProfileForm: React.FC<ProfileFormProps> = ({
                     setConfirmSavePassword("");
                     setConfirmSaveError("");
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-900 cursor-pointer transition-colors"
                 >
                   Hủy
                 </button>
