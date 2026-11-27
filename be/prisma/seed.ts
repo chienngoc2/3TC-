@@ -109,18 +109,18 @@ async function main() {
   });
 
   const specialties = {} as Record<Code, { id: string }>;
-  const specialtyCodes: Record<Code, string> = {
-    GYM: 'SPEC_GYM_BB',
-    BOXING: 'SPEC_BOX_KB',
-    YOGA: 'SPEC_YOG_AS',
+  const specialtyMeta: Record<Code, { code: string; name: string }> = {
+    GYM: { code: 'SPEC_GYM_STRENGTH', name: 'Huấn Luyện Thể Lực & Tăng Cơ (PT Gym 1:1)' },
+    BOXING: { code: 'SPEC_BOXING_BASIC', name: 'Khóa Học Boxing Căn Bản Cho Người Mới' },
+    YOGA: { code: 'SPEC_YOGA_THERAPY', name: 'Khóa Học Yoga Trị Liệu & Phục Hồi Cột Sống' },
   };
   for (const code of codes) {
     specialties[code] = await db.specialty.upsert({
-      where: { code: specialtyCodes[code] },
-      update: { name: `${code} coaching`, disciplineId: disciplines[code].id },
+      where: { code: specialtyMeta[code].code },
+      update: { name: specialtyMeta[code].name, disciplineId: disciplines[code].id },
       create: {
-        code: specialtyCodes[code],
-        name: `${code} coaching`,
+        code: specialtyMeta[code].code,
+        name: specialtyMeta[code].name,
         disciplineId: disciplines[code].id,
       },
     });

@@ -1612,6 +1612,7 @@ l
                 >
                   <option value="">-- Chọn chuyên đề khóa học --</option>
                   {(allSpecialtiesQuery.data || [])
+                    .filter((s: any) => s.code !== 'SPEC_YOG_AS' && s.code !== 'SPEC_GYM_BB')
                     .filter((s: any) => {
                       const alreadyHas = (profile?.coachProfile?.coachSpecialties || []).some(
                         (cs: any) => cs.specialtyId === s.id || cs.specialty?.id === s.id

@@ -524,7 +524,7 @@ function StaffForm({
   })
   const activeSpecialties = useMemo(() => {
     return (specialties.data ?? []).filter(
-      (s) => s.code !== 'SPEC_YOG_AS' && s.code !== 'SPEC_BOX_KB',
+      (s) => s.code !== 'SPEC_YOG_AS' && s.code !== 'SPEC_GYM_BB',
     )
   }, [specialties.data])
   const [selectedSpecialtyIds, setSelectedSpecialtyIds] = useState<string[]>(() => {

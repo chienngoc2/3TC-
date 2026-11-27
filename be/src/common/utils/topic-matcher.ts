@@ -1,30 +1,30 @@
 export enum CourseSpecialtyCode {
-  // Yoga
+  // Yoga (3 chuyên đề khớp 1-1 với 3 gói khóa học Yoga)
   SPEC_YOGA_THERAPY = 'SPEC_YOGA_THERAPY',
   SPEC_YOGA_MEDITATION = 'SPEC_YOGA_MEDITATION',
   SPEC_YOGA_STRENGTH = 'SPEC_YOGA_STRENGTH',
-  SPEC_YOGA_FOUNDATION = 'SPEC_YOGA_FOUNDATION',
-  // Boxing
-  SPEC_BOXING_SPARRING = 'SPEC_BOXING_SPARRING',
+  // Boxing (3 chuyên đề khớp 1-1 với 3 gói khóa học Boxing)
+  SPEC_BOXING_BASIC = 'SPEC_BOXING_BASIC',
   SPEC_BOXING_FITNESS = 'SPEC_BOXING_FITNESS',
-  // Gym
+  SPEC_BOXING_SPARRING = 'SPEC_BOXING_SPARRING',
+  // Gym (Chuyên môn PT 1:1)
   SPEC_GYM_STRENGTH = 'SPEC_GYM_STRENGTH',
   SPEC_GYM_WEIGHTLOSS = 'SPEC_GYM_WEIGHTLOSS',
 }
 
 export const SPECIALTY_NAME_MAP: Record<string, string> = {
-  SPEC_YOGA_THERAPY: 'Yoga Trị Liệu & Phục Hồi Cột Sống',
-  SPEC_YOGA_MEDITATION: 'Yoga Dưỡng Sinh & Thiền Khí Công',
-  SPEC_YOGA_STRENGTH: 'Power Yoga & Sức Bền Cơ Lõi',
-  SPEC_YOGA_FOUNDATION: 'Hatha Yoga Căn Bản & Nền Tảng',
-  SPEC_BOXING_SPARRING: 'Boxing Sparring & Kỹ Thuật Đối Kháng',
-  SPEC_BOXING_FITNESS: 'Kickboxing Đốt Mỡ & Phản Xạ',
-  SPEC_GYM_STRENGTH: 'Huấn Luyện Thể Lực & Tăng Cơ',
-  SPEC_GYM_WEIGHTLOSS: 'Huấn Luyện Giảm Mỡ & Định Hình Cơ Thể',
-  // Generic legacy fallbacks
-  SPEC_YOG_AS: 'Yoga coaching',
-  SPEC_BOX_KB: 'Boxing coaching',
-  SPEC_GYM_BB: 'Gym coaching',
+  SPEC_YOGA_THERAPY: 'Khóa Học Yoga Trị Liệu & Phục Hồi Cột Sống',
+  SPEC_YOGA_MEDITATION: 'Khóa Học Yoga Dưỡng Sinh & Thiền Khí Công',
+  SPEC_YOGA_STRENGTH: 'Khóa Học Yoga Thể Lực & Thi Đấu Nâng Cao',
+  SPEC_BOXING_BASIC: 'Khóa Học Boxing Căn Bản Cho Người Mới',
+  SPEC_BOXING_FITNESS: 'Khóa Học Cardio Boxing Thể Lực & Đốt Mỡ Chuyên Sâu',
+  SPEC_BOXING_SPARRING: 'Khóa Học Kickboxing Đối Kháng & Tự Vệ Thực Chiến',
+  SPEC_GYM_STRENGTH: 'Huấn Luyện Thể Lực & Tăng Cơ (PT Gym 1:1)',
+  SPEC_GYM_WEIGHTLOSS: 'Huấn Luyện Giảm Mỡ & Định Hình Cơ Thể (PT Gym 1:1)',
+  // Fallbacks for backward compatibility
+  SPEC_BOX_KB: 'Khóa Học Boxing Căn Bản Cho Người Mới',
+  SPEC_YOG_AS: 'Khóa Học Yoga Trị Liệu & Phục Hồi Cột Sống',
+  SPEC_GYM_BB: 'Huấn Luyện Thể Lực & Tăng Cơ (PT Gym 1:1)',
 };
 
 /**
@@ -46,11 +46,14 @@ export function getPlanSpecialtyCode(planName: string, disciplineCode?: string):
   ) {
     return CourseSpecialtyCode.SPEC_YOGA_STRENGTH;
   }
-  if (name.includes('sparring') || name.includes('đối kháng') || name.includes('căn bản') || name.includes('người mới')) {
-    return CourseSpecialtyCode.SPEC_BOXING_SPARRING;
+  if (name.includes('căn bản') || name.includes('người mới') || name.includes('bộ pháp') || name.includes('đòn tay')) {
+    return CourseSpecialtyCode.SPEC_BOXING_BASIC;
   }
-  if (name.includes('đốt mỡ') || name.includes('kickboxing') || name.includes('phản xạ') || name.includes('cardio boxing')) {
+  if (name.includes('đốt mỡ') || name.includes('cardio boxing') || name.includes('phản xạ') || (name.includes('boxing') && name.includes('thể lực'))) {
     return CourseSpecialtyCode.SPEC_BOXING_FITNESS;
+  }
+  if (name.includes('sparring') || name.includes('đối kháng') || name.includes('kickboxing') || name.includes('tự vệ') || name.includes('thực chiến')) {
+    return CourseSpecialtyCode.SPEC_BOXING_SPARRING;
   }
   if (name.includes('tăng cơ') || name.includes('hypertrophy') || name.includes('strength')) {
     return CourseSpecialtyCode.SPEC_GYM_STRENGTH;
@@ -89,25 +92,27 @@ export function getClassSpecialtyCode(className: string, disciplineCode?: string
   }
 
   if (
+    name.includes('thể lực') ||
+    name.includes('thi đấu') ||
+    name.includes('nâng cao') ||
     name.includes('power') ||
     name.includes('sức bền') ||
-    name.includes('năng động') ||
     name.includes('core') ||
-    name.includes('vinyasa flow năng động')
+    name.includes('vinyasa flow')
   ) {
     return CourseSpecialtyCode.SPEC_YOGA_STRENGTH;
   }
 
-  if (name.includes('nền tảng') || name.includes('căn bản')) {
-    return CourseSpecialtyCode.SPEC_YOGA_FOUNDATION;
+  if (name.includes('căn bản') || name.includes('người mới') || name.includes('bộ pháp') || name.includes('đòn tay')) {
+    return CourseSpecialtyCode.SPEC_BOXING_BASIC;
   }
 
-  if (name.includes('sparring') || name.includes('đối kháng') || name.includes('thi đấu')) {
-    return CourseSpecialtyCode.SPEC_BOXING_SPARRING;
-  }
-
-  if (name.includes('kickboxing') || name.includes('đốt mỡ') || name.includes('phản xạ')) {
+  if (name.includes('đốt mỡ') || name.includes('cardio') || name.includes('phản xạ')) {
     return CourseSpecialtyCode.SPEC_BOXING_FITNESS;
+  }
+
+  if (name.includes('sparring') || name.includes('đối kháng') || name.includes('kickboxing') || name.includes('tự vệ') || name.includes('thực chiến')) {
+    return CourseSpecialtyCode.SPEC_BOXING_SPARRING;
   }
 
   return null;
@@ -215,6 +220,8 @@ export function getSpecialtyDedicatedRoomName(
   }
 
   if (
+    code === 'SPEC_BOXING_BASIC' ||
+    code === 'SPEC_BOX_KB' ||
     name.includes('boxing căn bản') ||
     name.includes('người mới') ||
     name.includes('bộ pháp') ||
