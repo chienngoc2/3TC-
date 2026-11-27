@@ -10,7 +10,8 @@ export const CourseSpecialtyCode = {
   SPEC_BOXING_BASIC: 'SPEC_BOXING_BASIC',
   SPEC_BOXING_FITNESS: 'SPEC_BOXING_FITNESS',
   SPEC_BOXING_SPARRING: 'SPEC_BOXING_SPARRING',
-  // Gym (Chuyên môn PT 1:1)
+  // Gym (Chuyên môn PT 1:1 duy nhất)
+  SPEC_GYM_PT: 'SPEC_GYM_PT',
   SPEC_GYM_STRENGTH: 'SPEC_GYM_STRENGTH',
   SPEC_GYM_WEIGHTLOSS: 'SPEC_GYM_WEIGHTLOSS',
 } as const;
@@ -24,12 +25,13 @@ export const SPECIALTY_NAME_MAP: Record<string, string> = {
   SPEC_BOXING_BASIC: 'Khóa Học Boxing Căn Bản Cho Người Mới',
   SPEC_BOXING_FITNESS: 'Khóa Học Cardio Boxing Thể Lực & Đốt Mỡ Chuyên Sâu',
   SPEC_BOXING_SPARRING: 'Khóa Học Kickboxing Đối Kháng & Tự Vệ Thực Chiến',
-  SPEC_GYM_STRENGTH: 'Huấn Luyện Thể Lực & Tăng Cơ (PT Gym 1:1)',
-  SPEC_GYM_WEIGHTLOSS: 'Huấn Luyện Giảm Mỡ & Định Hình Cơ Thể (PT Gym 1:1)',
+  SPEC_GYM_PT: 'Huấn Luyện Gym PT 1:1',
+  SPEC_GYM_STRENGTH: 'Huấn Luyện Gym PT 1:1',
+  SPEC_GYM_WEIGHTLOSS: 'Huấn Luyện Gym PT 1:1',
   // Fallbacks for backward compatibility
   SPEC_BOX_KB: 'Khóa Học Boxing Căn Bản Cho Người Mới',
   SPEC_YOG_AS: 'Khóa Học Yoga Trị Liệu & Phục Hồi Cột Sống',
-  SPEC_GYM_BB: 'Huấn Luyện Thể Lực & Tăng Cơ (PT Gym 1:1)',
+  SPEC_GYM_BB: 'Huấn Luyện Gym PT 1:1',
 };
 
 /**
@@ -60,11 +62,18 @@ export function getPlanSpecialtyCode(planName: string, disciplineCode?: string):
   if (name.includes('sparring') || name.includes('đối kháng') || name.includes('kickboxing') || name.includes('tự vệ') || name.includes('thực chiến')) {
     return CourseSpecialtyCode.SPEC_BOXING_SPARRING;
   }
-  if (name.includes('tăng cơ') || name.includes('hypertrophy') || name.includes('strength')) {
-    return CourseSpecialtyCode.SPEC_GYM_STRENGTH;
-  }
-  if (name.includes('giảm mỡ') || name.includes('định hình') || name.includes('weight loss')) {
-    return CourseSpecialtyCode.SPEC_GYM_WEIGHTLOSS;
+  if (
+    disc === 'GYM' ||
+    name.includes('gym') ||
+    name.includes('pt') ||
+    name.includes('tăng cơ') ||
+    name.includes('giảm mỡ') ||
+    name.includes('hypertrophy') ||
+    name.includes('strength') ||
+    name.includes('định hình') ||
+    name.includes('weight loss')
+  ) {
+    return CourseSpecialtyCode.SPEC_GYM_PT;
   }
 
   return null;
@@ -336,6 +345,7 @@ export function getSpecialtyDedicatedRoomName(
   }
 
   if (
+    code === 'SPEC_GYM_PT' ||
     code === 'SPEC_GYM_STRENGTH' ||
     code === 'SPEC_GYM_WEIGHTLOSS' ||
     name.includes('pt') ||
