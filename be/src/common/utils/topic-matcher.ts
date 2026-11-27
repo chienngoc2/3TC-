@@ -135,6 +135,18 @@ export function isClassCompatibleWithPlan(
   planName: string,
   disciplineCode?: string,
 ): { isCompatible: boolean; planSpecialtyName?: string; classSpecialtyName?: string } {
+  const cleanPlan = (planName || '').toLowerCase().replace(/\s*\(\s*\d+\s*buổi[^)]*\)/i, '').trim();
+  const cleanClass = (className || '').toLowerCase().replace(/\s*\(\s*\d+\s*buổi[^)]*\)/i, '').trim();
+
+  // If class name and plan name match directly
+  if (
+    cleanPlan &&
+    cleanClass &&
+    (cleanPlan === cleanClass || cleanClass.includes(cleanPlan) || cleanPlan.includes(cleanClass))
+  ) {
+    return { isCompatible: true };
+  }
+
   const planSpec = getPlanSpecialtyCode(planName, disciplineCode);
   const classSpec = getClassSpecialtyCode(className, disciplineCode);
 

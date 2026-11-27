@@ -140,6 +140,17 @@ export function isClassCompatibleWithPlan(
   planName: string,
   disciplineCode?: string,
 ): { isCompatible: boolean; planSpecialtyName?: string; classSpecialtyName?: string } {
+  const cleanPlan = (planName || '').toLowerCase().replace(/\s*\(\s*\d+\s*buổi[^)]*\)/i, '').trim();
+  const cleanClass = (className || '').toLowerCase().replace(/\s*\(\s*\d+\s*buổi[^)]*\)/i, '').trim();
+
+  if (
+    cleanPlan &&
+    cleanClass &&
+    (cleanPlan === cleanClass || cleanClass.includes(cleanPlan) || cleanPlan.includes(cleanClass))
+  ) {
+    return { isCompatible: true };
+  }
+
   const planSpec = getPlanSpecialtyCode(planName, disciplineCode);
   const classSpec = getClassSpecialtyCode(className, disciplineCode);
 
@@ -208,6 +219,16 @@ export function isCoachQualifiedForPlan(coach: Coach, plan: Plan): boolean {
 
   // 1. Group Plans: Must match the specific specialty of the group course
   if (hasGroupSessions) {
+    // Direct match: Coach has assigned specialty matching plan's name
+    const cleanPlan = (plan.name || '').toLowerCase().replace(/\s*\(\s*\d+\s*buổi[^)]*\)/i, '').trim();
+    const hasDirectSpecialty = coachSpecs.some((cs) => {
+      const sName = (cs.specialty?.name || '').toLowerCase().trim();
+      return sName && (sName === cleanPlan || cleanPlan.includes(sName) || sName.includes(cleanPlan));
+    });
+    if (hasDirectSpecialty) {
+      return true;
+    }
+
     const planSpec = getPlanSpecialtyCode(plan.name, planDiscCode);
     if (planSpec) {
       if (coachSpecCodes.includes(planSpec)) return true;

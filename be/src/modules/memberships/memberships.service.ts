@@ -18,6 +18,24 @@ import {
   SubscriptionStatusDto,
 } from '../commerce/dto/commerce.dto';
 import { sortSubscriptionsByPriority } from '../attendances/subscription-priority.util';
+function cleanPlanCourseName(name: string): string {
+  return name.replace(/\s*\(\s*\d+\s*buổi[^)]*\)/i, '').trim();
+}
+
+function generateSpecialtyCode(disciplineCode: string, courseName: string): string {
+  const clean = courseName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const prefix = `SPEC_${disciplineCode.toUpperCase()}_`;
+  const raw = `${prefix}${clean}`;
+  return raw.length > 50 ? raw.slice(0, 50) : raw;
+}
+
 @Injectable()
 export class MembershipsService {
   constructor(
@@ -144,6 +162,41 @@ export class MembershipsService {
           sessionQuota: dto.groupSessionQuota + dto.ptSessionQuota,
         },
       });
+
+      // Tự động đồng bộ Chuyên môn (Specialty) cho gói khóa học lớp nhóm (Yoga / Boxing)
+      if (
+        !isGym &&
+        discipline &&
+        (dto.trainingMode === 'GROUP_CLASS' || dto.packageTier === 'PLUS')
+      ) {
+        const cleanName = cleanPlanCourseName(dto.name);
+        const existingSpec = await tx.specialty.findFirst({
+          where: {
+            disciplineId: dto.disciplineId,
+            OR: [
+              { name: { equals: cleanName, mode: 'insensitive' } },
+              { name: { equals: dto.name, mode: 'insensitive' } },
+            ],
+          },
+        });
+
+        if (!existingSpec) {
+          let code = generateSpecialtyCode(discipline.code, cleanName);
+          const conflict = await tx.specialty.findUnique({ where: { code } });
+          if (conflict) {
+            code = `${code.slice(0, 44)}_${Date.now().toString().slice(-5)}`;
+          }
+          await tx.specialty.create({
+            data: {
+              disciplineId: dto.disciplineId,
+              code,
+              name: cleanName,
+              description: dto.description || `Chuyên đề khóa học lớp nhóm: ${cleanName}`,
+            },
+          });
+        }
+      }
+
       await audit(tx, actor, 'CREATE_PLAN', 'membership_plans', value.id);
       return value;
     });
@@ -183,6 +236,33 @@ export class MembershipsService {
           sessionQuota: data.groupSessionQuota + data.ptSessionQuota,
         },
       });
+
+      // Tự động đồng bộ cập nhật tên Chuyên môn nếu tên gói thay đổi
+      if (!isGym && old.disciplineId && dto.name && dto.name !== old.name) {
+        const oldClean = cleanPlanCourseName(old.name);
+        const newClean = cleanPlanCourseName(dto.name);
+        if (oldClean !== newClean) {
+          const matchingSpec = await tx.specialty.findFirst({
+            where: {
+              disciplineId: old.disciplineId,
+              OR: [
+                { name: { equals: oldClean, mode: 'insensitive' } },
+                { name: { equals: old.name, mode: 'insensitive' } },
+              ],
+            },
+          });
+          if (matchingSpec) {
+            await tx.specialty.update({
+              where: { id: matchingSpec.id },
+              data: {
+                name: newClean,
+                ...(dto.description ? { description: dto.description } : {}),
+              },
+            });
+          }
+        }
+      }
+
       await audit(tx, actor, 'UPDATE_PLAN', 'membership_plans', id, dto);
       return value;
     });
