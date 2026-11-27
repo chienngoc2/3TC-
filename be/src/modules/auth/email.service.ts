@@ -414,17 +414,8 @@ export class EmailService {
       `============================================================`,
     );
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>('SMTP_FROM', '"3TC Fitness Center" <noreply@3tcfitness.com>');
-        await this.transporter.sendMail({ from, to: toEmail, subject, html: htmlContent });
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending class cancelled email to member ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    const result = await this.deliverEmail(toEmail, subject, htmlContent);
+    return result.sent;
   }
 
   async sendClassCancelledApologyMemberEmail(
@@ -486,17 +477,8 @@ export class EmailService {
       `============================================================`,
     );
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>('SMTP_FROM', '"3TC Fitness Center" <noreply@3tcfitness.com>');
-        await this.transporter.sendMail({ from, to: toEmail, subject, html: htmlContent });
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending class cancelled apology email to member ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    const result = await this.deliverEmail(toEmail, subject, htmlContent);
+    return result.sent;
   }
 
   async sendClassAutoCancelledCoachEmail(
@@ -557,17 +539,8 @@ export class EmailService {
       `============================================================`,
     );
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>('SMTP_FROM', '"3TC Fitness Center" <noreply@3tcfitness.com>');
-        await this.transporter.sendMail({ from, to: toEmail, subject, html: htmlContent });
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending class cancelled email to coach ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    const result = await this.deliverEmail(toEmail, subject, htmlContent);
+    return result.sent;
   }
 
   async sendClassManagerOverrideEmail(
@@ -625,17 +598,8 @@ export class EmailService {
       `============================================================`,
     );
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>('SMTP_FROM', '"3TC Fitness Center" <noreply@3tcfitness.com>');
-        await this.transporter.sendMail({ from, to: toEmail, subject, html: htmlContent });
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending manager override email to ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    const result = await this.deliverEmail(toEmail, subject, htmlContent);
+    return result.sent;
   }
 
   async sendBookingCancelledMemberEmail(
@@ -693,17 +657,8 @@ export class EmailService {
       `============================================================`,
     );
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>('SMTP_FROM', '"3TC Fitness Center" <noreply@3tcfitness.com>');
-        await this.transporter.sendMail({ from, to: toEmail, subject, html: htmlContent });
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending booking cancelled email to member ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    const result = await this.deliverEmail(toEmail, subject, htmlContent);
+    return result.sent;
   }
 
   async sendBookingCancelledCoachEmail(
@@ -762,16 +717,7 @@ export class EmailService {
       `============================================================`,
     );
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>('SMTP_FROM', '"3TC Fitness Center" <noreply@3tcfitness.com>');
-        await this.transporter.sendMail({ from, to: toEmail, subject, html: htmlContent });
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending booking cancelled notification to coach ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    const result = await this.deliverEmail(toEmail, subject, htmlContent);
+    return result.sent;
   }
 }

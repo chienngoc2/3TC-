@@ -158,7 +158,7 @@ export class UsersService {
       };
     });
 
-    const targetEmail = pEmail || dto.email?.trim().toLowerCase();
+    const targetEmail = pEmail;
     let emailSent = false;
     let emailError: string | null = null;
     if (targetEmail) {
