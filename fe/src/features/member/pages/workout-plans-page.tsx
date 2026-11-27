@@ -22,6 +22,10 @@ import {
   parseExerciseInstructions,
   parseExerciseTitle,
 } from '@/features/coach-portal/utils/exercise-metadata.utils';
+import {
+  extractTopicsFromPlan,
+  getRecommendedExercisesForTopic,
+} from '@/features/coach-portal/utils/curriculum-topics.utils';
 import { parseCoachNotes } from '@/lib/workout-notes';
 
 /* =========================================================
@@ -115,7 +119,8 @@ export const WorkoutPlansPage: React.FC = () => {
   const [plansPage, setPlansPage] = useState<number>(1);
   const plansPageSize = 6;
 
-  // Template Tab state & Pagination
+  // Template Tab state (per-package curriculum)
+  const [selectedSubId, setSelectedSubId] = useState<string>('');
   const [templateDiscipline, setTemplateDiscipline] = useState<'BOXING' | 'YOGA'>('BOXING');
   const [templateWeekFilter, setTemplateWeekFilter] = useState<'ALL' | '1' | '2' | '3' | '4'>('ALL');
   const [templateSearch, setTemplateSearch] = useState<string>('');
@@ -179,6 +184,50 @@ export const WorkoutPlansPage: React.FC = () => {
   const activeSubs = useMemo(() => {
     return memberSubscriptions.filter((s: any) => s.status === 'ACTIVE');
   }, [memberSubscriptions]);
+
+  const activePackageCurriculums = useMemo(() => {
+    return activeSubs
+      .filter((sub: any) => {
+        const tier = String(sub.packageTier || sub.plan?.packageTier || '').toUpperCase();
+        return !['DROP_IN', 'TRIAL'].includes(tier) && sub.plan;
+      })
+      .map((sub: any) => {
+        const discCode = String(
+          sub.plan?.discipline?.code || sub.discipline?.code || 'GYM',
+        ).toUpperCase();
+        const stars = sub.coachRatingStars || sub.assignedCoach?.coachProfile?.ratingStars || null;
+        return {
+          subId: sub.id as string,
+          plan: sub.plan,
+          planName: sub.plan?.name || 'Gói tập',
+          disciplineCode: discCode,
+          disciplineName: sub.plan?.discipline?.name || sub.discipline?.name || discCode,
+          stars,
+          topics: extractTopicsFromPlan(sub.plan),
+        };
+      });
+  }, [activeSubs]);
+
+  const selectedPackageCurriculum = useMemo(() => {
+    if (!activePackageCurriculums.length) return null;
+    return (
+      activePackageCurriculums.find((p) => p.subId === selectedSubId) ||
+      activePackageCurriculums[0]
+    );
+  }, [activePackageCurriculums, selectedSubId]);
+
+  const { data: exercisesKnowledge = [], isLoading: isLoadingExercises } = useQuery({
+    queryKey: ['member', 'exercise-knowledge'],
+    enabled: activePackageCurriculums.length > 0,
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get<any[]>('/exercise-knowledge');
+        return Array.isArray(res.data) ? res.data : [];
+      } catch {
+        return [];
+      }
+    },
+  });
 
   const activeDisciplines = useMemo(() => {
     const list: Array<{ code: 'BOXING' | 'YOGA'; name: string; planName: string }> = [];
@@ -468,7 +517,7 @@ export const WorkoutPlansPage: React.FC = () => {
           >
             <BookOpen className="w-4 h-4" />
             <span>Giáo trình gói tập</span>
-            {activeDisciplines.length > 0 && (
+            {activePackageCurriculums.length > 0 && (
               <span
                 className={`px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold ${
                   activeTab === 'TEMPLATES'
@@ -476,7 +525,7 @@ export const WorkoutPlansPage: React.FC = () => {
                     : 'bg-slate-100 text-slate-500'
                 }`}
               >
-                {activeDisciplines.map((d) => d.name).join(', ')}
+                {activePackageCurriculums.length} gói
               </span>
             )}
           </button>
@@ -809,11 +858,11 @@ export const WorkoutPlansPage: React.FC = () => {
         )}
 
         {/* ========================================================= */}
-        {/* TAB 2: GIÁO TRÌNH GÓI TẬP ĐANG HỌC                        */}
+        {/* TAB 2: GIÁO TRÌNH THAM KHẢO THEO TỪNG GÓI ĐANG HỌC        */}
         {/* ========================================================= */}
         {activeTab === 'TEMPLATES' && (
           <div className="space-y-5">
-            {activeDisciplines.length === 0 ? (
+            {activePackageCurriculums.length === 0 ? (
               <div className="p-8 sm:p-12 text-center rounded-md bg-slate-50 border border-slate-200 space-y-4 max-w-lg mx-auto">
                 <div className="w-12 h-12 mx-auto rounded-md bg-emerald-50 text-[#17664e] flex items-center justify-center border border-emerald-100">
                   <BookOpen className="w-6 h-6" />
@@ -823,7 +872,7 @@ export const WorkoutPlansPage: React.FC = () => {
                     Bạn chưa có gói tập đang hoạt động
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    Giáo trình bài bản được xây dựng riêng cho từng bộ môn và chỉ mở khóa khi bạn sở hữu gói tập hoặc được Huấn luyện viên phân bổ bài tập.
+                    Giáo trình tham khảo được xây dựng riêng cho từng gói tập và chỉ mở khóa khi bạn sở hữu gói tập hoặc được Huấn luyện viên phân bổ bài tập.
                   </p>
                 </div>
                 <div className="pt-2">
@@ -838,212 +887,207 @@ export const WorkoutPlansPage: React.FC = () => {
               </div>
             ) : (
               <>
-                {/* Controls Bar */}
+                {/* Controls Bar: Package Switcher + Search */}
                 <div className="p-3.5 sm:p-4 rounded-md bg-slate-50 border border-slate-200 space-y-3">
                   <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
-                    {/* Discipline Switcher - Strictly matching purchased active packages */}
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-                      {activeDisciplines.map((d) => (
-                        <button
-                          key={d.code}
-                          type="button"
-                          onClick={() => {
-                            setTemplateDiscipline(d.code);
-                            setTemplatePage(1);
-                          }}
-                          className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 border ${
-                            templateDiscipline === d.code
-                              ? 'bg-[#17664e] text-white border-[#17664e] shadow-2xs'
-                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                          }`}
-                        >
-                          {d.code === 'BOXING' ? (
-                            <Swords className="w-3.5 h-3.5" />
-                          ) : (
-                            <Activity className="w-3.5 h-3.5" />
-                          )}
-                          <span>Giáo trình {d.name} ({d.planName})</span>
-                        </button>
-                      ))}
+                      {activePackageCurriculums.map((pkg) => {
+                        const isSelected = selectedPackageCurriculum?.subId === pkg.subId;
+                        const shortName = pkg.planName.replace(/\s*\(12 Buổi \/ Tháng\)/gi, '');
+                        return (
+                          <button
+                            key={pkg.subId}
+                            type="button"
+                            onClick={() => setSelectedSubId(pkg.subId)}
+                            className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center gap-1.5 border ${
+                              isSelected
+                                ? 'bg-[#17664e] text-white border-[#17664e] shadow-2xs'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            {pkg.disciplineCode === 'BOXING' ? (
+                              <Swords className="w-3.5 h-3.5" />
+                            ) : pkg.disciplineCode === 'GYM' ? (
+                              <Dumbbell className="w-3.5 h-3.5" />
+                            ) : (
+                              <Activity className="w-3.5 h-3.5" />
+                            )}
+                            <span>
+                              {shortName}
+                              {pkg.stars ? ` (${pkg.stars}★)` : ''}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
 
-                {/* Search Bar */}
-                <div className="relative max-w-sm w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={templateSearch}
-                    onChange={(e) => {
-                      setTemplateSearch(e.target.value);
-                      setTemplatePage(1);
-                    }}
-                    placeholder="Tìm kiếm bài tập trong giáo trình..."
-                    className="w-full rounded-md border border-slate-300 bg-white pl-9 pr-8 py-1.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#17664e]"
-                  />
-                  {templateSearch && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTemplateSearch('');
-                        setTemplatePage(1);
-                      }}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Week Filter */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pt-2.5 border-t border-slate-200/80 pb-0.5">
-                <span className="text-[11px] font-bold text-slate-500 mr-1 shrink-0 uppercase tracking-wider">
-                  Tuần học:
-                </span>
-                {(['ALL', '1', '2', '3', '4'] as const).map((w) => (
-                  <button
-                    key={w}
-                    type="button"
-                    onClick={() => {
-                      setTemplateWeekFilter(w);
-                      setTemplatePage(1);
-                    }}
-                    className={`px-2.5 py-1 rounded-md text-xs font-bold transition-all shrink-0 cursor-pointer border ${
-                      templateWeekFilter === w
-                        ? 'bg-[#17664e] text-white border-[#17664e] shadow-2xs'
-                        : 'bg-white text-slate-600 hover:bg-slate-50 border-slate-200'
-                    }`}
-                  >
-                    {w === 'ALL' ? 'Tất cả 4 tuần' : `Tuần ${w}`}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Templates Grid */}
-            {isLoadingTemplates ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[1, 2, 3].map((n) => (
-                  <div
-                    key={n}
-                    className="p-5 rounded-md bg-white border border-slate-200 animate-pulse space-y-4 shadow-2xs"
-                  >
-                    <div className="h-4 w-24 bg-slate-200 rounded-md" />
-                    <div className="h-5 w-3/4 bg-slate-200 rounded-md" />
-                    <div className="h-14 bg-slate-100 rounded-md" />
+                    <div className="relative max-w-sm w-full">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                      <input
+                        type="text"
+                        value={templateSearch}
+                        onChange={(e) => setTemplateSearch(e.target.value)}
+                        placeholder="Tìm kiếm chuyên đề hoặc bài tập..."
+                        className="w-full rounded-md border border-slate-300 bg-white pl-9 pr-8 py-1.5 text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#17664e]"
+                      />
+                      {templateSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setTemplateSearch('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {paginatedTemplates.map((tpl) => (
-                    <article
-                      key={tpl.id}
-                      onClick={() => setSelectedTemplate(tpl)}
-                      className="group relative p-4 sm:p-5 rounded-md bg-white border border-slate-200 hover:border-slate-300 shadow-2xs transition-all flex flex-col justify-between gap-4 cursor-pointer"
-                    >
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-[10px] font-bold uppercase tracking-wider">
-                            {tpl.disciplineCode}
-                          </span>
-                          <span className="text-[11px] font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 font-mono">
-                            Tuần {tpl.weekNumber}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-[#17664e] transition-colors leading-snug">
-                            {tpl.title}
-                          </h4>
-                          {tpl.description && (
-                            <p className="mt-1 text-xs text-slate-500 line-clamp-2">
-                              {tpl.description}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Exercises Preview */}
-                        <div className="space-y-1.5 pt-2 border-t border-slate-100">
-                          <div className="text-[11px] font-bold text-slate-400 pb-0.5 uppercase tracking-wider font-mono">
-                            {tpl.exercises?.length || 0} bài tập chuẩn hóa
-                          </div>
-
-                          {tpl.exercises?.slice(0, 3).map((ex, idx) => (
-                            <div
-                              key={ex.id || idx}
-                              className="p-2 rounded-md bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2 text-xs"
-                            >
-                              <span className="font-medium text-slate-700 truncate">
-                                {ex.exercise?.title}
-                              </span>
-                              <span className="text-[11px] font-bold text-emerald-700 font-mono shrink-0">
-                                {ex.sets || 3}h × {ex.reps || 10}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <span className="text-xs font-bold text-[#17664e] group-hover:underline flex items-center gap-1">
-                          Xem chi tiết đề cương
-                          <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
-                        </span>
-                      </div>
-                    </article>
-                  ))}
                 </div>
 
-                {/* Templates Pagination */}
-                {filteredTemplates.length > templatePageSize && (
-                  <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                    <span className="text-slate-500 font-medium">
-                      Hiển thị <strong className="text-slate-900 font-mono font-bold">{(templatePage - 1) * templatePageSize + 1}</strong> - <strong className="text-slate-900 font-mono font-bold">{Math.min(templatePage * templatePageSize, filteredTemplates.length)}</strong> trên tổng số <strong className="text-slate-900 font-mono font-bold">{filteredTemplates.length}</strong> buổi học
-                    </span>
-
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        disabled={templatePage === 1}
-                        onClick={() => setTemplatePage((prev) => Math.max(1, prev - 1))}
-                        className="px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
-                      >
-                        <ChevronLeft className="w-3.5 h-3.5" />
-                        <span>Trước</span>
-                      </button>
-
-                      {Array.from({ length: totalTemplatePages }, (_, i) => i + 1).map((pageNum) => (
-                        <button
-                          key={pageNum}
-                          type="button"
-                          onClick={() => setTemplatePage(pageNum)}
-                          className={`w-8 h-8 rounded-md text-xs font-bold font-mono transition-colors cursor-pointer ${
-                            templatePage === pageNum
-                              ? "bg-[#17664e] text-white"
-                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      ))}
-
-                      <button
-                        type="button"
-                        disabled={templatePage === totalTemplatePages}
-                        onClick={() => setTemplatePage((prev) => Math.min(totalTemplatePages, prev + 1))}
-                        className="px-2.5 py-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-700 flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>Sau</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
+                {/* Package Curriculum Topics */}
+                {selectedPackageCurriculum && (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-md bg-emerald-50/50 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                          Giáo trình tham khảo · {selectedPackageCurriculum.disciplineName}
+                          {selectedPackageCurriculum.stars ? ` · ${selectedPackageCurriculum.stars} sao` : ''}
+                        </span>
+                        <h3 className="text-sm sm:text-base font-black text-slate-900 mt-0.5">
+                          {selectedPackageCurriculum.planName}
+                        </h3>
+                      </div>
+                      <span className="text-xs font-bold text-[#17664e] bg-white px-2.5 py-1 rounded-md border border-emerald-200 shrink-0">
+                        {selectedPackageCurriculum.topics.length} chuyên đề chuẩn hóa
+                      </span>
                     </div>
+
+                    {isLoadingExercises ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {[1, 2, 3].map((n) => (
+                          <div key={n} className="p-5 rounded-md bg-white border border-slate-200 animate-pulse space-y-3">
+                            <div className="h-4 w-28 bg-slate-200 rounded-md" />
+                            <div className="h-5 w-3/4 bg-slate-200 rounded-md" />
+                            <div className="h-16 bg-slate-100 rounded-md" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {selectedPackageCurriculum.topics
+                          .filter((topic) => {
+                            const q = templateSearch.trim().toLowerCase();
+                            if (!q) return true;
+                            const rec = getRecommendedExercisesForTopic(
+                              topic.name,
+                              exercisesKnowledge,
+                              selectedPackageCurriculum.disciplineCode,
+                            );
+                            return (
+                              topic.name.toLowerCase().includes(q) ||
+                              topic.description.toLowerCase().includes(q) ||
+                              rec.some((e) => e.title.toLowerCase().includes(q))
+                            );
+                          })
+                          .map((topic) => {
+                            const recExercises = getRecommendedExercisesForTopic(
+                              topic.name,
+                              exercisesKnowledge,
+                              selectedPackageCurriculum.disciplineCode,
+                            );
+                            const previewExercises = recExercises.slice(0, 6);
+
+                            return (
+                              <article
+                                key={topic.topicNumber}
+                                onClick={() =>
+                                  setSelectedTemplate({
+                                    id: `${selectedPackageCurriculum.subId}-topic-${topic.topicNumber}`,
+                                    templateCode: selectedPackageCurriculum.planName,
+                                    disciplineCode: selectedPackageCurriculum.disciplineCode,
+                                    title: `${topic.sessionRange ? `${topic.sessionRange}: ` : ''}${topic.name}`,
+                                    weekNumber: topic.topicNumber,
+                                    sessionOrder: topic.topicNumber,
+                                    description: [topic.description, topic.benefits ? `Mục tiêu: ${topic.benefits}` : '']
+                                      .filter(Boolean)
+                                      .join('\n'),
+                                    exercises: previewExercises.map((ex, idx) => {
+                                      const meta = parseExerciseInstructions(ex.instructions);
+                                      return {
+                                        id: ex.id,
+                                        exerciseId: ex.id,
+                                        sets: 3,
+                                        reps: meta.unit === 'seconds' ? 30 : 12,
+                                        weightKg: null,
+                                        restSeconds: meta.unit === 'seconds' ? 30 : 60,
+                                        orderIndex: idx,
+                                        exercise: ex,
+                                      };
+                                    }),
+                                  })
+                                }
+                                className="group p-4 sm:p-5 rounded-md bg-white border border-slate-200 hover:border-emerald-300 shadow-2xs transition-all flex flex-col justify-between gap-4 cursor-pointer"
+                              >
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-[#17664e] border border-emerald-200 text-[10px] font-bold uppercase tracking-wider">
+                                      Chuyên đề {topic.topicNumber}
+                                      {topic.sessionRange ? ` · ${topic.sessionRange}` : ''}
+                                    </span>
+                                    {topic.intensity && (
+                                      <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                                        {topic.intensity}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <h4 className="text-sm sm:text-base font-bold text-slate-900 group-hover:text-[#17664e] transition-colors leading-snug">
+                                      {topic.name}
+                                    </h4>
+                                    {topic.description && (
+                                      <p className="mt-1.5 text-xs text-slate-600 leading-relaxed line-clamp-2">
+                                        {topic.description}
+                                      </p>
+                                    )}
+                                  </div>
+
+                                  <div className="space-y-1.5 pt-2 border-t border-slate-100">
+                                    <div className="text-[11px] font-bold text-slate-400 pb-0.5 uppercase tracking-wider font-mono">
+                                      {previewExercises.length} bài tập tham khảo
+                                    </div>
+                                    {previewExercises.slice(0, 3).map((ex, idx) => {
+                                      const { primary } = parseExerciseTitle(ex.title);
+                                      return (
+                                        <div
+                                          key={ex.id || idx}
+                                          className="p-2 rounded-md bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-2 text-xs"
+                                        >
+                                          <span className="font-medium text-slate-700 truncate">
+                                            {primary}
+                                          </span>
+                                          <span className="text-[11px] font-bold text-emerald-700 font-mono shrink-0">
+                                            3h × 12
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                                  <span className="text-xs font-bold text-[#17664e] group-hover:underline flex items-center gap-1">
+                                    Xem chi tiết chuyên đề
+                                    <ChevronRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" />
+                                  </span>
+                                </div>
+                              </article>
+                            );
+                          })}
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-            </>
+              </>
             )}
           </div>
         )}

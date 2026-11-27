@@ -173,7 +173,7 @@ function getCurriculumTopics(plan?: Plan | null): ConciseTopic[] {
   return [
     {
       topicNumber: 1,
-      title: "Chuyên đề 1: Đo InBody & Chuẩn hóa Squat, Deadlift",
+      title: "Chuyên đề 1: Đánh giá thể trạng & Chuẩn hóa Squat, Deadlift",
       summary: "Kiểm tra sai lệch chuyển động, học chuẩn phom bài tập đa khớp phòng chấn thương.",
     },
     {

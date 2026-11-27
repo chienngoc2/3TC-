@@ -4,6 +4,7 @@ import { getExerciseDiscipline } from './exercise-metadata.utils';
 export interface NormalizedCurriculumTopic {
   topicNumber: number;
   name: string;
+  sessionRange?: string;
   description: string;
   benefits?: string;
   intensity?: string;
@@ -34,6 +35,7 @@ export function extractTopicsFromPlan(plan: any): NormalizedCurriculumTopic[] {
       return {
         topicNumber: item.topicNumber || idx + 1,
         name: item.name || `Chuyên đề ${idx + 1}`,
+        sessionRange: item.sessionRange || '',
         description: item.description || '',
         benefits: item.benefits || '',
         intensity: item.intensity || 'Tiêu chuẩn',
