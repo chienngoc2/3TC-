@@ -69,12 +69,9 @@ export class SpecialtiesService {
         const discCodes = new Set(
           specs.map((s) => s.discipline?.code?.toUpperCase()).filter(Boolean),
         );
-        if (
-          discCodes.has('GYM') &&
-          (discCodes.has('YOGA') || discCodes.has('BOXING'))
-        ) {
+        if (discCodes.size > 1) {
           throw new BadRequestException(
-            'Không thể gán lẫn chuyên môn Gym (PT 1-1) và chuyên môn Nhóm (Yoga / Boxing) cho cùng một HLV.',
+            'Mỗi Huấn luyện viên chỉ được phân công chuyên môn thuộc DUY NHẤT 1 bộ môn (chỉ Yoga, chỉ Boxing hoặc chỉ Gym). Không được chọn chéo nhiều bộ môn.',
           );
         }
       }

@@ -546,11 +546,9 @@ function StaffForm({
   const isSpecialtyIncompatible = (discCode?: string) => {
     const code = (discCode || '').toUpperCase()
     if (!code) return false
-    const hasGym = selectedDiscCodes.has('GYM')
-    const hasGroup = selectedDiscCodes.has('YOGA') || selectedDiscCodes.has('BOXING')
-    if (hasGym && (code === 'YOGA' || code === 'BOXING')) return true
-    if (hasGroup && code === 'GYM') return true
-    return false
+    if (selectedDiscCodes.size === 0) return false
+    // Quy định: HLV chỉ thuộc 1 bộ môn duy nhất. Chọn bộ môn nào sẽ khóa tất cả các bộ môn khác.
+    return !selectedDiscCodes.has(code)
   }
 
   const toggleSpecialty = (id: string) => {
@@ -1066,7 +1064,7 @@ function StaffForm({
             {isCoachForm && (
               <Field
                 label="Chuyên môn đảm nhiệm"
-                hint="HLV chỉ được phân lịch và nhận dạy thay các chuyên đề đã chọn"
+                hint="Mỗi HLV chỉ thuộc 1 bộ môn (Yoga chỉ Yoga, Boxing chỉ Boxing, Gym chỉ Gym). Chọn chuyên môn nào sẽ tự động khóa các bộ môn khác."
               >
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                   {activeSpecialties.map((s) => {

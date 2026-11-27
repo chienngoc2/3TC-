@@ -2533,15 +2533,12 @@ export class CoachesService {
       if (sUpper.includes('BOXING')) currentDisciplineCodes.add('BOXING');
     }
 
-    if (currentDisciplineCodes.has('GYM') && (targetCode === 'YOGA' || targetCode === 'BOXING')) {
-      throw new BadRequestException(
-        'Huấn luyện viên chuyên môn Gym & Fitness không thể đăng ký dạy thêm chuyên đề thuộc bộ môn Yoga hoặc Boxing.',
-      );
-    }
-    if ((currentDisciplineCodes.has('YOGA') || currentDisciplineCodes.has('BOXING')) && targetCode === 'GYM') {
-      throw new BadRequestException(
-        'Huấn luyện viên Yoga / Boxing không thể đăng ký dạy thêm chuyên môn Gym & Fitness (PT Gym).',
-      );
+    for (const curDisc of currentDisciplineCodes) {
+      if (curDisc && targetCode && curDisc !== targetCode) {
+        throw new BadRequestException(
+          `Huấn luyện viên thuộc bộ môn ${curDisc} chỉ được đăng ký chuyên đề thuộc bộ môn ${curDisc} (không được đăng ký chéo sang ${targetCode}).`,
+        );
+      }
     }
 
     const pending = await (this.prisma as any).coachTopicRequest.findFirst({
@@ -2615,15 +2612,12 @@ export class CoachesService {
           .map((cs) => cs.specialty?.discipline?.code?.toUpperCase())
           .filter(Boolean),
       );
-      if (
-        (existingCodes.has('GYM') &&
-          (targetCode === 'YOGA' || targetCode === 'BOXING')) ||
-        ((existingCodes.has('YOGA') || existingCodes.has('BOXING')) &&
-          targetCode === 'GYM')
-      ) {
-        throw new BadRequestException(
-          'Không thể duyệt chuyên đề trái nhóm ngành (HLV Gym không được dạy lớp Nhóm và ngược lại).',
-        );
+      for (const curDisc of existingCodes) {
+        if (curDisc && targetCode && curDisc !== targetCode) {
+          throw new BadRequestException(
+            `Không thể duyệt chuyên đề khác bộ môn (HLV thuộc bộ môn ${curDisc} không thể nhận chuyên đề ${targetCode}). Mỗi HLV chỉ phụ trách duy nhất 1 bộ môn.`,
+          );
+        }
       }
     }
 

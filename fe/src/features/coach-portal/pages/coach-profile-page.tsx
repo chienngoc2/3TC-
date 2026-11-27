@@ -275,12 +275,8 @@ export const CoachProfilePage: React.FC = () => {
     if (!requestSpecialtyId) return false;
     const selectedSpec = (allSpecialtiesQuery.data || []).find((s: any) => s.id === requestSpecialtyId);
     const tCode = selectedSpec?.discipline?.code?.toUpperCase();
-    const isGymCoach = coachDisciplineCodes.has('GYM');
-    const isYogaOrBoxingCoach = coachDisciplineCodes.has('YOGA') || coachDisciplineCodes.has('BOXING');
-    return (
-      (isGymCoach && (tCode === 'YOGA' || tCode === 'BOXING')) ||
-      (isYogaOrBoxingCoach && tCode === 'GYM')
-    );
+    if (!tCode || coachDisciplineCodes.size === 0) return false;
+    return !coachDisciplineCodes.has(tCode);
   }, [requestSpecialtyId, allSpecialtiesQuery.data, coachDisciplineCodes]);
 
   // Update Profile Mutation
@@ -1622,10 +1618,7 @@ l
                       );
                       if (alreadyHas) return false;
                       const tCode = s.discipline?.code?.toUpperCase();
-                      const isGymCoach = coachDisciplineCodes.has('GYM');
-                      const isYogaOrBoxingCoach = coachDisciplineCodes.has('YOGA') || coachDisciplineCodes.has('BOXING');
-                      if (isGymCoach && (tCode === 'YOGA' || tCode === 'BOXING')) return false;
-                      if (isYogaOrBoxingCoach && tCode === 'GYM') return false;
+                      if (coachDisciplineCodes.size > 0 && !coachDisciplineCodes.has(tCode)) return false;
                       return true;
                     })
                     .map((s: any) => (
@@ -1639,18 +1632,12 @@ l
                   if (!requestSpecialtyId) return null;
                   const selectedSpec = (allSpecialtiesQuery.data || []).find((s: any) => s.id === requestSpecialtyId);
                   const tCode = selectedSpec?.discipline?.code?.toUpperCase();
-                  const isGymCoach = coachDisciplineCodes.has('GYM');
-                  const isYogaOrBoxingCoach = coachDisciplineCodes.has('YOGA') || coachDisciplineCodes.has('BOXING');
-                  const isIncompatible =
-                    (isGymCoach && (tCode === 'YOGA' || tCode === 'BOXING')) ||
-                    (isYogaOrBoxingCoach && tCode === 'GYM');
+                  const isIncompatible = coachDisciplineCodes.size > 0 && !coachDisciplineCodes.has(tCode);
 
                   if (!isIncompatible) return null;
                   return (
                     <div className="p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11.5px] leading-relaxed">
-                      ⚠️ <strong>Quy định trung tâm:</strong> {isGymCoach
-                        ? 'Huấn luyện viên chuyên môn Gym & Fitness không thể đăng ký dạy thêm chuyên đề Yoga hoặc Boxing.'
-                        : 'Huấn luyện viên Yoga / Boxing không thể đăng ký dạy thêm chuyên môn Gym & Fitness (PT Gym).'}
+                      ⚠️ <strong>Quy định trung tâm:</strong> Huấn luyện viên chỉ được đăng ký chuyên đề thuộc đúng bộ môn của mình (Yoga chỉ Yoga, Boxing chỉ Boxing, Gym chỉ Gym).
                     </div>
                   );
                 })()}
