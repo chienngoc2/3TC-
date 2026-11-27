@@ -12,27 +12,183 @@ export class EmailService {
   }
 
   private initTransporter() {
-    const host = this.config.get<string>('SMTP_HOST');
-    const user = this.config.get<string>('SMTP_USER');
-    const pass = this.config.get<string>('SMTP_PASS');
-    const port = this.config.get<number>('SMTP_PORT', 587);
+    const host = this.config.get<string>('SMTP_HOST')?.trim();
+    const user = this.config.get<string>('SMTP_USER')?.trim();
+    const rawPass = this.config.get<string>('SMTP_PASS')?.trim();
+    const pass = rawPass ? rawPass.replace(/\s+/g, '') : undefined;
+    const port = Number(this.config.get<number>('SMTP_PORT', 587)) || 587;
 
     if (host && user && pass) {
       try {
         this.transporter = nodemailer.createTransport({
           host,
-          port: Number(port),
-          secure: Number(port) === 465,
+          port,
+          secure: port === 465,
           auth: { user, pass },
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+          socketTimeout: 15000,
         });
-        this.logger.log(`SMTP configured with host: ${host}`);
+        this.logger.log(`SMTP configured with host: ${host}:${port} (user: ${user})`);
       } catch (err) {
         this.logger.error('Failed to initialize SMTP transporter', err);
       }
     } else {
+      const missing = [
+        !host && 'SMTP_HOST',
+        !user && 'SMTP_USER',
+        !pass && 'SMTP_PASS',
+      ].filter(Boolean);
       this.logger.warn(
-        'SMTP credentials not fully provided. Emails will be logged to console in formatted preview mode.',
+        `SMTP credentials not fully provided (missing: ${missing.join(', ')}). Emails will only be logged in preview mode.`,
       );
+    }
+  }
+
+  private getFromAddress(): string {
+    const configuredFrom = this.config.get<string>('SMTP_FROM')?.trim();
+    if (configuredFrom) return configuredFrom;
+    const user = this.config.get<string>('SMTP_USER')?.trim();
+    if (user) return `"3TC Fitness Center" <${user}>`;
+    return '"3TC Fitness Center" <noreply@3tcfitness.com>';
+  }
+
+  private parseFromParts(): { name: string; email: string } {
+    const raw = this.getFromAddress();
+    const match = raw.match(/^(?:"?([^"<]*)"?\s*)?<([^>]+)>$/);
+    if (match) {
+      return {
+        name: (match[1] || '3TC Fitness Center').trim(),
+        email: match[2].trim(),
+      };
+    }
+    return { name: '3TC Fitness Center', email: raw.replace(/["<>]/g, '').trim() };
+  }
+
+  private async deliverEmail(
+    toEmail: string,
+    subject: string,
+    htmlContent: string,
+  ): Promise<{ sent: boolean; error?: string }> {
+    const brevoKey = this.config.get<string>('BREVO_API_KEY')?.trim();
+    if (brevoKey) {
+      try {
+        const sender = this.parseFromParts();
+        const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': brevoKey,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({
+            sender,
+            to: [{ email: toEmail }],
+            subject,
+            htmlContent,
+          }),
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          const errMsg = `Brevo API ${res.status}: ${text || res.statusText}`;
+          this.logger.error(errMsg);
+          return { sent: false, error: errMsg };
+        }
+        this.logger.log(`Email sent via Brevo HTTPS API to ${toEmail}`);
+        return { sent: true };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Brevo API error';
+        this.logger.error(`Brevo HTTPS error sending to ${toEmail}:`, err);
+        return { sent: false, error: errMsg };
+      }
+    }
+
+    const resendKey = this.config.get<string>('RESEND_API_KEY')?.trim();
+    if (resendKey) {
+      try {
+        const res = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: this.getFromAddress(),
+            to: [toEmail],
+            subject,
+            html: htmlContent,
+          }),
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          const errMsg = `Resend API ${res.status}: ${text || res.statusText}`;
+          this.logger.error(errMsg);
+          return { sent: false, error: errMsg };
+        }
+        this.logger.log(`Email sent via Resend HTTPS API to ${toEmail}`);
+        return { sent: true };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Resend API error';
+        this.logger.error(`Resend HTTPS error sending to ${toEmail}:`, err);
+        return { sent: false, error: errMsg };
+      }
+    }
+
+    const webhookUrl = this.config.get<string>('EMAIL_WEBHOOK_URL')?.trim();
+    if (webhookUrl) {
+      try {
+        const res = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: toEmail,
+            subject,
+            html: htmlContent,
+            from: this.getFromAddress(),
+          }),
+          signal: AbortSignal.timeout(12000),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          const errMsg = `Email webhook ${res.status}: ${text || res.statusText}`;
+          this.logger.error(errMsg);
+          return { sent: false, error: errMsg };
+        }
+        this.logger.log(`Email sent via EMAIL_WEBHOOK_URL to ${toEmail}`);
+        return { sent: true };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Email webhook error';
+        this.logger.error(`Email webhook error sending to ${toEmail}:`, err);
+        return { sent: false, error: errMsg };
+      }
+    }
+
+    if (!this.transporter) {
+      return {
+        sent: false,
+        error:
+          'Máy chủ chưa cấu hình kênh gửi mail (BREVO_API_KEY / RESEND_API_KEY / EMAIL_WEBHOOK_URL hoặc SMTP).',
+      };
+    }
+
+    try {
+      const info = await this.transporter.sendMail({
+        from: this.getFromAddress(),
+        to: toEmail,
+        subject,
+        html: htmlContent,
+      });
+      this.logger.log(
+        `Email sent via SMTP to ${toEmail} (messageId: ${info.messageId})`,
+      );
+      return { sent: true };
+    } catch (error) {
+      const errMsg =
+        error instanceof Error ? error.message : 'Lỗi kết nối SMTP';
+      this.logger.error(`SMTP error sending email to ${toEmail}:`, error);
+      return { sent: false, error: errMsg };
     }
   }
 
@@ -67,23 +223,8 @@ export class EmailService {
 
     this.logger.log(`\n============================================================\n[EMAIL OUTBOX: OTP]\nTo: ${toEmail}\nSubject: ${subject}\nOTP CODE: [ ${otpCode} ] (expires in 5 mins)\n============================================================`);
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>('SMTP_FROM', '"3TC Fitness Center" <noreply@3tcfitness.com>');
-        await this.transporter.sendMail({
-          from,
-          to: toEmail,
-          subject,
-          html: htmlContent,
-        });
-        this.logger.log(`OTP email sent successfully to ${toEmail}`);
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending OTP email to ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    const result = await this.deliverEmail(toEmail, subject, htmlContent);
+    return result.sent;
   }
 
   async sendDefaultAccountEmail(
@@ -128,23 +269,8 @@ export class EmailService {
 
     this.logger.log(`\n============================================================\n[EMAIL OUTBOX: DEFAULT ACCOUNT CREDENTIALS]\nTo: ${toEmail}\nSubject: ${subject}\nUsername: ${toEmail}\nDefault Password: [ ${defaultPassword} ]\n============================================================`);
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>('SMTP_FROM', '"3TC Fitness Center" <noreply@3tcfitness.com>');
-        await this.transporter.sendMail({
-          from,
-          to: toEmail,
-          subject,
-          html: htmlContent,
-        });
-        this.logger.log(`Default credentials email sent successfully to ${toEmail}`);
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending credentials email to ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    const result = await this.deliverEmail(toEmail, subject, htmlContent);
+    return result.sent;
   }
 
   async sendStaffAccountCredentialsEmail(
@@ -156,6 +282,22 @@ export class EmailService {
       role: string;
     },
   ): Promise<boolean> {
+    const result = await this.sendStaffAccountCredentialsEmailWithStatus(
+      toEmail,
+      credentials,
+    );
+    return result.sent;
+  }
+
+  async sendStaffAccountCredentialsEmailWithStatus(
+    toEmail: string,
+    credentials: {
+      fullName: string;
+      systemEmail: string;
+      password: string;
+      role: string;
+    },
+  ): Promise<{ sent: boolean; error?: string }> {
     const roleLabel =
       credentials.role === 'COACH'
         ? 'Huấn luyện viên'
@@ -215,26 +357,7 @@ export class EmailService {
       `============================================================`,
     );
 
-    if (this.transporter) {
-      try {
-        const from = this.config.get<string>(
-          'SMTP_FROM',
-          '"3TC Fitness Center" <noreply@3tcfitness.com>',
-        );
-        await this.transporter.sendMail({
-          from,
-          to: toEmail,
-          subject,
-          html: htmlContent,
-        });
-        this.logger.log(`Credentials email sent successfully to ${toEmail}`);
-        return true;
-      } catch (error) {
-        this.logger.error(`Error sending credentials email to ${toEmail}:`, error);
-        return false;
-      }
-    }
-    return true;
+    return this.deliverEmail(toEmail, subject, htmlContent);
   }
 
   async sendClassAutoCancelledMemberEmail(

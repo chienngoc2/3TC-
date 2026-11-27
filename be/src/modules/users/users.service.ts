@@ -158,21 +158,36 @@ export class UsersService {
       };
     });
 
-    const targetEmail = dto.personalEmail?.trim() || dto.email?.trim().toLowerCase();
+    const targetEmail = pEmail || dto.email?.trim().toLowerCase();
+    let emailSent = false;
+    let emailError: string | null = null;
     if (targetEmail) {
-      this.emailService
-        .sendStaffAccountCredentialsEmail(targetEmail, {
-          fullName: dto.fullName,
-          systemEmail: dto.email.trim().toLowerCase(),
-          password: dto.password,
-          role: dto.role,
-        })
-        .catch((err) => {
-          this.logger.error(`Error sending credentials email to ${targetEmail}:`, err);
-        });
+      try {
+        const result =
+          await this.emailService.sendStaffAccountCredentialsEmailWithStatus(
+            targetEmail,
+            {
+              fullName: dto.fullName,
+              systemEmail: dto.email.trim().toLowerCase(),
+              password: dto.password,
+              role: dto.role,
+            },
+          );
+        emailSent = result.sent;
+        emailError = result.error ?? null;
+      } catch (err) {
+        emailSent = false;
+        emailError =
+          err instanceof Error ? err.message : 'Lỗi không xác định khi gửi email';
+        this.logger.error(`Error sending credentials email to ${targetEmail}:`, err);
+      }
     }
 
-    return created;
+    return {
+      ...created,
+      emailSent,
+      emailError,
+    };
   }
 
   async changePassword(
