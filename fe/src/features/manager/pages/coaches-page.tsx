@@ -296,7 +296,7 @@ export function ManagerCoachesPage() {
       {viewingCoachId && (
         <Modal
           wide
-          className="max-w-3xl"
+          className="max-w-4xl"
           title={`Bảng kê ca dạy — ${detailsQuery.data?.coachName || 'HLV'}`}
           onClose={() => setViewingCoachId(null)}
           footer={<Btn onClick={() => setViewingCoachId(null)}>Đóng</Btn>}
