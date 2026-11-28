@@ -495,6 +495,22 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     )
   }, [bookings, slotDateStr, activePtDisciplineId])
 
+  // Check if member already has an active booking for this day and discipline (Group Class)
+  const scheduleDisciplineId = scheduleData?.class?.disciplineId || scheduleData?.disciplineId || ''
+  const existingGroupDayBooking = useMemo(() => {
+    if (!bookings || !slotDateStr || !scheduleDisciplineId || event?.type !== 'SCHEDULE') return null
+    return (
+      bookings.find((b) => {
+        if (b.status === 'CANCELLED') return false
+        const bDate = formatDateToYMD(new Date(b.startAt))
+        return (
+          bDate === slotDateStr &&
+          (b.disciplineId === scheduleDisciplineId || b.discipline?.id === scheduleDisciplineId)
+        )
+      }) || null
+    )
+  }, [bookings, slotDateStr, scheduleDisciplineId, event?.type])
+
   // Resolve current active package name for top tab
   const packageName = useMemo(() => {
     return (
@@ -1190,6 +1206,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   isSubmitting ||
                   isStarted ||
                   Boolean(overlappingBooking) ||
+                  Boolean(existingGroupDayBooking) ||
                   scheduleData.currentEnrolled >= scheduleData.capacity ||
                   !matchingGroupSub
                 }
@@ -1198,6 +1215,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   'py-2 px-5 rounded-xl text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer',
                   isStarted ||
                     Boolean(overlappingBooking) ||
+                    Boolean(existingGroupDayBooking) ||
                     scheduleData.currentEnrolled >= scheduleData.capacity ||
                     !matchingGroupSub
                     ? 'bg-slate-400 cursor-not-allowed'
@@ -1210,6 +1228,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                     ? 'Buổi tập đã qua giờ'
                     : overlappingBooking
                     ? 'Trùng giờ với lịch đã đặt'
+                    : existingGroupDayBooking
+                    ? 'Đã đặt 1 ca môn này trong ngày'
                     : scheduleData.currentEnrolled >= scheduleData.capacity
                     ? 'Lớp đã đủ người'
                     : hasDifferentStarSub

@@ -393,6 +393,29 @@ export class BookingsService {
         'SESSION_UNAVAILABLE',
       );
       await this.noOverlap(tx, memberId, schedule.startTime, schedule.endTime);
+
+      // Quy định nghiệp vụ: Mỗi ngày, cùng 1 bộ môn chỉ được đặt tối đa 1 slot
+      const localDay = localDate(schedule.startTime);
+      const dayStart = new Date(localDay.getTime() - 7 * 3600000);
+      const dayEnd = new Date(dayStart.getTime() + 86400000);
+      const sameDayDisciplineBooking = await tx.booking.findFirst({
+        where: {
+          memberId,
+          disciplineId: schedule.class.disciplineId,
+          status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED'] },
+          OR: [
+            { schedule: { startTime: { gte: dayStart, lt: dayEnd } } },
+            { coachAvailability: { startTime: { gte: dayStart, lt: dayEnd } } },
+          ],
+        },
+        select: { id: true },
+      });
+      if (sameDayDisciplineBooking) {
+        throw new ConflictException(
+          'Mỗi ngày bạn chỉ được đặt tối đa 1 ca tập cho cùng một bộ môn.',
+        );
+      }
+
       const coachStars = schedule.coach?.coachProfile?.ratingStars ?? 3;
       const sub = await this.quota(
         tx,
@@ -589,6 +612,28 @@ export class BookingsService {
         });
         const dayBlock = ptDayBlockReason(sameDay);
         if (dayBlock) throw new ConflictException(dayBlock);
+      } else {
+        // Quy định nghiệp vụ: Mỗi ngày, cùng 1 bộ môn chỉ được đặt tối đa 1 slot
+        const localDay = localDate(initial.startTime);
+        const dayStart = new Date(localDay.getTime() - 7 * 3600000);
+        const dayEnd = new Date(dayStart.getTime() + 86400000);
+        const sameDayActive = await tx.booking.findFirst({
+          where: {
+            memberId,
+            disciplineId: dto.disciplineId,
+            status: { in: ['CONFIRMED', 'PENDING', 'ATTENDED'] },
+            OR: [
+              { schedule: { startTime: { gte: dayStart, lt: dayEnd } } },
+              { coachAvailability: { startTime: { gte: dayStart, lt: dayEnd } } },
+            ],
+          },
+          select: { id: true },
+        });
+        if (sameDayActive) {
+          throw new ConflictException(
+            'Mỗi ngày bạn chỉ được đặt tối đa 1 ca tập cho cùng một bộ môn.',
+          );
+        }
       }
 
       if (initial.isBooked) {
