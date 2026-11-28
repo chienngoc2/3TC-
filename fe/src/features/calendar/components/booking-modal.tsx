@@ -34,6 +34,8 @@ const BACKEND_ERROR_MESSAGES: Record<string, string> = {
     'Hôm nay bạn đã hủy muộn 1 ca PT cho bộ môn này. Theo quy định của trung tâm, bạn không thể đặt lại ca tập khác trong cùng ngày.',
   PT_ALREADY_BOOKED_FOR_DISCIPLINE_DAY:
     'Bạn đã có 1 ca tập PT trong ngày cho bộ môn này. Mỗi ngày chỉ được đặt tối đa 1 buổi PT cho cùng một môn.',
+  GROUP_ALREADY_BOOKED_FOR_DISCIPLINE_DAY:
+    'Bạn đã đặt 1 ca tập trong ngày cho bộ môn này. Mỗi ngày chỉ được đặt tối đa 1 buổi cho cùng một môn.',
   NO_VALID_SUBSCRIPTION_OR_QUOTA:
     'Bạn không có gói tập hợp lệ hoặc đã hết lượt tập cho bộ môn/HLV này. Vui lòng kiểm tra lại thời hạn và số buổi còn lại.',
   QUOTA_EXHAUSTED: 'Gói tập của bạn đã hết số lượt tập. Vui lòng gia hạn hoặc đăng ký gói mới.',

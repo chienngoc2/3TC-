@@ -408,8 +408,9 @@ export class MemberCalendarService {
       });
     });
 
-    // Pre-index PT bookings by (localDateMs:disciplineId) for O(1) day eligibility lookup
+    // Pre-index PT & Group bookings by (localDateMs:disciplineId) for O(1) day eligibility lookup
     const sameDayPtMap = new Map<string, typeof bookings>();
+    const sameDayDisciplineMap = new Map<string, typeof bookings>();
     for (const booking of bookings) {
       if (
         booking.bookingType === 'PERSONAL_TRAINING' &&
@@ -420,6 +421,14 @@ export class MemberCalendarService {
         const list = sameDayPtMap.get(key);
         if (list) list.push(booking);
         else sameDayPtMap.set(key, [booking]);
+      }
+      const startTime =
+        booking.schedule?.startTime ?? booking.coachAvailability?.startTime;
+      if (booking.disciplineId && startTime) {
+        const key = `${localDate(startTime).getTime()}:${booking.disciplineId}`;
+        const list = sameDayDisciplineMap.get(key);
+        if (list) list.push(booking);
+        else sameDayDisciplineMap.set(key, [booking]);
       }
     }
 
@@ -442,16 +451,29 @@ export class MemberCalendarService {
           ? (sameDayPtMap.get(`${dateMs}:${sub.disciplineId}`) ?? [])
           : [];
         const dayBlock = ptDayBlockReason(sameDayPt);
+
+        const sameDayAll = sub.disciplineId
+          ? (sameDayDisciplineMap.get(`${dateMs}:${sub.disciplineId}`) ?? [])
+          : [];
+        const hasActiveSameDay = sameDayAll.some(
+          (b) => b.status !== 'CANCELLED',
+        );
+
         return {
           subscriptionId: sub.id,
           disciplineId: sub.disciplineId,
           group: {
-            allowed: gymActive && (sub.remainingGroupSessions ?? 0) > 0,
+            allowed:
+              gymActive &&
+              (sub.remainingGroupSessions ?? 0) > 0 &&
+              !hasActiveSameDay,
             reason: !gymActive
               ? 'SUBSCRIPTION_NOT_ACTIVE_ON_DAY'
               : (sub.remainingGroupSessions ?? 0) <= 0
                 ? 'GROUP_QUOTA_EXHAUSTED'
-                : null,
+                : hasActiveSameDay
+                  ? 'GROUP_ALREADY_BOOKED_FOR_DISCIPLINE_DAY'
+                  : null,
           },
           pt: {
             allowed: ptActive && !dayBlock,
