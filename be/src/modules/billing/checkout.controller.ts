@@ -33,6 +33,20 @@ import {
 export class CheckoutController {
   constructor(private readonly checkout: CheckoutService) {}
 
+  private resolveFrontendOrigin(origin?: string, referer?: string): string | undefined {
+    const candidate = origin || referer;
+    if (!candidate) return undefined;
+    try {
+      const parsed = new URL(candidate);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return parsed.origin;
+      }
+    } catch {
+      return undefined;
+    }
+    return undefined;
+  }
+
   @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
   @Get('billing/quotations/vip')
   vipQuote(
@@ -58,8 +72,15 @@ export class CheckoutController {
     @Body() dto: CreateCheckoutDto,
     @Headers('idempotency-key') key: string,
     @CurrentUser() actor: Actor,
+    @Headers('origin') origin?: string,
+    @Headers('referer') referer?: string,
   ) {
-    return this.checkout.create(dto, key, actor);
+    return this.checkout.create(
+      dto,
+      key,
+      actor,
+      this.resolveFrontendOrigin(origin, referer),
+    );
   }
 
   @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)
@@ -80,8 +101,15 @@ export class CheckoutController {
     @Param('id', ParseUUIDPipe) id: string,
     @Headers('idempotency-key') key: string,
     @CurrentUser() actor: Actor,
+    @Headers('origin') origin?: string,
+    @Headers('referer') referer?: string,
   ) {
-    return this.checkout.retry(id, key, actor);
+    return this.checkout.retry(
+      id,
+      key,
+      actor,
+      this.resolveFrontendOrigin(origin, referer),
+    );
   }
 
   @Roles(UserRole.MEMBER, UserRole.RECEPTIONIST, UserRole.CENTER_MANAGER)

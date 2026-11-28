@@ -100,12 +100,20 @@ export class PayosService {
     amount: number;
     description: string;
     checkoutId: string;
+    origin?: string;
     items?: Array<{ name: string; quantity: number; price: number }>;
   }): Promise<PayosCreateLinkResult | null> {
     if (!this.payosClient) {
       this.logger.warn('PayOS client not configured, cannot create payment link');
       return null;
     }
+
+    const baseReturn = params.origin
+      ? `${params.origin.replace(/\/$/, '')}/portal/member/checkout`
+      : this.returnUrl;
+    const baseCancel = params.origin
+      ? `${params.origin.replace(/\/$/, '')}/portal/member/checkout`
+      : this.cancelUrl;
 
     try {
       const timeoutPromise = new Promise<never>((_, reject) =>
@@ -116,8 +124,8 @@ export class PayosService {
           orderCode: params.orderCode,
           amount: Math.round(params.amount),
           description: params.description.slice(0, 25),
-          returnUrl: `${this.returnUrl}/${params.checkoutId}`,
-          cancelUrl: `${this.cancelUrl}/${params.checkoutId}`,
+          returnUrl: `${baseReturn}/${params.checkoutId}`,
+          cancelUrl: `${baseCancel}/${params.checkoutId}`,
           items: params.items,
         }),
         timeoutPromise,

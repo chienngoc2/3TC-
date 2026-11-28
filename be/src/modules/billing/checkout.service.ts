@@ -181,7 +181,12 @@ export class CheckoutService {
     return order;
   }
 
-  async create(dto: CreateCheckoutDto, keyValue: string, actor: Actor) {
+  async create(
+    dto: CreateCheckoutDto,
+    keyValue: string,
+    actor: Actor,
+    frontendOrigin?: string,
+  ) {
     const key = this.key(keyValue);
     const targetMemberId: string =
       actor.role === UserRole.RECEPTIONIST ||
@@ -477,6 +482,7 @@ export class CheckoutService {
             amount: Number(amount),
             description,
             checkoutId,
+            origin: frontendOrigin,
             items: [
               {
                 name: String(snapshot.planName ?? 'Goi tap').slice(0, 50),
@@ -615,7 +621,12 @@ export class CheckoutService {
     };
   }
 
-  async retry(id: string, keyValue: string, actor: Actor) {
+  async retry(
+    id: string,
+    keyValue: string,
+    actor: Actor,
+    frontendOrigin?: string,
+  ) {
     const key = this.key(keyValue);
     const result = await this.transactions.run(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`checkout:${id}`}))`;
@@ -651,6 +662,7 @@ export class CheckoutService {
             amount: Number(order.amount),
             description,
             checkoutId: order.id,
+            origin: frontendOrigin,
           });
         } catch (error) {
           this.logger.error(
